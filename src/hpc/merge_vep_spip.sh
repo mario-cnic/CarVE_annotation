@@ -19,6 +19,9 @@ BRANCHPOINT=${7:-""}
 
 BCFTOOLS=/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools
 if [ ! -x "$BCFTOOLS" ]; then
+    BCFTOOLS=/home/mruizp/apps/miniforge3/envs/genomics/bin/bcftools
+fi
+if [ ! -x "$BCFTOOLS" ]; then
     BCFTOOLS=/home/mruizp/conda_envs/spliceai_env/bin/bcftools
 fi
 if [ ! -x "$BCFTOOLS" ]; then
@@ -27,6 +30,9 @@ fi
 
 TABIX=/data_lab_PGP/shared/utils/conda_envs/genomics/bin/tabix
 if [ ! -x "$TABIX" ]; then
+    TABIX=/home/mruizp/apps/miniforge3/envs/genomics/bin/tabix
+fi
+if [ ! -x "$TABIX" ]; then
     TABIX=/home/mruizp/conda_envs/spliceai_env/bin/tabix
 fi
 if [ ! -x "$TABIX" ]; then
@@ -34,6 +40,9 @@ if [ ! -x "$TABIX" ]; then
 fi
 
 BGZIP=/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bgzip
+if [ ! -x "$BGZIP" ]; then
+    BGZIP=/home/mruizp/apps/miniforge3/envs/genomics/bin/bgzip
+fi
 if [ ! -x "$BGZIP" ]; then
     BGZIP=/home/mruizp/conda_envs/spliceai_env/bin/bgzip
 fi
