@@ -27,12 +27,15 @@ if [ ! -f "$FILTER_VARIANTS" ]; then
     FILTER_VARIANTS=/home/mruizp/data_lab_PGP/shared/utils/src/filter_variants.py
 fi
 
-if [ -f "resources/all_but_old_gnomad_vep_cols.txt" ]; then
-    COLUMNS="resources/all_but_old_gnomad_vep_cols.txt"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PIPELINE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+if [ -f "$PIPELINE_ROOT/resources/all_but_old_gnomad_vep_cols.txt" ]; then
+    VEP_COLS_FILE="$PIPELINE_ROOT/resources/all_but_old_gnomad_vep_cols.txt"
 elif [ -f "/data_lab_PGP/shared/utils/data/vcf_all_columns.txt" ]; then
-    COLUMNS=/data_lab_PGP/shared/utils/data/vcf_all_columns.txt
+    VEP_COLS_FILE="/data_lab_PGP/shared/utils/data/vcf_all_columns.txt"
 else
-    COLUMNS=/home/mruizp/data_lab_PGP/shared/utils/data/vcf_all_columns.txt
+    VEP_COLS_FILE=/home/mruizp/data_lab_PGP/shared/utils/data/vcf_all_columns.txt
 fi
 
 LOG_LEVEL=INFO
@@ -62,6 +65,8 @@ export OMP_NUM_THREADS=1
 export MKL_NUM_THREADS=1
 export OPENBLAS_NUM_THREADS=1
 export ARROW_IO_THREADS=1
+
+VCF_PARSER_PYTHONPATH="/data_lab_PGP/shared/utils/conda_envs/vcf_parser/lib/python3.13/site-packages:/home/mruizp/data_lab_PGP/shared/utils/conda_envs/vcf_parser/lib/python3.13/site-packages:${PYTHONPATH:-}"
 
 # ----------------- Logger Setup -----------------
 LOGGER_SCRIPT="src/hpc/logger.sh"
@@ -105,10 +110,10 @@ echo "==========================================================================
 
 # Step A: Parse Annotated VCF into fast local scratch buffer
 echo "Stage 1/2: Parsing annotated VCF fields..."
-run_command_timed $VCF_PARSER_PYTHON $VCF_PARSER \
+PYTHONPATH="$VCF_PARSER_PYTHONPATH" run_command_timed $VCF_PARSER_PYTHON $VCF_PARSER \
     --input "$INPUT" \
     --output "$TMP_SCRATCH_TSV" \
-    --vep_columns "$COLUMNS" \
+    --vep_columns "$VEP_COLS_FILE" \
     --add_info --add_vep --overwrite \
     --logging_level "$LOG_LEVEL" \
     ${GENE_SUBSET:+--gene_set "$GENE_SUBSET"} \
