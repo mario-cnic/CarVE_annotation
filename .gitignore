@@ -1,0 +1,37 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Large execution outputs and run directories
+RUNS/
+_tmp/
+_log/
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.pq
+*.parquet
+*.tsv
+*.xlsx
+*.csv
+!resources/**/*.tsv
+!resources/**/*.txt
+!resources/**/*.bed
+!resources/**/*.yml
+!resources/**/*.def
+!resources/**/*.md
+
+*.log
+trash/
+*.pdf
+
+# Container binaries
+*.sif
+
+# Temporary and editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
