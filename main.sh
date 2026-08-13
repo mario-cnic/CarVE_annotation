@@ -214,7 +214,6 @@ for input_file in "$RAW_MASTER_DIR"/*; do
 
     mkdir -p "$ERROR_LOG_DIR/$gene_name"
     final_output_file="$RESULTS_MASTER_DIR/${gene_name}.parsed.clean.${OUTPUT_FORMAT}"
-    final_tsv_file="$RESULTS_MASTER_DIR/${gene_name}.parsed.tsv"
 
     Transcript=$(grep -w "$gene_name" "$GENE_TRANSCRIPT_MAPPING" | cut -d',' -f3 || true)
     if [ -z "$Transcript" ]; then
@@ -233,7 +232,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.varconv.out" \
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.varconv.err" \
         -b y bash src/hpc/variant_converter.sh "$input_file" "$vcf_file" --build "$INPUT_BUILD" "$COLUMN_PARAM" | awk '{print $3}')
-    echo "  [1/6] Submitted variant_converter job: $var_conv_job"
+    echo "  [1/8] Submitted variant_converter job: $var_conv_job"
 
     # Step 2.1: SPiP Annotation (direct from VCF.gz)
     spip_vcf="$ANNOTATION_MASTER_DIR/${gene_name}.annSPiP.vcf"
@@ -253,18 +252,18 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         -b y bash src/hpc/annotate_vep_vars.sh "$vcf_gz" "$vep_vcf" | awk '{print $3}')
     echo "  [3/8] Submitted VEP annotation job: $vep_job"
 
-    # Step 2.3: Pangolin Splicing Predictor
+    # Step 2.3: Pangolin Splicing Predictor (direct from VCF.gz)
     pangolin_vcf="$ANNOTATION_MASTER_DIR/${gene_name}.annPangolin.vcf.gz"
-    pangolin_job=$(qsub -N "pangolin_${gene_name}" -P BIGN -A PGP -l h_vmem=16G -pe smp 4 \
+    pangolin_job=$(qsub -N "pangolin_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
         -hold_jid "$var_conv_job" \
         -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.pangolin.out" \
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.pangolin.err" \
         -b y bash src/hpc/annotate_pangolin_vars.sh "$vcf_gz" "$pangolin_vcf" | awk '{print $3}')
     echo "  [4/8] Submitted Pangolin annotation job: $pangolin_job"
 
-    # Step 2.4: SpliceAI Local (-D 10000)
+    # Step 2.4: SpliceAI Predictor (Local -D 10000)
     spliceai_vcf="$ANNOTATION_MASTER_DIR/${gene_name}.annSpliceAI.vcf.gz"
-    spliceai_job=$(qsub -N "spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=16G -pe smp 4 \
+    spliceai_job=$(qsub -N "spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
         -hold_jid "$var_conv_job" \
         -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.out" \
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.err" \
@@ -290,23 +289,15 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         -b y bash src/hpc/merge_vep_spip.sh "$spip_vcf.gz" "$vep_vcf" "$final_annotated_vcf" "$large_sv_vcf" "$pangolin_vcf" "$spliceai_vcf" "$branchpoint_vcf" | awk '{print $3}')
     echo "  [7/8] Submitted multi-predictor merge job: $merge_ann_job"
 
-    # Step 4: VCF to TSV
-    vcf2tsv_job=$(qsub -N "vcf2tsv_${gene_name}" -P BIGN -A PGP -l h_vmem=80G -pe smp 1 \
+    # Step 4: Direct VCF to Final Clean Table (Parquet/Excel/TSV)
+    vcf2parsed_job=$(qsub -N "vcf2parsed_${gene_name}" -P BIGN -A PGP -l h_vmem=80G -pe smp 1 \
         -hold_jid "$merge_ann_job" \
-        -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2tsv.out" \
-        -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2tsv.err" \
-        -b y bash src/hpc/vcf2tsv.sh "$final_annotated_vcf" "$final_tsv_file" "$Transcript" | awk '{print $3}')
-    echo "  [5/6] Submitted vcf2tsv job: $vcf2tsv_job"
+        -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2parsed.out" \
+        -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2parsed.err" \
+        -b y bash src/hpc/vcf2parsed.sh "$final_annotated_vcf" "$final_output_file" "$Transcript" | awk '{print $3}')
+    echo "  [8/8] Submitted direct vcf2parsed job: $vcf2parsed_job"
 
-    # Step 5: TSV to final Output Format (Parquet/Excel)
-    tsv2xlsx_job=$(qsub -N "tsv2out_${gene_name}" -P BIGN -A PGP -l h_vmem=80G -pe smp 1 \
-        -hold_jid "$vcf2tsv_job" \
-        -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.tsv2out.out" \
-        -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.tsv2out.err" \
-        -b y bash src/hpc/tsv2xlsx.sh "$final_tsv_file" "$final_output_file" | awk '{print $3}')
-    echo "  [6/6] Submitted tsv2output job: $tsv2xlsx_job"
-
-    # Step 8: Downstream Filtering & Graph Generation
+    # Step 5: Downstream Filtering & Graph Generation
     filter_flags="--input $final_output_file --output-dir $FILTERED_MASTER_DIR"
     [ -n "$MAX_AF" ] && filter_flags="$filter_flags --max-af $MAX_AF"
     [ -n "$MIN_REVEL" ] && filter_flags="$filter_flags --min-revel $MIN_REVEL"
@@ -316,7 +307,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     [ -n "$CONSEQUENCES" ] && filter_flags="$filter_flags --consequences \"$CONSEQUENCES\""
 
     filter_job=$(qsub -N "filter_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
-        -hold_jid "$tsv2xlsx_job" \
+        -hold_jid "$vcf2parsed_job" \
         -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.out" \
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.err" \
         -b y $PYTHON_EXE src/python/filter_and_summarize.py $filter_flags | awk '{print $3}')
@@ -325,7 +316,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         -hold_jid "$filter_job" \
         -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.plot.out" \
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.plot.err" \
-        -b y $R_EXE src/R/plot_annotation_results.R --input "$final_tsv_file" --output-dir "$PLOTS_MASTER_DIR" | awk '{print $3}')
+        -b y $R_EXE src/R/plot_annotation_results.R --input "$final_output_file" --output-dir "$PLOTS_MASTER_DIR" | awk '{print $3}')
 
     report_job=$(qsub -N "report_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
         -hold_jid "$filter_job" \

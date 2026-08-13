@@ -33,7 +33,18 @@ if (is.null(input_file)) {
 dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
 
 message("Reading input data from ", input_file, "...")
-df <- read_tsv(input_file, show_col_types = FALSE)
+if (grepl("\\.pq$|\\.parquet$", input_file)) {
+  if (requireNamespace("arrow", quietly = TRUE)) {
+    df <- arrow::read_parquet(input_file)
+  } else {
+    temp_tsv <- tempfile(fileext = ".tsv")
+    system(paste("python3 -c \"import pandas as pd; pd.read_parquet('", input_file, "').to_csv('", temp_tsv, "', sep='\\t', index=False)\"", sep = ""))
+    df <- read_tsv(temp_tsv, show_col_types = FALSE)
+    unlink(temp_tsv)
+  }
+} else {
+  df <- read_tsv(input_file, show_col_types = FALSE)
+}
 
 # Color Palette Definitions
 theme_publication <- theme_minimal(base_size = 14) +
