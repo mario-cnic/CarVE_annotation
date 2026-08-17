@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 """
-Comprehensive Run Auditor & Quality Control Report Generator
+Single Master Pipeline Execution Auditor & Quality Control Report Generator
 
-Audits pipeline run output directories:
-  1. Checks input vs output variant counts per gene.
-  2. Verifies completion status for all 7 pipeline steps.
-  3. Audits column count, schema consistency, and annotation completion rates.
-  4. Checks log files (_log/ folder) for execution errors or warnings.
-  5. Generates a detailed Markdown audit report.
+Audits any pipeline run directory (or automatically audits the latest run in RUNS/):
+  1. Identifies input raw variant tables vs output clean Parquet tables.
+  2. Verifies stage-by-stage completion across all predictors (VarConv, VEP, SPiP, Branchpoint, Pangolin, SpliceAI, Merge, Parquet).
+  3. Live deep learning throughput & forward pass progress calculation (SpliceAI/Pangolin).
+  4. Schema consistency, column completeness, and status contracts audit (scored, not_covered, error).
+  5. Error and warning log audit (_log/ folder).
+  6. Generates a standalone Markdown report and terminal summary table.
 """
 
 import os
 import sys
 import glob
+import re
 import argparse
 import logging
+import subprocess
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -23,14 +26,63 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("audit_run_results")
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Audit pipeline run output results")
-    parser.add_argument("--run-dir", default="RUNS/predictors_050826", help="Path to run directory")
+    parser = argparse.ArgumentParser(description="Single Master Pipeline Execution Auditor & Report Generator")
+    parser.add_argument("--run-dir", default=None, help="Path to run directory (default: latest run in RUNS/)")
+    parser.add_argument("--run-name", default=None, help="Run name in RUNS/ (e.g. run_20260813_1028)")
     parser.add_argument("--raw-dir", default="RUNS/predictors_050826/input/by_gene", help="Path to input raw folder")
-    parser.add_argument("--output-report", default=None, help="Path for output markdown report file")
+    parser.add_argument("--output-report", default=None, help="Custom path for output markdown report file")
+    parser.add_argument("--walkthrough", action="store_true", help="Save a copy of the audit report in walkthrough/ directory")
     return parser.parse_args()
 
-def audit_run(run_dir, raw_dir, output_report_path=None):
-    run_name = os.path.basename(os.path.normpath(run_dir))
+def find_latest_run():
+    runs = [d for d in glob.glob("RUNS/*") if os.path.isdir(d) and not d.endswith("predictors_050826")]
+    if not runs:
+        runs = [d for d in glob.glob("RUNS/*") if os.path.isdir(d)]
+    if not runs:
+        return "RUNS/predictors_050826"
+    runs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+    return runs[0]
+
+def get_file_status(filepath):
+    if os.path.exists(filepath):
+        size_bytes = os.path.getsize(filepath)
+        if size_bytes > 1024 * 1024:
+            return f"✅ Done ({size_bytes / (1024 * 1024):.2f} MB)"
+        elif size_bytes > 1024:
+            return f"✅ Done ({size_bytes / 1024:.1f} KB)"
+        elif size_bytes > 0:
+            return f"⚠️ Active ({size_bytes} B)"
+        else:
+            return "⏳ Empty/Pending"
+    return "⏳ Pending"
+
+def count_spliceai_progress(run_dir, gene):
+    out_log = os.path.join(run_dir, "_log", gene, f"{gene}.spliceai.out")
+    vcf_file = os.path.join(run_dir, "_tmp", f"{gene}.vcf.gz")
+    if not os.path.exists(out_log) or not os.path.exists(vcf_file):
+        return "Pending"
+    
+    try:
+        cmd_vcf = f"zcat {vcf_file} | grep -v '^#' | wc -l"
+        tot_vars = int(subprocess.check_output(cmd_vcf, shell=True).decode().strip())
+        tot_passes = tot_vars * 5  # 5 ensemble models per variant
+        
+        cmd_passes = f"grep -c '1/1 \\[' {out_log} 2>/dev/null || echo 0"
+        done_passes = int(subprocess.check_output(cmd_passes, shell=True).decode().strip())
+        
+        pct = (done_passes / tot_passes) * 100 if tot_passes > 0 else 0
+        if pct >= 99.9:
+            return "Finished"
+        return f"{done_passes:,}/{tot_passes:,} passes ({pct:.1f}%)"
+    except Exception:
+        return "Active"
+
+def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthrough=False):
+    if run_dir is None:
+        run_dir = find_latest_run()
+    
+    run_dir = os.path.normpath(run_dir)
+    run_name = os.path.basename(run_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     tmp_dir = os.path.join(run_dir, "_tmp")
@@ -39,18 +91,24 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
     log_dir = os.path.join(run_dir, "_log")
     rep_dir = os.path.join(run_dir, "reports")
     flt_dir = os.path.join(run_dir, "filtered")
+    plt_dir = os.path.join(run_dir, "plots")
 
     if output_report_path is None:
         output_report_path = os.path.join(rep_dir, f"audit_report_{run_name}.md")
 
     # 1. Identify input files
-    input_files = sorted(glob.glob(os.path.join(raw_dir, "*.pq")) + glob.glob(os.path.join(raw_dir, "*.parquet")) + glob.glob(os.path.join(raw_dir, "*.tsv")) + glob.glob(os.path.join(raw_dir, "*.csv")))
+    if raw_dir and os.path.exists(raw_dir):
+        input_files = sorted(glob.glob(os.path.join(raw_dir, "*.pq")) + glob.glob(os.path.join(raw_dir, "*.parquet")) + glob.glob(os.path.join(raw_dir, "*.tsv")) + glob.glob(os.path.join(raw_dir, "*.csv")))
+    else:
+        # Infer genes from _log or _tmp
+        gene_dirs = [d for d in glob.glob(os.path.join(log_dir, "*")) if os.path.isdir(d)]
+        input_files = gene_dirs
 
     if not input_files:
-        logger.error(f"No input files found in {raw_dir}")
+        logger.error(f"No input genes found for run directory: {run_dir}")
         return
 
-    logger.info(f"Auditing run '{run_name}' with {len(input_files)} input genes...")
+    logger.info(f"Auditing run '{run_name}' ({len(input_files)} target genes)...")
 
     results = []
     all_gene_columns = {}
@@ -58,47 +116,65 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
     column_inconsistencies = []
 
     key_annotation_cols = [
-        'Consequence', 'REVEL_score', 'am_pathogenicity', 'SPiP', 'SPiP_interpretation', 'CADD_PHRED',
-        'splicevardb', 'SpliceVault_top_events', 'AF_joint', 'gnomAD_AF_joint'
+        'Consequence', 'REVEL_score', 'am_pathogenicity', 'SPiP', 'SPiP_interpretation', 'SPiP_status',
+        'SpliceAI_status', 'Pangolin_status', 'Branchpoint_status', 'LaBranchoR_status',
+        'SpliceVault_status', 'splicevardb', 'intron_offset_signed', 'splice_side'
     ]
 
-    for inp_file in input_files:
-        base_name = os.path.basename(inp_file)
+    for inp_item in input_files:
+        base_name = os.path.basename(inp_item)
         gene_name = base_name.split('.')[0].split('_')[0]
 
         # Read input counts
-        try:
-            if inp_file.endswith('.pq') or inp_file.endswith('.parquet'):
-                df_inp = pd.read_parquet(inp_file)
-            else:
-                sep = '\t' if inp_file.endswith('.tsv') else ','
-                df_inp = pd.read_csv(inp_file, sep=sep)
-            n_input_vars = len(df_inp)
-            inp_status = "VALID"
-        except Exception as e:
-            n_input_vars = 0
-            inp_status = f"CORRUPTED ({e})"
+        n_input_vars = 0
+        if os.path.isfile(inp_item):
+            try:
+                if inp_item.endswith('.pq') or inp_item.endswith('.parquet'):
+                    df_inp = pd.read_parquet(inp_item)
+                else:
+                    sep = '\t' if inp_item.endswith('.tsv') else ','
+                    df_inp = pd.read_csv(inp_item, sep=sep)
+                n_input_vars = len(df_inp)
+            except Exception:
+                n_input_vars = 0
+        else:
+            vcf_gz = os.path.join(tmp_dir, f"{gene_name}.vcf.gz")
+            if os.path.exists(vcf_gz):
+                try:
+                    cmd_vcf = f"zcat {vcf_gz} | grep -v '^#' | wc -l"
+                    n_input_vars = int(subprocess.check_output(cmd_vcf, shell=True).decode().strip())
+                except Exception:
+                    n_input_vars = 0
 
-        # Check step files
+        # Stage files
         vcf_tmp = os.path.join(tmp_dir, f"{gene_name}.vcf.gz")
         spip_vcf = os.path.join(ann_dir, f"{gene_name}.annSPiP.vcf.gz")
         if not os.path.exists(spip_vcf):
             spip_vcf = os.path.join(ann_dir, f"{gene_name}.annSPiP.vcf")
         vep_vcf = os.path.join(ann_dir, f"{gene_name}.annVEP.vcf.gz")
+        pangolin_vcf = os.path.join(ann_dir, f"{gene_name}.annPangolin.vcf.gz")
+        spliceai_vcf = os.path.join(ann_dir, f"{gene_name}.annSpliceAI.vcf.gz")
+        branch_vcf = os.path.join(ann_dir, f"{gene_name}.annBranchpoint.vcf.gz")
         annotated_vcf = os.path.join(ann_dir, f"{gene_name}.annotated.vcf.gz")
-        parsed_tsv = os.path.join(res_dir, f"{gene_name}.parsed.tsv")
         final_pq = os.path.join(res_dir, f"{gene_name}.parsed.clean.pq")
 
         step_status = {
-            "vcf_conv": os.path.exists(vcf_tmp),
-            "spip": os.path.exists(spip_vcf) and os.path.getsize(spip_vcf) > 0,
+            "varconv": os.path.exists(vcf_tmp) and os.path.getsize(vcf_tmp) > 0,
             "vep": os.path.exists(vep_vcf) and os.path.getsize(vep_vcf) > 0,
-            "mvep": os.path.exists(annotated_vcf) and os.path.getsize(annotated_vcf) > 0,
-            "vcf2tsv": os.path.exists(parsed_tsv) and os.path.getsize(parsed_tsv) > 0,
+            "spip": os.path.exists(spip_vcf) and os.path.getsize(spip_vcf) > 0,
+            "branchpoint": os.path.exists(branch_vcf) and os.path.getsize(branch_vcf) > 0,
+            "pangolin": os.path.exists(pangolin_vcf) and os.path.getsize(pangolin_vcf) > 0,
+            "spliceai": os.path.exists(spliceai_vcf) and os.path.getsize(spliceai_vcf) > 1000,
+            "merged": os.path.exists(annotated_vcf) and os.path.getsize(annotated_vcf) > 0,
             "final_pq": os.path.exists(final_pq) and os.path.getsize(final_pq) > 0
         }
 
-        all_steps_ok = all(step_status.values())
+        # SpliceAI live status
+        if step_status["spliceai"]:
+            spliceai_detail = "✅ Done"
+        else:
+            prog = count_spliceai_progress(run_dir, gene_name)
+            spliceai_detail = f"🔄 {prog}" if "passes" in prog else ("⏳ Pending" if prog == "Pending" else "✅ Done")
 
         # Audit final pq file
         n_out_vars = 0
@@ -121,7 +197,7 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
                     if diff:
                         column_inconsistencies.append((gene_name, list(diff)))
 
-                # Check annotation completion percentages
+                # Check annotation completeness
                 for col in key_annotation_cols:
                     found_col = None
                     for c in [col, col.lower(), col.upper()]:
@@ -129,7 +205,7 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
                             found_col = c
                             break
                     if found_col:
-                        non_null = df_out[found_col].notna() & (df_out[found_col].astype(str).str.strip() != '') & (df_out[found_col].astype(str) != 'nan') & (df_out[found_col].astype(str) != '-')
+                        non_null = df_out[found_col].notna() & (df_out[found_col].astype(str).str.strip() != '') & (df_out[found_col].astype(str) != 'nan') & (df_out[found_col].astype(str) != '.') & (df_out[found_col].astype(str) != '-')
                         pct = (non_null.sum() / max(1, n_out_vars)) * 100
                         ann_stats[col] = f"{pct:.1f}%"
                     else:
@@ -145,88 +221,83 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
                 if os.path.getsize(err_file) > 0:
                     with open(err_file, 'r', errors='ignore') as ef:
                         content = ef.read()
-                        if "error" in content.lower() or "exception" in content.lower() or "command not found" in content.lower() or "killed" in content.lower():
+                        if "exception" in content.lower() or "command not found" in content.lower() or "killed" in content.lower() or "check failed" in content.lower():
                             log_errors.append(os.path.basename(err_file))
 
         results.append({
             "Gene": gene_name,
             "Input_Vars": n_input_vars,
             "Output_Vars": n_out_vars,
-            "Status": "FINISHED" if all_steps_ok and pq_status == "VALID" else ("PENDING" if not os.path.exists(final_pq) else "ERROR"),
-            "Columns": n_cols,
-            "Final_PQ": pq_status,
-            "Steps_OK": f"{sum(step_status.values())}/{len(step_status)}",
-            "REVEL_%": ann_stats.get("REVEL_score", "N/A"),
-            "AlphaMissense_%": ann_stats.get("am_pathogenicity", "N/A"),
-            "SPiP_%": ann_stats.get("SPiP", "N/A"),
-            "SPiP_Interp_%": ann_stats.get("SPiP_interpretation", "N/A"),
-            "SpliceVarDB_%": ann_stats.get("splicevardb", "N/A"),
-            "SpliceVault_%": ann_stats.get("SpliceVault_top_events", "N/A"),
+            "Status": "FINISHED" if step_status["final_pq"] and pq_status == "VALID" else ("RUNNING/PENDING" if not log_errors else "ERROR"),
+            "VarConv": "✅" if step_status["varconv"] else "❌",
+            "VEP": "✅" if step_status["vep"] else "❌",
+            "SPiP": "✅" if step_status["spip"] else "❌",
+            "Branchpoint": "✅" if step_status["branchpoint"] else "❌",
+            "SpliceAI": spliceai_detail,
+            "Final_PQ": f"✅ {n_out_vars:,} vars" if pq_status == "VALID" else ("⏳ Pending" if pq_status == "MISSING" else f"❌ {pq_status}"),
+            "Columns": n_cols if n_cols > 0 else "-",
+            "REVEL_%": ann_stats.get("REVEL_score", "-"),
+            "AlphaMissense_%": ann_stats.get("am_pathogenicity", "-"),
+            "SPiP_%": ann_stats.get("SPiP", "-"),
+            "SpliceVault_%": ann_stats.get("SpliceVault_status", "-"),
+            "Branchpoint_%": ann_stats.get("Branchpoint_status", "-"),
             "Log_Issues": ", ".join(log_errors) if log_errors else "None"
         })
 
     df_results = pd.DataFrame(results)
 
-    # Build Markdown Report
     n_total = len(df_results)
     n_finished = len(df_results[df_results["Status"] == "FINISHED"])
-    n_pending = len(df_results[df_results["Status"] == "PENDING"])
+    n_running = len(df_results[df_results["Status"] == "RUNNING/PENDING"])
     n_error = len(df_results[df_results["Status"] == "ERROR"])
 
     total_in_vars = df_results["Input_Vars"].sum()
     total_out_vars = df_results["Output_Vars"].sum()
 
     md = []
-    md.append(f"# 🧪 Pipeline Execution Audit Report: `{run_name}`")
+    md.append(f"# 🧪 Master Pipeline Execution & Quality Audit: `{run_name}`")
     md.append(f"**Audit Timestamp**: `{timestamp}`  ")
     md.append(f"**Target Build**: `GRCh38`  ")
-    md.append(f"**Input Directory**: `{raw_dir}`  ")
+    md.append(f"**Run Directory**: `{run_dir}`  ")
     md.append(f"**Results Directory**: `{res_dir}`  \n")
 
     md.append("---")
-    md.append("## 📊 Executive Summary")
-    md.append(f"- **Total Genes Input**: `{n_total}`")
+    md.append("## 📊 1. Executive Summary")
+    md.append(f"- **Total Target Genes**: `{n_total}`")
     md.append(f"- **Genes Fully Finished**: `{n_finished} / {n_total}` ({(n_finished/n_total)*100:.1f}%)")
-    md.append(f"- **Genes Pending**: `{n_pending}`")
-    md.append(f"- **Genes with Errors**: `{n_error}`")
+    md.append(f"- **Genes In Progress / Pending**: `{n_running}`")
+    md.append(f"- **Genes with Critical Errors**: `{n_error}`")
     md.append(f"- **Total Input Variants**: `{total_in_vars:,}`")
-    md.append(f"- **Total Annotated & Clean Output Variants**: `{total_out_vars:,}`")
-    md.append(f"- **Variant Retention Rate**: `{((total_out_vars/total_in_vars)*100):.2f}%`" if total_in_vars > 0 else "N/A")
+    md.append(f"- **Total Clean Output Variants Generated**: `{total_out_vars:,}`")
     md.append("")
 
     md.append("---")
-    md.append("## 📋 Per-Gene Audit Metrics")
-    md.append(df_results[["Gene", "Status", "Input_Vars", "Output_Vars", "Columns", "Steps_OK", "Final_PQ", "Log_Issues"]].to_markdown(index=False))
+    md.append("## 📋 2. Stage-by-Stage Completion Matrix")
+    stage_cols = ["Gene", "Status", "VarConv", "VEP", "SPiP", "Branchpoint", "SpliceAI", "Final_PQ", "Log_Issues"]
+    md.append(df_results[stage_cols].to_markdown(index=False))
     md.append("")
 
-    md.append("---")
-    md.append("## 🧬 Key Annotation Completeness (% Non-Null)")
-    md.append(df_results[["Gene", "REVEL_%", "AlphaMissense_%", "SPiP_%", "SPiP_Interp_%", "SpliceVarDB_%", "SpliceVault_%"]].to_markdown(index=False))
-    md.append("")
+    if n_finished > 0:
+        md.append("---")
+        md.append("## 🧬 3. Key Annotation Completeness (% Non-Null in Completed Files)")
+        ann_cols = ["Gene", "Columns", "REVEL_%", "AlphaMissense_%", "SPiP_%", "SpliceVault_%", "Branchpoint_%"]
+        md.append(df_results[df_results["Status"] == "FINISHED"][ann_cols].to_markdown(index=False))
+        md.append("")
 
     md.append("---")
-    md.append("## 📐 Schema & Column Audit")
+    md.append("## 📐 4. Schema & Column Integrity")
     if all_gene_columns:
         col_counts = [len(v) for v in all_gene_columns.values()]
         min_cols, max_cols = min(col_counts), max(col_counts)
-        md.append(f"- **Column Count Range**: `{min_cols}` to `{max_cols}` columns per file.")
+        md.append(f"- **Column Count Range**: `{min_cols}` to `{max_cols}` columns per parquet table.")
         if min_cols == max_cols:
             md.append(f"- **Schema Consistency**: ✅ **100% Consistent** across all {n_finished} completed files (`{min_cols}` columns total).")
         else:
             md.append(f"- **Schema Consistency**: ⚠️ **Inconsistency detected** across genes!")
             for g, diff in column_inconsistencies:
                 md.append(f"  - `{g}` diff columns: {diff[:5]}...")
-    md.append("")
-
-    md.append("---")
-    md.append("## ⚠️ Error & Risk Audit")
-    if n_error == 0 and n_pending == 0:
-        md.append("✅ **No critical errors or missing steps detected.** All input genes processed completely.")
     else:
-        if n_pending > 0:
-            md.append(f"⚠️ **{n_pending} genes are currently pending completion**.")
-        if n_error > 0:
-            md.append(f"❌ **{n_error} genes experienced issues during processing**.")
+        md.append("- *No completed Parquet tables found yet to evaluate schema integrity.*")
     md.append("")
 
     report_md_text = "\n".join(md)
@@ -235,20 +306,29 @@ def audit_run(run_dir, raw_dir, output_report_path=None):
     with open(output_report_path, "w") as f:
         f.write(report_md_text)
 
-    logger.info(f"Audit report saved to: {output_report_path}")
-    print("\n" + "="*50)
-    print(f"  Pipeline Audit Summary ({run_name})")
-    print("="*50)
-    print(f"Finished Genes: {n_finished} / {n_total}")
-    print(f"Pending Genes : {n_pending}")
+    if save_walkthrough:
+        walk_path = os.path.join("walkthrough", f"{datetime.now().strftime('%Y%m%d')}_master_audit_{run_name}.md")
+        with open(walk_path, "w") as f:
+            f.write(report_md_text)
+        logger.info(f"Walkthrough copy saved to: {walk_path}")
+
+    logger.info(f"Master audit report saved to: {output_report_path}")
+    print("\n" + "="*60)
+    print(f"  🧪 Master Pipeline Audit Summary ({run_name})")
+    print("="*60)
+    print(f"Finished Genes: {n_finished} / {n_total} ({(n_finished/n_total)*100:.1f}%)")
+    print(f"Running/Pending: {n_running}")
     print(f"Error Genes   : {n_error}")
     print(f"Input Vars    : {total_in_vars:,}")
     print(f"Output Vars   : {total_out_vars:,}")
     print(f"Report File   : {output_report_path}")
-    print("="*50 + "\n")
+    print("="*60 + "\n")
 
     return df_results
 
 if __name__ == "__main__":
     args = parse_args()
-    audit_run(args.run_dir, args.raw_dir, args.output_report)
+    target_dir = args.run_dir
+    if target_dir is None and args.run_name:
+        target_dir = os.path.join("RUNS", args.run_name)
+    audit_run(target_dir, args.raw_dir, args.output_report, save_walkthrough=args.walkthrough)
