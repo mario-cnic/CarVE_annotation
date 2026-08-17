@@ -4,11 +4,11 @@ Single Master Pipeline Execution Auditor & Quality Control Report Generator
 
 Audits any pipeline run directory (or automatically audits the latest run in RUNS/):
   1. Identifies input raw variant tables vs output clean Parquet tables.
-  2. Verifies stage-by-stage completion across all predictors (VarConv, VEP, SPiP, Branchpoint, Pangolin, SpliceAI, Merge, Parquet).
+  2. Measures exact step completion timestamps and execution durations (VarConv, VEP, SPiP, Branchpoint, Pangolin, SpliceAI, Merge, Parquet).
   3. Live deep learning throughput & forward pass progress calculation (SpliceAI/Pangolin).
   4. Schema consistency, column completeness, and status contracts audit (scored, not_covered, error).
   5. Error and warning log audit (_log/ folder).
-  6. Generates a standalone Markdown report and terminal summary table.
+  6. Generates a standalone Markdown report with duration metrics and terminal summary tables.
 """
 
 import os
@@ -43,6 +43,22 @@ def find_latest_run():
     runs.sort(key=lambda x: os.path.getmtime(x), reverse=True)
     return runs[0]
 
+def format_duration(seconds):
+    if seconds is None or np.isnan(seconds) or seconds < 0:
+        return "-"
+    seconds = int(round(seconds))
+    if seconds < 60:
+        return f"{seconds}s"
+    elif seconds < 3600:
+        m = seconds // 60
+        s = seconds % 60
+        return f"{m}m {s:02d}s"
+    else:
+        h = seconds // 3600
+        m = (seconds % 3600) // 60
+        s = seconds % 60
+        return f"{h}h {m:02d}m {s:02d}s"
+
 def get_file_status(filepath):
     if os.path.exists(filepath):
         size_bytes = os.path.getsize(filepath)
@@ -55,6 +71,11 @@ def get_file_status(filepath):
         else:
             return "⏳ Empty/Pending"
     return "⏳ Pending"
+
+def get_mtime_safe(filepath):
+    if os.path.exists(filepath) and os.path.getsize(filepath) > 0:
+        return os.path.getmtime(filepath)
+    return None
 
 def count_spliceai_progress(run_dir, gene):
     out_log = os.path.join(run_dir, "_log", gene, f"{gene}.spliceai.out")
@@ -77,6 +98,19 @@ def count_spliceai_progress(run_dir, gene):
     except Exception:
         return "Active"
 
+def infer_run_start_time(run_dir):
+    run_name = os.path.basename(os.path.normpath(run_dir))
+    # Try parsing run_YYYYMMDD_HHMM
+    m = re.search(r"run_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})", run_name)
+    if m:
+        try:
+            dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)))
+            return dt.timestamp()
+        except Exception:
+            pass
+    # Fallback to run directory mtime
+    return os.path.getmtime(run_dir)
+
 def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthrough=False):
     if run_dir is None:
         run_dir = find_latest_run()
@@ -84,6 +118,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     run_dir = os.path.normpath(run_dir)
     run_name = os.path.basename(run_dir)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    t_run_start = infer_run_start_time(run_dir)
 
     tmp_dir = os.path.join(run_dir, "_tmp")
     ann_dir = os.path.join(run_dir, "annotation")
@@ -96,11 +131,10 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     if output_report_path is None:
         output_report_path = os.path.join(rep_dir, f"audit_report_{run_name}.md")
 
-    # 1. Identify input files
+    # Identify input genes
     if raw_dir and os.path.exists(raw_dir):
         input_files = sorted(glob.glob(os.path.join(raw_dir, "*.pq")) + glob.glob(os.path.join(raw_dir, "*.parquet")) + glob.glob(os.path.join(raw_dir, "*.tsv")) + glob.glob(os.path.join(raw_dir, "*.csv")))
     else:
-        # Infer genes from _log or _tmp
         gene_dirs = [d for d in glob.glob(os.path.join(log_dir, "*")) if os.path.isdir(d)]
         input_files = gene_dirs
 
@@ -111,6 +145,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     logger.info(f"Auditing run '{run_name}' ({len(input_files)} target genes)...")
 
     results = []
+    timing_results = []
     all_gene_columns = {}
     schema_set = None
     column_inconsistencies = []
@@ -146,7 +181,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
                 except Exception:
                     n_input_vars = 0
 
-        # Stage files
+        # Stage files & timestamps
         vcf_tmp = os.path.join(tmp_dir, f"{gene_name}.vcf.gz")
         spip_vcf = os.path.join(ann_dir, f"{gene_name}.annSPiP.vcf.gz")
         if not os.path.exists(spip_vcf):
@@ -157,6 +192,67 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
         branch_vcf = os.path.join(ann_dir, f"{gene_name}.annBranchpoint.vcf.gz")
         annotated_vcf = os.path.join(ann_dir, f"{gene_name}.annotated.vcf.gz")
         final_pq = os.path.join(res_dir, f"{gene_name}.parsed.clean.pq")
+
+        t_varconv = get_mtime_safe(vcf_tmp)
+        t_vep = get_mtime_safe(vep_vcf)
+        t_spip = get_mtime_safe(spip_vcf)
+        t_branch = get_mtime_safe(branch_vcf)
+        t_pangolin = get_mtime_safe(pangolin_vcf)
+        t_spliceai = get_mtime_safe(spliceai_vcf)
+        t_merge = get_mtime_safe(annotated_vcf)
+        t_final_pq = get_mtime_safe(final_pq)
+
+        # Durations
+        dur_varconv = (t_varconv - t_run_start) if (t_varconv and t_run_start) else None
+        base_t = t_varconv if t_varconv else t_run_start
+
+        dur_vep = (t_vep - base_t) if (t_vep and base_t) else None
+        dur_spip = (t_spip - base_t) if (t_spip and base_t) else None
+        dur_branch = (t_branch - base_t) if (t_branch and base_t) else None
+        dur_pangolin = (t_pangolin - base_t) if (t_pangolin and base_t) else None
+        
+        if t_spliceai and base_t:
+            dur_spliceai = t_spliceai - base_t
+            spliceai_time_str = format_duration(dur_spliceai)
+        else:
+            # Check if active running
+            out_log = os.path.join(log_dir, gene_name, f"{gene_name}.spliceai.out")
+            if os.path.exists(out_log) and base_t:
+                cur_elapsed = os.path.getmtime(out_log) - base_t
+                spliceai_time_str = f"🔄 Active ({format_duration(cur_elapsed)})"
+            else:
+                spliceai_time_str = "⏳ Pending"
+
+        # Merge duration (time taken by merge job)
+        all_pred_times = [t for t in [t_vep, t_spip, t_branch, t_pangolin, t_spliceai] if t is not None]
+        last_pred_time = max(all_pred_times) if all_pred_times else base_t
+        dur_merge = (t_merge - last_pred_time) if (t_merge and last_pred_time) else None
+
+        # Parquet parsing duration
+        dur_parquet = (t_final_pq - t_merge) if (t_final_pq and t_merge) else None
+
+        # Total Turnaround
+        if t_final_pq and t_run_start:
+            total_turnaround = t_final_pq - t_run_start
+            total_time_str = f"✅ {format_duration(total_turnaround)}"
+        elif t_run_start:
+            active_turnaround = datetime.now().timestamp() - t_run_start
+            total_time_str = f"🔄 Running ({format_duration(active_turnaround)})"
+        else:
+            total_time_str = "-"
+
+        timing_results.append({
+            "Gene": gene_name,
+            "VarConv": format_duration(dur_varconv),
+            "VEP_111": format_duration(dur_vep),
+            "SPiP_2.1": format_duration(dur_spip),
+            "Branchpoint": format_duration(dur_branch),
+            "SpliceAI": spliceai_time_str,
+            "Merge": format_duration(dur_merge),
+            "VCF2Parsed": format_duration(dur_parquet),
+            "Total_Turnaround": total_time_str,
+            "Completed_At": datetime.fromtimestamp(t_final_pq).strftime("%Y-%m-%d %H:%M:%S") if t_final_pq else "In Progress"
+        })
 
         step_status = {
             "varconv": os.path.exists(vcf_tmp) and os.path.getsize(vcf_tmp) > 0,
@@ -171,7 +267,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
 
         # SpliceAI live status
         if step_status["spliceai"]:
-            spliceai_detail = "✅ Done"
+            spliceai_detail = f"✅ Done ({format_duration(dur_spliceai)})"
         else:
             prog = count_spliceai_progress(run_dir, gene_name)
             spliceai_detail = f"🔄 {prog}" if "passes" in prog else ("⏳ Pending" if prog == "Pending" else "✅ Done")
@@ -197,7 +293,6 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
                     if diff:
                         column_inconsistencies.append((gene_name, list(diff)))
 
-                # Check annotation completeness
                 for col in key_annotation_cols:
                     found_col = None
                     for c in [col, col.lower(), col.upper()]:
@@ -245,6 +340,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
         })
 
     df_results = pd.DataFrame(results)
+    df_timing = pd.DataFrame(timing_results)
 
     n_total = len(df_results)
     n_finished = len(df_results[df_results["Status"] == "FINISHED"])
@@ -272,20 +368,25 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     md.append("")
 
     md.append("---")
-    md.append("## 📋 2. Stage-by-Stage Completion Matrix")
+    md.append("## ⏱️ 2. Step Completion Times & Execution Durations")
+    md.append(df_timing[["Gene", "VarConv", "VEP_111", "SPiP_2.1", "Branchpoint", "SpliceAI", "Merge", "VCF2Parsed", "Total_Turnaround", "Completed_At"]].to_markdown(index=False))
+    md.append("")
+
+    md.append("---")
+    md.append("## 📋 3. Stage-by-Stage Completion Matrix")
     stage_cols = ["Gene", "Status", "VarConv", "VEP", "SPiP", "Branchpoint", "SpliceAI", "Final_PQ", "Log_Issues"]
     md.append(df_results[stage_cols].to_markdown(index=False))
     md.append("")
 
     if n_finished > 0:
         md.append("---")
-        md.append("## 🧬 3. Key Annotation Completeness (% Non-Null in Completed Files)")
+        md.append("## 🧬 4. Key Annotation Completeness (% Non-Null in Completed Files)")
         ann_cols = ["Gene", "Columns", "REVEL_%", "AlphaMissense_%", "SPiP_%", "SpliceVault_%", "Branchpoint_%"]
         md.append(df_results[df_results["Status"] == "FINISHED"][ann_cols].to_markdown(index=False))
         md.append("")
 
     md.append("---")
-    md.append("## 📐 4. Schema & Column Integrity")
+    md.append("## 📐 5. Schema & Column Integrity")
     if all_gene_columns:
         col_counts = [len(v) for v in all_gene_columns.values()]
         min_cols, max_cols = min(col_counts), max(col_counts)
@@ -313,16 +414,14 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
         logger.info(f"Walkthrough copy saved to: {walk_path}")
 
     logger.info(f"Master audit report saved to: {output_report_path}")
-    print("\n" + "="*60)
-    print(f"  🧪 Master Pipeline Audit Summary ({run_name})")
-    print("="*60)
-    print(f"Finished Genes: {n_finished} / {n_total} ({(n_finished/n_total)*100:.1f}%)")
-    print(f"Running/Pending: {n_running}")
-    print(f"Error Genes   : {n_error}")
-    print(f"Input Vars    : {total_in_vars:,}")
-    print(f"Output Vars   : {total_out_vars:,}")
+    print("\n" + "="*80)
+    print(f"  🧪 Master Pipeline Audit & Timings Summary ({run_name})")
+    print("="*80)
+    print(df_timing[["Gene", "VarConv", "VEP_111", "SPiP_2.1", "SpliceAI", "VCF2Parsed", "Total_Turnaround"]].to_string(index=False))
+    print("="*80)
+    print(f"Finished Genes: {n_finished} / {n_total} ({(n_finished/n_total)*100:.1f}%) | Pending: {n_running} | Errors: {n_error}")
     print(f"Report File   : {output_report_path}")
-    print("="*60 + "\n")
+    print("="*80 + "\n")
 
     return df_results
 
