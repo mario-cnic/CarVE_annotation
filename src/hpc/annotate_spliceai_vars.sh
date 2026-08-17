@@ -27,12 +27,6 @@ export OPENBLAS_NUM_THREADS=2
 export MKL_NUM_THREADS=2
 export TF_ENABLE_ONEDNN_OPTS=0
 
-# Decompress if input is gzipped
-if [[ $INPUT == *.gz ]]; then
-    gunzip -k -f $INPUT
-    INPUT=${INPUT%.gz}
-fi
-
 # ----------------- Logger Setup -----------------
 LOGGER_SCRIPT="src/hpc/logger.sh"
 if [ -f "$LOGGER_SCRIPT" ] && [ -n "$LOG_DIR" ]; then

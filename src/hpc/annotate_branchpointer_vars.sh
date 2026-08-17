@@ -47,12 +47,6 @@ fi
 
 RAW_OUT="${OUTPUT%.gz}"
 
-# Decompress if input is gzipped
-if [[ $INPUT == *.gz ]]; then
-    gunzip -k -f $INPUT
-    INPUT=${INPUT%.gz}
-fi
-
 # ----------------- Logger Setup -----------------
 LOGGER_SCRIPT="src/hpc/logger.sh"
 if [ -f "$LOGGER_SCRIPT" ] && [ -n "$LOG_DIR" ]; then
