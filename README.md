@@ -189,6 +189,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-12: Pipeline Pre-Run Readiness & Verification Audit](./walkthrough/20260812_pipeline_pre_run_readiness_audit.md)
 - [2026-08-12: Apptainer / Singularity Container Architecture & Build Guide](./walkthrough/20260812_apptainer_container_architecture_guide.md)
 - [2026-08-13: Pipeline Run Execution Audit & Diagnostics (run_20260812_1750)](./walkthrough/20260813_last_pipeline_execution_audit.md)
+- [2026-08-17: HPC Cluster Run Progress & Throughput Diagnosis (run_20260813_1028)](./walkthrough/20260817_pipeline_run_progress_audit.md)
 
 ---
 
