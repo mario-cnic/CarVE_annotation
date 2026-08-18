@@ -21,6 +21,9 @@ if [ ! -f "$DB" ]; then
 fi
 
 PANGOLIN_ENV=/data_lab_PGP/shared/utils/conda_envs/pangolin_env
+if [ ! -d "$PANGOLIN_ENV" ] || [ ! -f "$PANGOLIN_ENV/lib/python3.12/site-packages/numpy/__init__.py" ]; then
+    PANGOLIN_ENV=/home/mruizp/conda_envs/pangolin_env
+fi
 if [ ! -d "$PANGOLIN_ENV" ]; then
     PANGOLIN_ENV=/home/mruizp/data_lab_PGP/shared/utils/conda_envs/pangolin_env
 fi

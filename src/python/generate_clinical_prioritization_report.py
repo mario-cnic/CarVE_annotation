@@ -137,7 +137,7 @@ def generate_gene_report(pq_path, out_html_path):
     ]
     for tool_name, is_present in tool_status_checks:
         if not is_present:
-            disclaimers.append(('warning', f'⚠️ <strong>{tool_name}</strong>: Column not present or unindexed for this gene dataset; prioritization applied graceful fallback.'))
+            disclaimers.append(('warning', f'⚠️ <strong>{tool_name}</strong>: Column not present or unindexed for this gene dataset; prioritization applied fallback.'))
 
     # Numeric Extractions
     splice_custom = get_col_numeric(df, "spliceai_custom_MAX", 0.0)
@@ -256,6 +256,8 @@ def generate_gene_report(pq_path, out_html_path):
     splice_table_cols = [
         ("Locus (GRCh38)", "Locus", "locus"),
         ("HGVSc", "HGVSc", "code"),
+        ("HGVSp", "HGVSp", "code"),
+        ("Consequence", "Consequence", "str"),
         ("Offset (bp)", "intron_offset_signed", "str"),
         ("Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
