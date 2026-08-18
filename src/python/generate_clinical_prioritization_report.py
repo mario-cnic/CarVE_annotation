@@ -11,7 +11,7 @@ Generates a standalone, interactive HTML dashboard for a specific gene with 4 ta
 Features:
   - Dynamically generated <thead> ensuring exact column header alignment.
   - Multi-candidate ClinVar extraction (clinvar_clnsig, CLIN_SIG, CLNSIG).
-  - Unified gnomAD PopMax / GrpMax Allele Frequency with subpopulation tags (e.g. 2.89e-05 (AMR)).
+  - Dedicated gnomADv4 AF grpmax with fallback and explicit warning banner.
   - SpliceAI 20kb context window & tool availability disclaimers.
 """
 
@@ -69,24 +69,26 @@ def _extract_clinvar_display(df):
                 return s
     return pd.Series("-", index=df.index)
 
-def _extract_gnomad_af_display(df):
+def _extract_gnomadv4_af_grpmax(df):
     """
-    Extracts and formats gnomAD PopMax / GrpMax Allele Frequency with subpopulation tag.
-    Cascades: gnomADv4_AF_grpmax_joint -> MAX_AF -> gnomADg_AF -> gnomADe_AF -> AF
-    Formats in scientific notation for rare variants (e.g. 2.89e-05 (AMR)) or '-' for novel/unobserved.
+    Extracts gnomADv4 AF grpmax with graceful fallback.
+    Returns: (formatted_series, numeric_series, is_fallback_used)
     """
-    af_series = pd.Series(np.nan, index=df.index)
-    candidates = ["gnomADv4_AF_grpmax_joint", "MAX_AF", "gnomADg_AF", "gnomADe_AF", "AF"]
-    for c in candidates:
-        if c in df.columns:
-            s = pd.to_numeric(df[c], errors="coerce")
-            af_series = af_series.fillna(s)
-
-    pop_series = pd.Series("", index=df.index)
-    if "MAX_AF_POPS" in df.columns:
-        pop_series = df["MAX_AF_POPS"].fillna("").astype(str)
-    elif "gnomADv4_grpmax_joint" in df.columns:
-        pop_series = df["gnomADv4_grpmax_joint"].fillna("").astype(str)
+    has_gnomadv4 = ("gnomADv4_AF_grpmax_joint" in df.columns) and (df["gnomADv4_AF_grpmax_joint"].notna().sum() > 0)
+    
+    if has_gnomadv4:
+        af_series = pd.to_numeric(df["gnomADv4_AF_grpmax_joint"], errors="coerce")
+        pop_series = df.get("gnomADv4_grpmax_joint", pd.Series("", index=df.index)).fillna("").astype(str)
+        is_fallback = False
+    else:
+        # Fallback to MAX_AF -> gnomADg_AF -> gnomADe_AF -> AF
+        af_series = pd.Series(np.nan, index=df.index)
+        for c in ["MAX_AF", "gnomADg_AF", "gnomADe_AF", "AF"]:
+            if c in df.columns:
+                s = pd.to_numeric(df[c], errors="coerce")
+                af_series = af_series.fillna(s)
+        pop_series = df.get("MAX_AF_POPS", pd.Series("", index=df.index)).fillna("").astype(str)
+        is_fallback = True
 
     formatted = []
     for idx, val in af_series.items():
@@ -100,7 +102,7 @@ def _extract_gnomad_af_display(df):
             else:
                 formatted.append(f"{val:.4f}{pop_tag}")
 
-    return pd.Series(formatted, index=df.index), af_series
+    return pd.Series(formatted, index=df.index), af_series, is_fallback
 
 def render_table_html(df_subset, col_defs, table_id):
     """
@@ -185,8 +187,8 @@ def generate_gene_report(pq_path, out_html_path):
     # Unify ClinVar Display Column
     df["CLINVAR_DISPLAY"] = _extract_clinvar_display(df)
 
-    # Unify gnomAD PopMax AF Display Column
-    df["GNOMAD_POPMAX_DISPLAY"], af_numeric = _extract_gnomad_af_display(df)
+    # Unify gnomADv4 AF grpmax Display Column with Fallback Detection
+    df["GNOMADV4_AF_GRPMAX_DISPLAY"], af_numeric, is_af_fallback = _extract_gnomadv4_af_grpmax(df)
 
     # --- Tool Availability & Disclaimers ---
     disclaimers = []
@@ -197,6 +199,12 @@ def generate_gene_report(pq_path, out_html_path):
         disclaimers.append(('provenance', '🧬 <strong>Custom SpliceAI Active</strong>: Evaluated with local <strong>±10,000 bp (20 kb) context window</strong> (-D 10000) for comprehensive deep intronic & non-canonical junction discovery.'))
     else:
         disclaimers.append(('info', 'ℹ️ <strong>VEP SpliceAI Active</strong>: Evaluated with Illumina precomputed lookup table (<strong>500 bp window</strong>). Custom 20kb inference was not computed for this batch.'))
+
+    # gnomADv4 AF grpmax Provenance / Fallback Disclaimer
+    if is_af_fallback:
+        disclaimers.append(('warning', '⚠️ <strong>gnomADv4 Joint grpmax</strong>: Column not present or unindexed for this dataset; fallback applied to VEP global PopMax AF (MAX_AF).'))
+    else:
+        disclaimers.append(('provenance', '📊 <strong>gnomAD v4.1 Active</strong>: PopMax allele frequencies extracted from joint exomes + genomes callset (AF_grpmax_joint).'))
 
     # Tool checks
     tool_status_checks = [
@@ -272,7 +280,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
         ("NEW_IMPACT", "NEW_IMPACT", "impact"),
         ("Consequence", "Consequence", "str"),
-        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
+        ("gnomADv4 AF grpmax", "GNOMADV4_AF_GRPMAX_DISPLAY", "str"),
         ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("AlphaMissense", "am_pathogenicity", "bold_float2"),
         ("REVEL", "REVEL_score", "float2"),
@@ -334,7 +342,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Offset (bp)", "intron_offset_signed", "str"),
         ("Priority Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
-        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
+        ("gnomADv4 AF grpmax", "GNOMADV4_AF_GRPMAX_DISPLAY", "str"),
         ("SpliceAI Custom Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("DS_AG", "spliceai_custom_DS_AG", "float2"),
         ("DS_AL", "spliceai_custom_DS_AL", "float2"),
@@ -389,7 +397,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("uAUG Alt", "utr_num_uAUG_gainedOrLost", "str"),
         ("MRL Alt", "mrl_gainedOrLost", "str"),
         ("PolyA Alt", "num_polyA_signal_gainedOrLost", "str"),
-        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
+        ("gnomADv4 AF grpmax", "GNOMADV4_AF_GRPMAX_DISPLAY", "str"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
     utr_table_html = render_table_html(df_utr.head(250), utr_table_cols, "utrTable")
@@ -445,7 +453,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("CADD Phred", "CADD_PHRED", "float2"),
         ("Polyphen2", "Polyphen2_HVAR_pred", "str"),
         ("SIFT", "SIFT_pred", "str"),
-        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
+        ("gnomADv4 AF grpmax", "GNOMADV4_AF_GRPMAX_DISPLAY", "str"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
     missense_table_html = render_table_html(df_missense.head(250), missense_table_cols, "missenseTable")
