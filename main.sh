@@ -1,7 +1,7 @@
 #!/bin/bash
 # Universal Genomic Variant Annotation, Filtering, and Visualization Pipeline
 # Master Orchestration Script (SGE Cluster Execution)
-# Features: State-Aware Checkpointing, Modular Predictor Skipping, Dynamic SGE Dependency Chaining
+# Features: State-Aware Checkpointing, Modular Predictor Skipping, Dynamic SGE Dependency Chaining, Built-in Run Quality Auditor
 
 set -euo pipefail
 
@@ -14,6 +14,8 @@ COLUMN_PARAM=""
 SKIP_GENES=""
 SLEEP_TIME=5
 RUN_NAME=""
+AUDIT_RUN=""
+audit_only=false
 
 # Customizable Filtering Parameters
 MAX_AF=""
@@ -93,6 +95,14 @@ while [[ $# -gt 0 ]]; do
         --skip-genes)
             SKIP_GENES="$2"
             shift 2
+            ;;
+        --audit-run)
+            AUDIT_RUN="$2"
+            shift 2
+            ;;
+        --audit-only)
+            audit_only=true
+            shift 1
             ;;
         # Overall & Granular Force / Skip Flags
         --overwrite-all)
@@ -178,6 +188,34 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+PYTHON_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
+if [ ! -x "$PYTHON_EXE" ]; then
+    PYTHON_EXE="python3"
+fi
+
+R_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/Rscript"
+if [ ! -x "$R_EXE" ]; then
+    R_EXE="Rscript"
+fi
+
+# Built-in Direct Run Quality Auditor Invocation
+if [ -n "$AUDIT_RUN" ] || [ "$audit_only" = true ]; then
+    target_audit="${AUDIT_RUN:-}"
+    if [ -z "$target_audit" ] && [ -n "$RUN_NAME" ]; then
+        target_audit="RUNS/${RUN_NAME}"
+    fi
+    if [ -z "$target_audit" ] && [ -n "$RAW_MASTER_DIR" ]; then
+        target_audit="RUNS/$(basename "$RAW_MASTER_DIR")"
+    fi
+    echo "============================================================================"
+    echo " Executing Master Pipeline Quality & Completeness Auditor"
+    echo "============================================================================"
+    $PYTHON_EXE src/python/audit_run_results.py \
+        ${target_audit:+--run-dir "$target_audit"} \
+        ${RAW_MASTER_DIR:+--raw-dir "$RAW_MASTER_DIR"}
+    exit 0
+fi
+
 if [ -z "$RAW_MASTER_DIR" ]; then
     echo "============================================================================"
     echo " Universal Genomic Variant Annotation & Visualization Pipeline "
@@ -188,6 +226,7 @@ if [ -z "$RAW_MASTER_DIR" ]; then
     echo "  --raw-dir <DIR>            Directory containing input variant files (.xlsx, .csv, .tsv, .pq, .vcf)"
     echo "  --run-name <NAME>          Custom run folder name inside RUNS/ (default: folder name of --raw-dir)"
     echo "  --gene <GENE>              Filter to specific gene(s)"
+    echo "  --skip-genes <LIST>        Comma-separated list of genes to skip"
     echo "  --build <BUILD>            Input genomic assembly build: hg19 or GRCh38 (default: GRCh38)"
     echo "  --output-format <FMT>      Output table format: pq, tsv, xlsx (default: pq)"
     echo "  --max-af <FLOAT>           Filter max gnomAD allele frequency threshold"
@@ -196,6 +235,10 @@ if [ -z "$RAW_MASTER_DIR" ]; then
     echo "  --min-spip <FLOAT>         Filter min SPiP splice score threshold"
     echo "  --min-cadd <FLOAT>         Filter min CADD phred score threshold"
     echo "  --consequences <LIST>      Comma-separated list of target VEP consequences"
+    echo ""
+    echo "Quality Audit & Standalone Diagnostics:"
+    echo "  --audit-run <DIR/NAME>     Audit quality, completeness %, and schemas of a run directory"
+    echo "  --audit-only               Run only the audit report on the specified run without submitting jobs"
     echo ""
     echo "Modular Execution & Checkpoint Overrides:"
     echo "  --overwrite-all            Re-run all intermediate steps and overwrite results"
@@ -255,16 +298,6 @@ GENE_TRANSCRIPT_MAPPING="resources/gene_transcript_mapping.txt"
 
 mkdir -p "$RUN_BASE_DIR" "$TMP_MASTER_DIR" "$ANNOTATION_MASTER_DIR" "$RESULTS_MASTER_DIR" "$FILTERED_MASTER_DIR" "$PLOTS_MASTER_DIR" "$REPORTS_MASTER_DIR" "$ERROR_LOG_DIR"
 
-PYTHON_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
-if [ ! -x "$PYTHON_EXE" ]; then
-    PYTHON_EXE="python3"
-fi
-
-R_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/Rscript"
-if [ ! -x "$R_EXE" ]; then
-    R_EXE="Rscript"
-fi
-
 # Helper: check non-empty existing file
 is_valid_file() {
     [ -f "$1" ] && [ -s "$1" ]
@@ -272,6 +305,8 @@ is_valid_file() {
 
 echo "Resolving transcript mappings for target genes..."
 $PYTHON_EXE src/python/query_new_transcripts.py "$RAW_MASTER_DIR" --mapping-file "$GENE_TRANSCRIPT_MAPPING" --auto-append || true
+
+all_terminal_jobs=()
 
 for input_file in "$RAW_MASTER_DIR"/*; do
     [ -f "$input_file" ] || continue
@@ -388,12 +423,12 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         fi
     fi
 
-    # Step 2.4: SpliceAI Predictor (Local -D 10000)
+    # Step 2.4: SpliceAI Predictor (Local -D 10000 with Parallel VCF Chunking)
     spliceai_vcf="$ANNOTATION_MASTER_DIR/${gene_name}.annSpliceAI.vcf.gz"
     spliceai_job=""
     if [ "$skip_spliceai" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_spliceai" = true ] || ! is_valid_file "$spliceai_vcf"; then
-            spliceai_job=$(qsub -N "spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
+            spliceai_job=$(qsub -N "spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 4 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.err" \
@@ -504,12 +539,36 @@ for input_file in "$RAW_MASTER_DIR"/*; do
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.err" \
             -b y $PYTHON_EXE src/python/generate_clinical_prioritization_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_clinical_prioritization_report.html" | awk '{print $3}')
+
+        [ -n "$clinical_report_job" ] && all_terminal_jobs+=("$clinical_report_job")
+        [ -n "$report_job" ] && all_terminal_jobs+=("$report_job")
+        [ -n "$plot_job" ] && all_terminal_jobs+=("$plot_job")
+        [ -n "$filter_job" ] && all_terminal_jobs+=("$filter_job")
+    elif [ -n "$vcf2parsed_job" ]; then
+        all_terminal_jobs+=("$vcf2parsed_job")
     fi
 
     sleep $SLEEP_TIME
 done
 
+# Step 6: Run-Level Automated Quality & Completeness Auditor Job
+if [ ${#all_terminal_jobs[@]} -gt 0 ]; then
+    audit_hold_ids=$(IFS=,; echo "${all_terminal_jobs[*]}")
+    audit_job=$(qsub -N "audit_${RUN_NAME}" -P BIGN -A PGP -l h_vmem=15G -pe smp 1 \
+        -hold_jid "$audit_hold_ids" \
+        -o "$ERROR_LOG_DIR/master_audit.out" \
+        -e "$ERROR_LOG_DIR/master_audit.err" \
+        -b y $PYTHON_EXE src/python/audit_run_results.py \
+            --run-dir "$RUN_BASE_DIR" \
+            --raw-dir "$RAW_MASTER_DIR" \
+            --output-report "$REPORTS_MASTER_DIR/audit_report_${RUN_NAME}.md" | awk '{print $3}')
+    echo "----------------------------------------------------------------------------"
+    echo " [9/9] Submitted Automated Post-Run Quality Auditor Job: $audit_job"
+    echo "       Will produce audit report on completion: $REPORTS_MASTER_DIR/audit_report_${RUN_NAME}.md"
+    echo "----------------------------------------------------------------------------"
+fi
+
 echo "============================================================================"
-echo " All SGE annotation, filtering, and visualization jobs submitted!"
+echo " All SGE annotation, filtering, visualization, and audit jobs submitted!"
 echo " Check job logs in: $ERROR_LOG_DIR"
 echo "============================================================================"

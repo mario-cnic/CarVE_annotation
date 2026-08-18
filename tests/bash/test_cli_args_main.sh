@@ -21,11 +21,11 @@ else
     exit 1
 fi
 
-# Test 3: main.sh help includes checkpointing and force flags
-if echo "$output" | grep -q -- "--force-spliceai" && echo "$output" | grep -q -- "--overwrite-all"; then
-    echo "  [PASS] main.sh help screen correctly includes modular checkpointing and force flags."
+# Test 3: main.sh help includes checkpointing and audit flags
+if echo "$output" | grep -q -- "--force-spliceai" && echo "$output" | grep -q -- "--audit-run"; then
+    echo "  [PASS] main.sh help screen correctly includes modular checkpointing and audit flags."
 else
-    echo "  [FAIL] main.sh help screen is missing expected checkpoint flags."
+    echo "  [FAIL] main.sh help screen is missing expected checkpoint/audit flags."
     exit 1
 fi
 

@@ -4,12 +4,12 @@ Single Master Pipeline Execution Auditor & Quality Control Report Generator
 
 Audits any pipeline run directory (or automatically audits the latest run in RUNS/):
   1. Identifies input raw variant tables vs output clean Parquet tables.
-  2. Tracks exact active step for each gene (VarConv, VEP, SPiP, Branchpoint, SpliceAI, Merge, Parquet).
+  2. Tracks exact active step for each gene (VarConv, VEP, SPiP, Branchpoint, Pangolin, SpliceAI, Merge, Parquet).
   3. Measures exact step completion timestamps, step execution durations, and total turnaround time.
   4. Live deep learning throughput & forward pass progress calculation with remaining ETA (SpliceAI/Pangolin).
-  5. Schema consistency, column completeness, and status contracts audit (scored, not_covered, error).
+  5. Schema consistency, column completeness, predictor coverage %, and anomaly detection.
   6. Error and warning log audit (_log/ folder).
-  7. Generates a standalone Markdown report with duration metrics and terminal summary tables.
+  7. Generates a standalone Markdown report with duration metrics, coverage tables, and quality alerts.
 """
 
 import os
@@ -99,156 +99,164 @@ def count_spliceai_progress(run_dir, gene):
             return "Finished"
         return f"{done_passes:,}/{tot_passes:,} passes ({pct:.1f}% | ~{rem_hours:.1f}h left)"
     except Exception:
-        return "Active"
+        return "In Progress"
 
-def infer_run_start_time(run_dir):
-    run_name = os.path.basename(os.path.normpath(run_dir))
-    m = re.search(r"run_.*(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})", run_name)
-    if m:
-        try:
-            dt = datetime(int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5)))
-            return dt.timestamp()
-        except Exception:
-            pass
-    return os.path.getmtime(run_dir)
+def parse_time_from_log(log_path):
+    if not os.path.exists(log_path) or os.path.getsize(log_path) == 0:
+        return None
+    try:
+        with open(log_path, 'r', errors='ignore') as f:
+            for line in f:
+                line = line.strip()
+                if "Elapsed (wall clock) time" in line:
+                    match = re.search(r'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\):\s*([0-9:]+(\.[0-9]+)?)', line)
+                    if match:
+                        time_str = match.group(1).split('.')[0]
+                        parts = [int(p) for p in time_str.split(':')]
+                        if len(parts) == 3:
+                            return parts[0] * 3600 + parts[1] * 60 + parts[2]
+                        elif len(parts) == 2:
+                            return parts[0] * 60 + parts[1]
+                elif "real" in line and re.match(r'^real\s+[0-9]+[mhs]', line):
+                    match_m = re.search(r'([0-9]+)m', line)
+                    match_s = re.search(r'([0-9]+(\.[0-9]+)?)s', line)
+                    m = int(match_m.group(1)) if match_m else 0
+                    s = float(match_s.group(1)) if match_s else 0
+                    return m * 60 + int(round(s))
+    except Exception:
+        pass
+    return None
 
-def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthrough=False):
+def audit_run(run_dir=None, raw_dir="RUNS/predictors_050826/input/by_gene", output_report_path=None, save_walkthrough=False):
     if run_dir is None:
         run_dir = find_latest_run()
     
-    run_dir = os.path.normpath(run_dir)
+    run_dir = run_dir.rstrip("/")
     run_name = os.path.basename(run_dir)
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    t_run_start = infer_run_start_time(run_dir)
-    now = datetime.now().timestamp()
-
-    tmp_dir = os.path.join(run_dir, "_tmp")
-    ann_dir = os.path.join(run_dir, "annotation")
     res_dir = os.path.join(run_dir, "results")
+    ann_dir = os.path.join(run_dir, "annotation")
+    tmp_dir = os.path.join(run_dir, "_tmp")
     log_dir = os.path.join(run_dir, "_log")
-    rep_dir = os.path.join(run_dir, "reports")
-    flt_dir = os.path.join(run_dir, "filtered")
-    plt_dir = os.path.join(run_dir, "plots")
-
+    reports_dir = os.path.join(run_dir, "reports")
+    
     if output_report_path is None:
-        output_report_path = os.path.join(rep_dir, f"audit_report_{run_name}.md")
+        output_report_path = os.path.join(reports_dir, f"audit_report_{run_name}.md")
 
-    # Identify input genes
-    if raw_dir and os.path.exists(raw_dir):
-        input_files = sorted(glob.glob(os.path.join(raw_dir, "*.pq")) + glob.glob(os.path.join(raw_dir, "*.parquet")) + glob.glob(os.path.join(raw_dir, "*.tsv")) + glob.glob(os.path.join(raw_dir, "*.csv")))
-    else:
-        gene_dirs = [d for d in glob.glob(os.path.join(log_dir, "*")) if os.path.isdir(d)]
-        input_files = gene_dirs
+    logger.info(f"Auditing run directory: {run_dir}")
+    logger.info(f"Input raw directory : {raw_dir}")
 
-    if not input_files:
-        logger.error(f"No input genes found for run directory: {run_dir}")
-        return
+    # Discover target genes
+    genes = set()
+    if os.path.exists(raw_dir):
+        for f in glob.glob(os.path.join(raw_dir, "*")):
+            ext = os.path.splitext(f)[1].lower()
+            if ext in [".pq", ".parquet", ".xlsx", ".csv", ".tsv", ".vcf", ".gz"]:
+                base = os.path.basename(f).split(".")[0].split("_")[0].upper()
+                genes.add(base)
+    
+    if os.path.exists(res_dir):
+        for f in glob.glob(os.path.join(res_dir, "*.clean.pq")):
+            base = os.path.basename(f).split(".")[0].split("_")[0].upper()
+            genes.add(base)
 
-    logger.info(f"Auditing run '{run_name}' ({len(input_files)} target genes)...")
+    if not genes:
+        logger.warning(f"No genes found in {raw_dir} or {res_dir}")
+        genes = ["BAG3", "DSP", "FLNC", "LMNA", "MYBPC3", "PKP2", "TTN"]
+
+    genes = sorted(list(genes))
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = datetime.now().timestamp()
 
     results = []
     timing_results = []
-    all_gene_columns = {}
     schema_set = None
     column_inconsistencies = []
+    all_gene_columns = {}
 
     key_annotation_cols = [
-        'Consequence', 'REVEL_score', 'am_pathogenicity', 'SPiP', 'SPiP_interpretation', 'SPiP_status',
-        'SpliceAI_status', 'Pangolin_status', 'Branchpoint_status', 'LaBranchoR_status',
-        'SpliceVault_status', 'splicevardb', 'intron_offset_signed', 'splice_side'
+        ("gnomADv4_AF_grpmax", ["gnomadv4_af_grpmax", "gnomad_af_joint", "max_af"]),
+        ("REVEL_score", ["revel_score", "revel"]),
+        ("AlphaMissense", ["am_pathogenicity", "alphamissense_score"]),
+        ("SPiP", ["spip", "spip_interpretation"]),
+        ("Pangolin", ["pangolin_max_score", "pangolin"]),
+        ("SpliceAI", ["spliceai_pred_ds_max", "spliceai"]),
+        ("Branchpoint", ["branchpoint_disrupted", "branchpoint_status", "labranchor_score"]),
+        ("5UTR_Annotator", ["5utr_annotation", "5utr_consequence"]),
+        ("SpliceVault", ["splicevault_top_events", "splicevault_status"]),
+        ("ClinVar", ["clinvar_clnsig", "clinvar"])
     ]
 
-    for inp_item in input_files:
-        base_name = os.path.basename(inp_item)
-        gene_name = base_name.split('.')[0].split('_')[0]
-
-        # Read input counts
+    for gene_name in genes:
+        # Check raw input
+        raw_files = glob.glob(os.path.join(raw_dir, f"{gene_name}*"))
         n_input_vars = 0
-        if os.path.isfile(inp_item):
+        if raw_files:
             try:
-                if inp_item.endswith('.pq') or inp_item.endswith('.parquet'):
-                    df_inp = pd.read_parquet(inp_item)
-                else:
-                    sep = '\t' if inp_item.endswith('.tsv') else ','
-                    df_inp = pd.read_csv(inp_item, sep=sep)
-                n_input_vars = len(df_inp)
+                rf = raw_files[0]
+                if rf.endswith(".pq") or rf.endswith(".parquet"):
+                    df_raw = pd.read_parquet(rf)
+                    n_input_vars = len(df_raw)
+                elif rf.endswith(".csv"):
+                    n_input_vars = sum(1 for _ in open(rf)) - 1
+                elif rf.endswith(".tsv"):
+                    n_input_vars = sum(1 for _ in open(rf)) - 1
+                elif rf.endswith(".xlsx"):
+                    df_raw = pd.read_excel(rf)
+                    n_input_vars = len(df_raw)
             except Exception:
-                n_input_vars = 0
-        else:
-            vcf_gz = os.path.join(tmp_dir, f"{gene_name}.vcf.gz")
-            if os.path.exists(vcf_gz):
-                try:
-                    cmd_vcf = f"zcat {vcf_gz} | grep -v '^#' | wc -l"
-                    n_input_vars = int(subprocess.check_output(cmd_vcf, shell=True).decode().strip())
-                except Exception:
-                    n_input_vars = 0
+                pass
 
-        # Stage files & timestamps
+        # Pipeline file targets
         vcf_tmp = os.path.join(tmp_dir, f"{gene_name}.vcf.gz")
+        if not os.path.exists(vcf_tmp):
+            vcf_tmp = os.path.join(tmp_dir, f"{gene_name}.vcf")
+        vep_vcf = os.path.join(ann_dir, f"{gene_name}.annVEP.vcf.gz")
         spip_vcf = os.path.join(ann_dir, f"{gene_name}.annSPiP.vcf.gz")
         if not os.path.exists(spip_vcf):
             spip_vcf = os.path.join(ann_dir, f"{gene_name}.annSPiP.vcf")
-        vep_vcf = os.path.join(ann_dir, f"{gene_name}.annVEP.vcf.gz")
+        branch_vcf = os.path.join(ann_dir, f"{gene_name}.annBranchpoint.vcf.gz")
         pangolin_vcf = os.path.join(ann_dir, f"{gene_name}.annPangolin.vcf.gz")
         spliceai_vcf = os.path.join(ann_dir, f"{gene_name}.annSpliceAI.vcf.gz")
-        branch_vcf = os.path.join(ann_dir, f"{gene_name}.annBranchpoint.vcf.gz")
         annotated_vcf = os.path.join(ann_dir, f"{gene_name}.annotated.vcf.gz")
         final_pq = os.path.join(res_dir, f"{gene_name}.parsed.clean.pq")
 
-        t_varconv = get_mtime_safe(vcf_tmp)
-        t_vep = get_mtime_safe(vep_vcf)
-        t_spip = get_mtime_safe(spip_vcf)
-        t_branch = get_mtime_safe(branch_vcf)
-        t_pangolin = get_mtime_safe(pangolin_vcf)
-        t_spliceai = get_mtime_safe(spliceai_vcf)
-        t_merge = get_mtime_safe(annotated_vcf)
-        t_final_pq = get_mtime_safe(final_pq)
+        # Step Statuses
+        step_status = {
+            "varconv": os.path.exists(vcf_tmp) and os.path.getsize(vcf_tmp) > 0,
+            "vep": os.path.exists(vep_vcf) and os.path.getsize(vep_vcf) > 0,
+            "spip": os.path.exists(spip_vcf) and os.path.getsize(spip_vcf) > 0,
+            "branchpoint": os.path.exists(branch_vcf) and os.path.getsize(branch_vcf) > 0,
+            "pangolin": os.path.exists(pangolin_vcf) and os.path.getsize(pangolin_vcf) > 0,
+            "spliceai": os.path.exists(spliceai_vcf) and os.path.getsize(spliceai_vcf) > 1000,
+            "merged": os.path.exists(annotated_vcf) and os.path.getsize(annotated_vcf) > 0,
+            "final_pq": os.path.exists(final_pq) and os.path.getsize(final_pq) > 0
+        }
 
-        # Durations
-        dur_varconv = (t_varconv - t_run_start) if (t_varconv and t_run_start) else None
-        base_t = t_varconv if t_varconv else t_run_start
-
-        dur_vep = (t_vep - base_t) if (t_vep and base_t) else None
-        dur_spip = (t_spip - base_t) if (t_spip and base_t) else None
-        dur_branch = (t_branch - base_t) if (t_branch and base_t) else None
-        dur_pangolin = (t_pangolin - base_t) if (t_pangolin and base_t) else None
-        
-        # Determine Current Step & SpliceAI Progress
-        prog = count_spliceai_progress(run_dir, gene_name)
-        if t_final_pq:
-            cur_step = "✅ 7. Completed"
-            step_dur = format_duration(t_final_pq - t_merge) if t_merge else "-"
-            spliceai_detail = f"✅ Done ({format_duration(t_spliceai - base_t)})" if t_spliceai else "✅ Done"
-        elif t_merge:
-            cur_step = "🔄 6. Parsing to Parquet"
-            step_dur = format_duration(now - t_merge)
-            spliceai_detail = "✅ Done"
-        elif t_spliceai and os.path.getsize(spliceai_vcf) > 1000:
-            cur_step = "⏳ 5. Waiting to Merge (hqw)"
-            step_dur = format_duration(now - t_spliceai)
-            spliceai_detail = f"✅ Done ({format_duration(t_spliceai - base_t)})"
-        elif "passes" in prog:
-            cur_step = "🔄 4. SpliceAI Inference"
-            step_dur = format_duration(now - base_t)
-            spliceai_detail = f"🔄 {prog}"
-        elif t_varconv:
-            cur_step = "🔄 2-3. Annotations Running"
-            step_dur = format_duration(now - base_t)
-            spliceai_detail = "⏳ Starting / Queued"
+        # SpliceAI Progress / Status
+        spliceai_detail = "⏳ Pending"
+        if step_status["spliceai"]:
+            spliceai_detail = f"✅ Done ({os.path.getsize(spliceai_vcf)/(1024*1024):.2f} MB)"
         else:
-            cur_step = "⏳ 1. VarConv / Queue"
-            step_dur = format_duration(now - t_run_start)
-            spliceai_detail = "⏳ Queued"
+            prog = count_spliceai_progress(run_dir, gene_name)
+            if prog == "Finished":
+                spliceai_detail = "✅ Done"
+            elif "passes" in prog:
+                spliceai_detail = f"🔄 {prog}"
 
-        # Merge duration (time taken by merge job)
-        all_pred_times = [t for t in [t_vep, t_spip, t_branch, t_pangolin, t_spliceai] if t is not None]
-        last_pred_time = max(all_pred_times) if all_pred_times else base_t
-        dur_merge = (t_merge - last_pred_time) if (t_merge and last_pred_time) else None
+        # Current active step determination
+        cur_step = "Done"
+        if not step_status["final_pq"]:
+            if not step_status["varconv"]:
+                cur_step = "1. VarConv"
+            elif not (step_status["vep"] and step_status["spip"] and step_status["branchpoint"] and step_status["spliceai"]):
+                cur_step = "2. Predictors"
+            elif not step_status["merged"]:
+                cur_step = "3. Merge"
+            else:
+                cur_step = "4. VCF2Parsed"
 
-        # Parquet parsing duration
-        dur_parquet = (t_final_pq - t_merge) if (t_final_pq and t_merge) else None
-
-        # Total Turnaround
+        t_final_pq = get_mtime_safe(final_pq)
+        t_run_start = get_mtime_safe(vcf_tmp)
         if t_final_pq and t_run_start:
             total_turnaround = t_final_pq - t_run_start
             total_time_str = f"✅ {format_duration(total_turnaround)}"
@@ -262,24 +270,12 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
             "Gene": gene_name,
             "Variants": f"{n_input_vars:,}" if n_input_vars > 0 else "-",
             "Current_Step": cur_step,
-            "Step_Elapsed": step_dur,
             "SpliceAI_Progress": spliceai_detail,
             "Total_Elapsed": total_time_str,
             "Completed_At": datetime.fromtimestamp(t_final_pq).strftime("%Y-%m-%d %H:%M:%S") if t_final_pq else "In Progress"
         })
 
-        step_status = {
-            "varconv": os.path.exists(vcf_tmp) and os.path.getsize(vcf_tmp) > 0,
-            "vep": os.path.exists(vep_vcf) and os.path.getsize(vep_vcf) > 0,
-            "spip": os.path.exists(spip_vcf) and os.path.getsize(spip_vcf) > 0,
-            "branchpoint": os.path.exists(branch_vcf) and os.path.getsize(branch_vcf) > 0,
-            "pangolin": os.path.exists(pangolin_vcf) and os.path.getsize(pangolin_vcf) > 0,
-            "spliceai": os.path.exists(spliceai_vcf) and os.path.getsize(spliceai_vcf) > 1000,
-            "merged": os.path.exists(annotated_vcf) and os.path.getsize(annotated_vcf) > 0,
-            "final_pq": os.path.exists(final_pq) and os.path.getsize(final_pq) > 0
-        }
-
-        # Audit final pq file
+        # Audit final pq file & annotations
         n_out_vars = 0
         n_cols = 0
         pq_status = "MISSING"
@@ -300,18 +296,19 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
                     if diff:
                         column_inconsistencies.append((gene_name, list(diff)))
 
-                for col in key_annotation_cols:
+                for label, cand_cols in key_annotation_cols:
                     found_col = None
-                    for c in [col, col.lower(), col.upper()]:
-                        if c in df_out.columns:
+                    for c in df_out.columns:
+                        if c.lower() in cand_cols or c in cand_cols:
                             found_col = c
                             break
                     if found_col:
-                        non_null = df_out[found_col].notna() & (df_out[found_col].astype(str).str.strip() != '') & (df_out[found_col].astype(str) != 'nan') & (df_out[found_col].astype(str) != '.') & (df_out[found_col].astype(str) != '-')
-                        pct = (non_null.sum() / max(1, n_out_vars)) * 100
-                        ann_stats[col] = f"{pct:.1f}%"
+                        col_vals = df_out[found_col].dropna()
+                        non_null = col_vals[~col_vals.astype(str).str.strip().isin(['', 'nan', '.', '-', 'NA', 'none', 'None'])]
+                        pct = (len(non_null) / max(1, n_out_vars)) * 100
+                        ann_stats[label] = f"{pct:.1f}%"
                     else:
-                        ann_stats[col] = "N/A"
+                        ann_stats[label] = "N/A"
             except Exception as e:
                 pq_status = f"CORRUPTED ({e})"
 
@@ -323,7 +320,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
                 if os.path.getsize(err_file) > 0:
                     with open(err_file, 'r', errors='ignore') as ef:
                         content = ef.read()
-                        if "exception" in content.lower() or "command not found" in content.lower() or "killed" in content.lower() or "check failed" in content.lower():
+                        if "exception" in content.lower() or "command not found" in content.lower() or "killed" in content.lower() or "stale file handle" in content.lower() or "filenotfounderror" in content.lower():
                             log_errors.append(os.path.basename(err_file))
 
         results.append({
@@ -334,15 +331,19 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
             "VarConv": "✅" if step_status["varconv"] else "❌",
             "VEP": "✅" if step_status["vep"] else "❌",
             "SPiP": "✅" if step_status["spip"] else "❌",
+            "Pangolin": "✅" if step_status["pangolin"] else "❌",
             "Branchpoint": "✅" if step_status["branchpoint"] else "❌",
             "SpliceAI": spliceai_detail,
             "Final_PQ": f"✅ {n_out_vars:,} vars" if pq_status == "VALID" else ("⏳ Pending" if pq_status == "MISSING" else f"❌ {pq_status}"),
             "Columns": n_cols if n_cols > 0 else "-",
+            "gnomADv4_%": ann_stats.get("gnomADv4_AF_grpmax", "-"),
             "REVEL_%": ann_stats.get("REVEL_score", "-"),
-            "AlphaMissense_%": ann_stats.get("am_pathogenicity", "-"),
+            "AlphaMissense_%": ann_stats.get("AlphaMissense", "-"),
             "SPiP_%": ann_stats.get("SPiP", "-"),
-            "SpliceVault_%": ann_stats.get("SpliceVault_status", "-"),
-            "Branchpoint_%": ann_stats.get("Branchpoint_status", "-"),
+            "Pangolin_%": ann_stats.get("Pangolin", "-"),
+            "SpliceAI_%": ann_stats.get("SpliceAI", "-"),
+            "Branchpoint_%": ann_stats.get("Branchpoint", "-"),
+            "5UTR_%": ann_stats.get("5UTR_Annotator", "-"),
             "Log_Issues": ", ".join(log_errors) if log_errors else "None"
         })
 
@@ -358,7 +359,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     total_out_vars = df_results["Output_Vars"].sum()
 
     md = []
-    md.append(f"# 🧪 Master Pipeline Execution & Step Tracking Audit: `{run_name}`")
+    md.append(f"# 🧪 Master Pipeline Execution & Quality Audit: `{run_name}`")
     md.append(f"**Audit Timestamp**: `{timestamp}`  ")
     md.append(f"**Target Build**: `GRCh38`  ")
     md.append(f"**Run Directory**: `{run_dir}`  ")
@@ -375,20 +376,20 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
     md.append("")
 
     md.append("---")
-    md.append("## ⏱️ 2. Per-Gene Step Tracking, Running Times & SpliceAI Progress")
-    md.append(df_timing[["Gene", "Variants", "Current_Step", "Step_Elapsed", "SpliceAI_Progress", "Total_Elapsed", "Completed_At"]].to_markdown(index=False))
+    md.append("## ⏱️ 2. Per-Gene Step Tracking & Running Times")
+    md.append(df_timing[["Gene", "Variants", "Current_Step", "SpliceAI_Progress", "Total_Elapsed", "Completed_At"]].to_markdown(index=False))
     md.append("")
 
     md.append("---")
-    md.append("## 📋 3. Stage-by-Stage Completion Matrix")
-    stage_cols = ["Gene", "Status", "VarConv", "VEP", "SPiP", "Branchpoint", "SpliceAI", "Final_PQ", "Log_Issues"]
+    md.append("## 📋 3. Stage-by-Stage Predictor Matrix")
+    stage_cols = ["Gene", "Status", "VarConv", "VEP", "SPiP", "Pangolin", "Branchpoint", "SpliceAI", "Final_PQ", "Log_Issues"]
     md.append(df_results[stage_cols].to_markdown(index=False))
     md.append("")
 
     if n_finished > 0:
         md.append("---")
-        md.append("## 🧬 4. Key Annotation Completeness (% Non-Null in Completed Files)")
-        ann_cols = ["Gene", "Columns", "REVEL_%", "AlphaMissense_%", "SPiP_%", "SpliceVault_%", "Branchpoint_%"]
+        md.append("## 🧬 4. Key Predictor Completeness (% Non-Null in Output Parquets)")
+        ann_cols = ["Gene", "Columns", "gnomADv4_%", "REVEL_%", "AlphaMissense_%", "SPiP_%", "Pangolin_%", "Branchpoint_%", "5UTR_%"]
         md.append(df_results[df_results["Status"] == "FINISHED"][ann_cols].to_markdown(index=False))
         md.append("")
 
@@ -403,7 +404,7 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
         else:
             md.append(f"- **Schema Consistency**: ⚠️ **Inconsistency detected** across genes!")
             for g, diff in column_inconsistencies:
-                md.append(f"  - `{g}` diff columns: {diff[:5]}...")
+                md.append(f"  - `{g}` diff columns ({len(diff)}): {diff[:5]}...")
     else:
         md.append("- *No completed Parquet tables found yet to evaluate schema integrity.*")
     md.append("")
@@ -422,9 +423,9 @@ def audit_run(run_dir=None, raw_dir=None, output_report_path=None, save_walkthro
 
     logger.info(f"Master audit report saved to: {output_report_path}")
     print("\n" + "="*95)
-    print(f"  🧪 Master Pipeline Step Tracking & Timings Summary ({run_name})")
+    print(f"  🧪 Master Pipeline Quality & Completeness Audit Summary ({run_name})")
     print("="*95)
-    print(df_timing[["Gene", "Variants", "Current_Step", "Step_Elapsed", "SpliceAI_Progress", "Total_Elapsed"]].to_string(index=False))
+    print(df_timing[["Gene", "Variants", "Current_Step", "SpliceAI_Progress", "Total_Elapsed"]].to_string(index=False))
     print("="*95)
     print(f"Finished Genes: {n_finished} / {n_total} ({(n_finished/n_total)*100:.1f}%) | Pending: {n_running} | Errors: {n_error}")
     print(f"Report File   : {output_report_path}")
