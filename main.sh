@@ -232,6 +232,10 @@ if [ -n "$GENE_SELECTED" ]; then
     GENE_SELECTED=$(echo "$GENE_SELECTED" | tr '[:lower:]' '[:upper:]')
 fi
 
+if [ -n "$SKIP_GENES" ]; then
+    SKIP_GENES=$(echo "$SKIP_GENES" | tr '[:lower:]' '[:upper:]')
+fi
+
 RAW_FOLDER=$(basename "$RAW_MASTER_DIR")
 if [ -z "$RUN_NAME" ]; then
     RUN_NAME="$RAW_FOLDER"
@@ -280,6 +284,13 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     gene_name=$(echo "$base_name" | cut -d'_' -f1 | tr '[:lower:]' '[:upper:]')
 
     if [ -n "$GENE_SELECTED" ] && [[ ! ",$GENE_SELECTED," == *",$gene_name,"* ]]; then
+        continue
+    fi
+
+    if [ -n "$SKIP_GENES" ] && [[ ",$SKIP_GENES," == *",$gene_name,"* ]]; then
+        echo "===================================================="
+        echo " Skipping gene: $gene_name (specified in --skip-genes)"
+        echo "===================================================="
         continue
     fi
 
