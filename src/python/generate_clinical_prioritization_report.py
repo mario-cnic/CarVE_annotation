@@ -8,7 +8,10 @@ Generates a standalone, interactive HTML dashboard for a specific gene with 4 ta
   3. 🎯 UTR Tab (5' and 3' UTR variants, uAUG/Kozak alterations, translation consequences)
   4. 🔬 Missense Tab (AlphaMissense, REVEL, CADD, consensus pathogenicity)
 
-Includes comprehensive tool availability disclaimers and SpliceAI window provenance.
+Features:
+  - Dynamically generated <thead> ensuring exact column header alignment.
+  - Multi-candidate ClinVar extraction (clinvar_clnsig, CLIN_SIG, CLNSIG).
+  - SpliceAI 20kb context window & tool availability disclaimers.
 """
 
 import os
@@ -30,7 +33,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("clinical_report_generator")
 
 def _safe_str(val, max_len=40):
-    if pd.isna(val) or val is None or str(val).strip() == "" or str(val).lower() == "nan":
+    if pd.isna(val) or val is None or str(val).strip() == "" or str(val).lower() == "nan" or str(val).lower() == "none":
         return "-"
     s = str(val).strip()
     if len(s) > max_len:
@@ -56,10 +59,20 @@ def get_col_string(df, col, default="-"):
         return df[col].astype(str)
     return pd.Series(default, index=df.index)
 
-def build_table_rows(df_subset, col_defs):
+def _extract_clinvar_display(df):
+    cln_candidates = ["clinvar_clnsig", "CLIN_SIG", "CLNSIG"]
+    for c in cln_candidates:
+        if c in df.columns:
+            s = df[c].astype(str).replace({"nan": "-", "None": "-", "": "-"})
+            if (s != "-").sum() > 0:
+                return s
+    return pd.Series("-", index=df.index)
+
+def render_table_html(df_subset, col_defs, table_id):
     """
-    Build HTML <tr> rows based on col_defs list of (Header, Key, FormatterFunc)
+    Dynamically generates the complete <table> HTML with perfectly aligned <thead> and <tbody>
     """
+    headers = "".join(f"<th>{h}</th>" for h, _, _ in col_defs)
     rows = []
     for _, r in df_subset.iterrows():
         cells = []
@@ -72,7 +85,7 @@ def build_table_rows(df_subset, col_defs):
                     link = f"https://gnomad.broadinstitute.org/variant/{parts[0]}-{parts[1]}-{r.get('REF','')}-{r.get('ALT','')}?dataset=gnomad_r4"
                 else:
                     link = "#"
-                cells.append(f'<td><strong><a href="{link}" target="_blank" style="color:#2980b9; text-decoration:none;">{loc}</a></strong></td>')
+                cells.append(f'<td><strong><a href="{link}" target="_blank" style="color:#2563eb; text-decoration:none;">{loc}</a></strong></td>')
             elif fmt == "tier":
                 tier_str = str(raw_val)
                 badge = "badge-tier4"
@@ -93,10 +106,31 @@ def build_table_rows(df_subset, col_defs):
                 cells.append(f'<td>{_safe_float(raw_val, 6)}</td>')
             elif fmt == "bold_float2":
                 cells.append(f'<td><strong>{_safe_float(raw_val, 2)}</strong></td>')
+            elif fmt == "clinvar":
+                cln = _safe_str(raw_val, 35)
+                if "pathogenic" in cln.lower():
+                    cells.append(f'<td><strong style="color:#dc2626;">{cln}</strong></td>')
+                elif "benign" in cln.lower():
+                    cells.append(f'<td><span style="color:#16a34a;">{cln}</span></td>')
+                else:
+                    cells.append(f'<td>{cln}</td>')
             else:
                 cells.append(f'<td>{_safe_str(raw_val, 30)}</td>')
         rows.append(f"<tr>{''.join(cells)}</tr>")
-    return "\n".join(rows)
+    
+    tbody = "\n".join(rows)
+    return f"""
+    <table id="{table_id}">
+        <thead>
+            <tr>
+                {headers}
+            </tr>
+        </thead>
+        <tbody>
+            {tbody}
+        </tbody>
+    </table>
+    """
 
 def generate_gene_report(pq_path, out_html_path):
     logger.info(f"Loading {pq_path} for 4-tab clinical report generation...")
@@ -113,6 +147,9 @@ def generate_gene_report(pq_path, out_html_path):
     pli_val = df["pLI_gene_value"].dropna().iloc[0] if "pLI_gene_value" in df.columns and len(df["pLI_gene_value"].dropna()) > 0 else "N/A"
     gene_prio = df["gene_priority"].dropna().iloc[0] if "gene_priority" in df.columns and len(df["gene_priority"].dropna()) > 0 else "N/A"
     mane_tx = df["MANE_SELECT"].dropna().iloc[0] if "MANE_SELECT" in df.columns and len(df["MANE_SELECT"].dropna()) > 0 else (df["Feature"].dropna().iloc[0] if "Feature" in df.columns and len(df["Feature"].dropna()) > 0 else "-")
+
+    # Unify ClinVar Display Column
+    df["CLINVAR_DISPLAY"] = _extract_clinvar_display(df)
 
     # --- Tool Availability & Disclaimers ---
     disclaimers = []
@@ -137,7 +174,7 @@ def generate_gene_report(pq_path, out_html_path):
     ]
     for tool_name, is_present in tool_status_checks:
         if not is_present:
-            disclaimers.append(('warning', f'⚠️ <strong>{tool_name}</strong>: Column not present or unindexed for this gene dataset; prioritization applied fallback.'))
+            disclaimers.append(('warning', f'⚠️ <strong>{tool_name}</strong>: Column not present or unindexed for this gene dataset; prioritization applied graceful fallback.'))
 
     # Numeric Extractions
     splice_custom = get_col_numeric(df, "spliceai_custom_MAX", 0.0)
@@ -178,10 +215,10 @@ def generate_gene_report(pq_path, out_html_path):
         tier_df, values="Count", names="Tier",
         color="Tier",
         color_discrete_map={
-            "Tier 1 (Critical Pathogenic)": "#e74c3c",
-            "Tier 2 (Likely Deleterious)": "#e67e22",
-            "Tier 3 (VUS / Moderate)": "#f1c40f",
-            "Tier 4 (Benign / Tolerated)": "#2ecc71"
+            "Tier 1 (Critical Pathogenic)": "#dc2626",
+            "Tier 2 (Likely Deleterious)": "#ea580c",
+            "Tier 3 (VUS / Moderate)": "#d97706",
+            "Tier 4 (Benign / Tolerated)": "#16a34a"
         },
         hole=0.45,
         title=f"Clinical Triage Stratification ({n_total:,} Variants)"
@@ -203,9 +240,9 @@ def generate_gene_report(pq_path, out_html_path):
         ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("AlphaMissense", "am_pathogenicity", "bold_float2"),
         ("REVEL", "REVEL_score", "float2"),
-        ("ClinVar", "CLNSIG", "str"),
+        ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
-    general_table_html = build_table_rows(top_overall_df, general_cols)
+    general_table_html = render_table_html(top_overall_df, general_cols, "generalTable")
 
     # =========================================================================
     # TAB 2: SPLICING TAB
@@ -237,17 +274,17 @@ def generate_gene_report(pq_path, out_html_path):
             x="Offset", y="Splice_Score",
             color="Tier_Label",
             color_discrete_map={
-                "Tier 1 (Critical Pathogenic Candidate)": "#e74c3c",
-                "Tier 2 (Likely Deleterious / Strong Candidate)": "#e67e22",
-                "Tier 3 (VUS / Moderate Potential)": "#f1c40f",
-                "Tier 4 (Benign / Tolerated)": "#95a5a6"
+                "Tier 1 (Critical Pathogenic Candidate)": "#dc2626",
+                "Tier 2 (Likely Deleterious / Strong Candidate)": "#ea580c",
+                "Tier 3 (VUS / Moderate Potential)": "#d97706",
+                "Tier 4 (Benign / Tolerated)": "#94a3b8"
             },
             hover_data=["HGVSc", "Consequence"],
             labels={"Offset": "Distance to Splice Site (bp, signed)", "Splice_Score": "SpliceAI Max Δ Score"},
             title="SpliceAI Δ vs Intronic Distance"
         )
-        fig_splice_scatter.add_hline(y=0.50, line_dash="dash", line_color="#e74c3c", annotation_text="High SpliceAI ≥ 0.50")
-        fig_splice_scatter.add_hline(y=0.20, line_dash="dot", line_color="#f1c40f", annotation_text="Moderate SpliceAI ≥ 0.20")
+        fig_splice_scatter.add_hline(y=0.50, line_dash="dash", line_color="#dc2626", annotation_text="High SpliceAI ≥ 0.50")
+        fig_splice_scatter.add_hline(y=0.20, line_dash="dot", line_color="#d97706", annotation_text="Moderate SpliceAI ≥ 0.20")
         fig_splice_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
     else:
         fig_splice_scatter = go.Figure()
@@ -259,9 +296,9 @@ def generate_gene_report(pq_path, out_html_path):
         ("HGVSp", "HGVSp", "code"),
         ("Consequence", "Consequence", "str"),
         ("Offset (bp)", "intron_offset_signed", "str"),
-        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Priority Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
-        ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
+        ("SpliceAI Custom Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("DS_AG", "spliceai_custom_DS_AG", "float2"),
         ("DS_AL", "spliceai_custom_DS_AL", "float2"),
         ("DS_DG", "spliceai_custom_DS_DG", "float2"),
@@ -269,9 +306,9 @@ def generate_gene_report(pq_path, out_html_path):
         ("SPiP Pred", "SPiP_prediction", "float2"),
         ("SpliceVault", "SpliceVault_status", "str"),
         ("Branchpoint", "Branchpoint_status", "str"),
-        ("ClinVar", "CLNSIG", "str"),
+        ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
-    splice_table_html = build_table_rows(df_splice.head(250), splice_table_cols)
+    splice_table_html = render_table_html(df_splice.head(250), splice_table_cols, "spliceTable")
 
     # =========================================================================
     # TAB 3: UTR TAB
@@ -307,7 +344,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Locus (GRCh38)", "Locus", "locus"),
         ("HGVSc", "HGVSc", "code"),
         ("Consequence", "Consequence", "str"),
-        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Priority Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
         ("NEW_IMPACT", "NEW_IMPACT", "impact"),
         ("5UTR Consequence", "5UTR_consequence", "str"),
@@ -316,9 +353,9 @@ def generate_gene_report(pq_path, out_html_path):
         ("MRL Alt", "mrl_gainedOrLost", "str"),
         ("PolyA Alt", "num_polyA_signal_gainedOrLost", "str"),
         ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
-        ("ClinVar", "CLNSIG", "str"),
+        ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
-    utr_table_html = build_table_rows(df_utr.head(250), utr_table_cols)
+    utr_table_html = render_table_html(df_utr.head(250), utr_table_cols, "utrTable")
 
     # =========================================================================
     # TAB 4: MISSENSE TAB
@@ -343,17 +380,17 @@ def generate_gene_report(pq_path, out_html_path):
             x="REVEL_val", y="AM_val",
             color="Tier_Label",
             color_discrete_map={
-                "Tier 1 (Critical Pathogenic Candidate)": "#e74c3c",
-                "Tier 2 (Likely Deleterious / Strong Candidate)": "#e67e22",
-                "Tier 3 (VUS / Moderate Potential)": "#f1c40f",
-                "Tier 4 (Benign / Tolerated)": "#95a5a6"
+                "Tier 1 (Critical Pathogenic Candidate)": "#dc2626",
+                "Tier 2 (Likely Deleterious / Strong Candidate)": "#ea580c",
+                "Tier 3 (VUS / Moderate Potential)": "#d97706",
+                "Tier 4 (Benign / Tolerated)": "#94a3b8"
             },
             hover_data=["HGVSc", "HGVSp", "Consequence"],
             labels={"REVEL_val": "REVEL Score (0-1)", "AM_val": "AlphaMissense Score (0-1)"},
             title="Missense Pathogenicity (REVEL vs AlphaMissense)"
         )
-        fig_missense_scatter.add_vline(x=0.75, line_dash="dash", line_color="#e74c3c", annotation_text="REVEL ≥ 0.75")
-        fig_missense_scatter.add_hline(y=0.564, line_dash="dash", line_color="#e67e22", annotation_text="AlphaMissense ≥ 0.564")
+        fig_missense_scatter.add_vline(x=0.75, line_dash="dash", line_color="#dc2626", annotation_text="REVEL ≥ 0.75")
+        fig_missense_scatter.add_hline(y=0.564, line_dash="dash", line_color="#ea580c", annotation_text="AlphaMissense ≥ 0.564")
         fig_missense_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
     else:
         fig_missense_scatter = go.Figure()
@@ -363,7 +400,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Locus (GRCh38)", "Locus", "locus"),
         ("HGVSc", "HGVSc", "code"),
         ("HGVSp", "HGVSp", "code"),
-        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Priority Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
         ("AlphaMissense", "am_pathogenicity", "bold_float2"),
         ("AM Class", "am_class", "str"),
@@ -372,9 +409,9 @@ def generate_gene_report(pq_path, out_html_path):
         ("Polyphen2", "Polyphen2_HVAR_pred", "str"),
         ("SIFT", "SIFT_pred", "str"),
         ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
-        ("ClinVar", "CLNSIG", "str"),
+        ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
-    missense_table_html = build_table_rows(df_missense.head(250), missense_table_cols)
+    missense_table_html = render_table_html(df_missense.head(250), missense_table_cols, "missenseTable")
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -694,27 +731,7 @@ def generate_gene_report(pq_path, out_html_path):
                 <input type="text" class="search-box" placeholder="🔍 Search table..." onkeyup="filterTable(this, 'generalTable')">
             </div>
             <div class="table-container">
-                <table id="generalTable">
-                    <thead>
-                        <tr>
-                            <th>Locus (GRCh38)</th>
-                            <th>HGVSc</th>
-                            <th>HGVSp</th>
-                            <th>Tier</th>
-                            <th>Score</th>
-                            <th>NEW_IMPACT</th>
-                            <th>Consequence</th>
-                            <th>gnomAD AF</th>
-                            <th>SpliceAI Δ</th>
-                            <th>AlphaMissense</th>
-                            <th>REVEL</th>
-                            <th>ClinVar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {general_table_html}
-                    </tbody>
-                </table>
+                {general_table_html}
             </div>
         </div>
     </div>
@@ -764,29 +781,7 @@ def generate_gene_report(pq_path, out_html_path):
                 <input type="text" class="search-box" placeholder="🔍 Search splicing table..." onkeyup="filterTable(this, 'spliceTable')">
             </div>
             <div class="table-container">
-                <table id="spliceTable">
-                    <thead>
-                        <tr>
-                            <th>Locus (GRCh38)</th>
-                            <th>HGVSc</th>
-                            <th>Offset</th>
-                            <th>Tier</th>
-                            <th>Score</th>
-                            <th>SpliceAI Δ</th>
-                            <th>DS_AG</th>
-                            <th>DS_AL</th>
-                            <th>DS_DG</th>
-                            <th>DS_DL</th>
-                            <th>SPiP Pred</th>
-                            <th>SpliceVault</th>
-                            <th>Branchpoint</th>
-                            <th>ClinVar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {splice_table_html}
-                    </tbody>
-                </table>
+                {splice_table_html}
             </div>
         </div>
     </div>
@@ -831,28 +826,7 @@ def generate_gene_report(pq_path, out_html_path):
                 <input type="text" class="search-box" placeholder="🔍 Search UTR table..." onkeyup="filterTable(this, 'utrTable')">
             </div>
             <div class="table-container">
-                <table id="utrTable">
-                    <thead>
-                        <tr>
-                            <th>Locus (GRCh38)</th>
-                            <th>HGVSc</th>
-                            <th>Consequence</th>
-                            <th>Tier</th>
-                            <th>Score</th>
-                            <th>NEW_IMPACT</th>
-                            <th>5UTR Consequence</th>
-                            <th>Kozak Alt</th>
-                            <th>uAUG Alt</th>
-                            <th>MRL Alt</th>
-                            <th>PolyA Alt</th>
-                            <th>gnomAD AF</th>
-                            <th>ClinVar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {utr_table_html}
-                    </tbody>
-                </table>
+                {utr_table_html}
             </div>
         </div>
     </div>
@@ -902,28 +876,7 @@ def generate_gene_report(pq_path, out_html_path):
                 <input type="text" class="search-box" placeholder="🔍 Search missense table..." onkeyup="filterTable(this, 'missenseTable')">
             </div>
             <div class="table-container">
-                <table id="missenseTable">
-                    <thead>
-                        <tr>
-                            <th>Locus (GRCh38)</th>
-                            <th>HGVSc</th>
-                            <th>HGVSp</th>
-                            <th>Tier</th>
-                            <th>Score</th>
-                            <th>AlphaMissense</th>
-                            <th>AM Class</th>
-                            <th>REVEL</th>
-                            <th>CADD Phred</th>
-                            <th>Polyphen2</th>
-                            <th>SIFT</th>
-                            <th>gnomAD AF</th>
-                            <th>ClinVar</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {missense_table_html}
-                    </tbody>
-                </table>
+                {missense_table_html}
             </div>
         </div>
     </div>
