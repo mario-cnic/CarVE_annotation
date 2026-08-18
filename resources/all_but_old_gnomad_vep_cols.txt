@@ -79,8 +79,8 @@ MOTIF_SCORE_CHANGE
 TRANSCRIPTION_FACTORS
 CADD_PHRED
 CADD_RAW
-_5UTR_annotation
-_5UTR_consequence
+5UTR_annotation
+5UTR_consequence
 Existing_InFrame_oORFs
 Existing_OutOfFrame_oORFs
 Existing_uORFs
