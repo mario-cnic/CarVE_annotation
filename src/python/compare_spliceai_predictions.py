@@ -25,8 +25,18 @@ def clean_str(val, max_len=35):
     return s
 
 def main():
-    run_dir = "RUNS/run_20260813_1028"
+    import argparse
+    parser = argparse.ArgumentParser(description="SpliceAI Custom vs VEP Benchmark")
+    parser.add_argument("--run-dir", default="RUNS/run_20260813_1028", help="Run directory")
+    parser.add_argument("--output-report", default=None, help="Path for output markdown report")
+    args = parser.parse_args()
+
+    run_dir = os.path.normpath(args.run_dir)
     res_dir = os.path.join(run_dir, "results")
+    rep_dir = os.path.join(run_dir, "reports")
+    os.makedirs(rep_dir, exist_ok=True)
+    
+    out_report = args.output_report if args.output_report else os.path.join(rep_dir, "spliceai_custom_vs_vep_benchmark_report.md")
     files = sorted(glob.glob(os.path.join(res_dir, "*.parsed.clean.pq")))
     
     if not files:
@@ -247,11 +257,10 @@ def main():
 
     report_text = "\n".join(md)
 
-    out_walkthrough = "walkthrough/20260818_spliceai_custom_vs_vep_benchmark_report.md"
-    with open(out_walkthrough, "w") as f:
+    with open(out_report, "w") as f:
         f.write(report_text)
 
-    logger.info(f"SpliceAI benchmark report successfully generated at: {out_walkthrough}")
+    logger.info(f"SpliceAI benchmark report successfully generated at: {out_report}")
     print("\n" + "="*85)
     print(" 🧬 SpliceAI Benchmarking Summary (Custom 20kb vs VEP Plugin)")
     print("="*85)
