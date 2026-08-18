@@ -27,27 +27,17 @@ for gene_element in "${cardio_genes[@]}"; do
     IFS=$'\t' read -r chr start end gene <<< "$gene_element"
     # extract first element sep by _ in gene
     gene=${gene%%_*}
-    echo "Processing gene: $gene"
-    echo "Coords: $chr:$start-$end"
-
-    # ----------------- Logger Setup -----------------
-    LOGGER_SCRIPT="src/hpc/logger.sh"
-    if [ -f "$LOGGER_SCRIPT" ] && [ -n "$LOG_DIR" ]; then
-        source "$LOGGER_SCRIPT"
-        log_step_start "gnomAD_subset" "$GNOMAD_VCF"
-        TIME_LOG="$LOG_DIR/gnomAD_subset.time"
-        TIME_CMD=$(get_time_cmd "$TIME_LOG")
-    else
-        TIME_CMD=""
-    fi
-    # ------------------------------------------------
+    # Add +/- 20kb buffer to capture full intronic and regulatory boundaries
+    buf_start=$(( start > 20000 ? start - 20000 : 0 ))
+    buf_end=$(( end + 20000 ))
+    echo "Buffered Coords: $chr:$buf_start-$buf_end"
 
     # [AUTO-UPDATE] Path updated to shared/utils
     if [ -n "$TIME_CMD" ]; then
-        $TIME_CMD /data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools annotate -r $chr:$start-$end --rename-chrs $CHR_MAPPING --write-index=tbi -x INFO -Oz -o $OUTPUT/gnomAD.v4.1.${gene}.vcf.gz $GNOMAD_VCF
+        $TIME_CMD /data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools annotate -r $chr:$buf_start-$buf_end --rename-chrs $CHR_MAPPING --write-index=tbi -x INFO -Oz -o $OUTPUT/gnomAD.v4.1.${gene}.vcf.gz $GNOMAD_VCF
         CMD_EXIT_CODE=$?
     else
-        /data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools annotate -r $chr:$start-$end --rename-chrs $CHR_MAPPING --write-index=tbi -x INFO -Oz -o $OUTPUT/gnomAD.v4.1.${gene}.vcf.gz $GNOMAD_VCF
+        /data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools annotate -r $chr:$buf_start-$buf_end --rename-chrs $CHR_MAPPING --write-index=tbi -x INFO -Oz -o $OUTPUT/gnomAD.v4.1.${gene}.vcf.gz $GNOMAD_VCF
         CMD_EXIT_CODE=$?
     fi
 

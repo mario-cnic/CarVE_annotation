@@ -324,6 +324,12 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.report.err" \
         -b y $PYTHON_EXE src/python/generate_interactive_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_interactive_dashboard.html" | awk '{print $3}')
 
+    clinical_report_job=$(qsub -N "clinrep_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+        -hold_jid "$vcf2parsed_job" \
+        -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.out" \
+        -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.err" \
+        -b y $PYTHON_EXE src/python/generate_clinical_prioritization_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_clinical_prioritization_report.html" | awk '{print $3}')
+
     sleep $SLEEP_TIME
 done
 

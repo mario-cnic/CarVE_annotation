@@ -38,6 +38,7 @@ run_command_timed singularity exec \
     vep --fork ${THREADS:-1} -species homo_sapiens \
     --dir_plugins /data_lab_PGP/resources/annotation/VEP/VEP_plugins \
     --offline --cache --cache_version 111 --dir ${vep_files}/cache \
+    --synonyms ${vep_files}/cache/homo_sapiens/111_GRCh38/chr_synonyms.txt \
     --fasta ${gatk_bundle}/v0/Homo_sapiens_assembly38.fasta --assembly GRCh38 \
     -i ${in_file} \
     -o ${out_file} \
