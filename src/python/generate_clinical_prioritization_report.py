@@ -11,6 +11,7 @@ Generates a standalone, interactive HTML dashboard for a specific gene with 4 ta
 Features:
   - Dynamically generated <thead> ensuring exact column header alignment.
   - Multi-candidate ClinVar extraction (clinvar_clnsig, CLIN_SIG, CLNSIG).
+  - Unified gnomAD PopMax / GrpMax Allele Frequency with subpopulation tags (e.g. 2.89e-05 (AMR)).
   - SpliceAI 20kb context window & tool availability disclaimers.
 """
 
@@ -67,6 +68,39 @@ def _extract_clinvar_display(df):
             if (s != "-").sum() > 0:
                 return s
     return pd.Series("-", index=df.index)
+
+def _extract_gnomad_af_display(df):
+    """
+    Extracts and formats gnomAD PopMax / GrpMax Allele Frequency with subpopulation tag.
+    Cascades: gnomADv4_AF_grpmax_joint -> MAX_AF -> gnomADg_AF -> gnomADe_AF -> AF
+    Formats in scientific notation for rare variants (e.g. 2.89e-05 (AMR)) or '-' for novel/unobserved.
+    """
+    af_series = pd.Series(np.nan, index=df.index)
+    candidates = ["gnomADv4_AF_grpmax_joint", "MAX_AF", "gnomADg_AF", "gnomADe_AF", "AF"]
+    for c in candidates:
+        if c in df.columns:
+            s = pd.to_numeric(df[c], errors="coerce")
+            af_series = af_series.fillna(s)
+
+    pop_series = pd.Series("", index=df.index)
+    if "MAX_AF_POPS" in df.columns:
+        pop_series = df["MAX_AF_POPS"].fillna("").astype(str)
+    elif "gnomADv4_grpmax_joint" in df.columns:
+        pop_series = df["gnomADv4_grpmax_joint"].fillna("").astype(str)
+
+    formatted = []
+    for idx, val in af_series.items():
+        if pd.isna(val) or val == 0:
+            formatted.append("-")
+        else:
+            raw_pop = str(pop_series.get(idx, "")).replace("gnomADe_", "").replace("gnomADg_", "").strip()
+            pop_tag = f" ({raw_pop})" if raw_pop and raw_pop not in ["nan", "None", ""] else ""
+            if val < 0.001:
+                formatted.append(f"{val:.2e}{pop_tag}")
+            else:
+                formatted.append(f"{val:.4f}{pop_tag}")
+
+    return pd.Series(formatted, index=df.index), af_series
 
 def render_table_html(df_subset, col_defs, table_id):
     """
@@ -151,6 +185,9 @@ def generate_gene_report(pq_path, out_html_path):
     # Unify ClinVar Display Column
     df["CLINVAR_DISPLAY"] = _extract_clinvar_display(df)
 
+    # Unify gnomAD PopMax AF Display Column
+    df["GNOMAD_POPMAX_DISPLAY"], af_numeric = _extract_gnomad_af_display(df)
+
     # --- Tool Availability & Disclaimers ---
     disclaimers = []
     
@@ -187,7 +224,6 @@ def generate_gene_report(pq_path, out_html_path):
     revel_score = get_col_numeric(df, "REVEL_score", 0.0)
     am_score = get_col_numeric(df, "am_pathogenicity", 0.0)
     cadd_score = get_col_numeric(df, "CADD_PHRED", get_col_numeric(df, "CADD_phred", 0.0))
-    af_score = get_col_numeric(df, "gnomADv4_AF_grpmax_joint", get_col_numeric(df, "AF", 0.0))
     intron_offset = get_col_numeric(df, "intron_offset_signed", 0.0)
     prio_score = get_col_numeric(df, "VARIANT_PRIORITY_SCORE", 0.0)
 
@@ -236,7 +272,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
         ("NEW_IMPACT", "NEW_IMPACT", "impact"),
         ("Consequence", "Consequence", "str"),
-        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
         ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("AlphaMissense", "am_pathogenicity", "bold_float2"),
         ("REVEL", "REVEL_score", "float2"),
@@ -298,6 +334,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("Offset (bp)", "intron_offset_signed", "str"),
         ("Priority Tier", "PRIORITY_TIER", "tier"),
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
+        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
         ("SpliceAI Custom Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
         ("DS_AG", "spliceai_custom_DS_AG", "float2"),
         ("DS_AL", "spliceai_custom_DS_AL", "float2"),
@@ -352,7 +389,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("uAUG Alt", "utr_num_uAUG_gainedOrLost", "str"),
         ("MRL Alt", "mrl_gainedOrLost", "str"),
         ("PolyA Alt", "num_polyA_signal_gainedOrLost", "str"),
-        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
     utr_table_html = render_table_html(df_utr.head(250), utr_table_cols, "utrTable")
@@ -408,7 +445,7 @@ def generate_gene_report(pq_path, out_html_path):
         ("CADD Phred", "CADD_PHRED", "float2"),
         ("Polyphen2", "Polyphen2_HVAR_pred", "str"),
         ("SIFT", "SIFT_pred", "str"),
-        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("gnomAD PopMax AF", "GNOMAD_POPMAX_DISPLAY", "str"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
     missense_table_html = render_table_html(df_missense.head(250), missense_table_cols, "missenseTable")
