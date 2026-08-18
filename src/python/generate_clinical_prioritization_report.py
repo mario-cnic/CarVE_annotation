@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 """
-Medical & Geneticist-Grade Clinical Prioritization Report Generator
+Medical & Geneticist-Grade 4-Tab Clinical Prioritization Report Generator
 
-Generates a self-contained, interactive HTML dashboard for a specific gene
-documenting prioritized pathogenic candidates across Tier 1, Tier 2, and Tier 3,
-multi-omics evidence plots, and an interactive searchable clinical table.
+Generates a standalone, interactive HTML dashboard for a specific gene with 4 tabs:
+  1. 📊 General / Overview (Executive summary, global triage KPIs, top candidates)
+  2. 🧬 Splicing Tab (Dedicated splicing metrics, custom 20kb delta channels, SpliceVault, Branchpoint)
+  3. 🎯 UTR Tab (5' and 3' UTR variants, uAUG/Kozak alterations, translation consequences)
+  4. 🔬 Missense Tab (AlphaMissense, REVEL, CADD, consensus pathogenicity)
+
+Includes comprehensive tool availability disclaimers and SpliceAI window provenance.
 """
 
 import os
@@ -18,7 +22,6 @@ import sys
 import glob
 import argparse
 import logging
-import json
 import pandas as pd
 import numpy as np
 from datetime import datetime
@@ -43,8 +46,60 @@ def _safe_float(val, digits=3):
     except (ValueError, TypeError):
         return "-"
 
+def get_col_numeric(df, col, default=0.0):
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce").fillna(default)
+    return pd.Series(default, index=df.index)
+
+def get_col_string(df, col, default="-"):
+    if col in df.columns:
+        return df[col].astype(str)
+    return pd.Series(default, index=df.index)
+
+def build_table_rows(df_subset, col_defs):
+    """
+    Build HTML <tr> rows based on col_defs list of (Header, Key, FormatterFunc)
+    """
+    rows = []
+    for _, r in df_subset.iterrows():
+        cells = []
+        for header, key, fmt in col_defs:
+            raw_val = r.get(key, None)
+            if fmt == "locus":
+                loc = _safe_str(raw_val, 24)
+                parts = str(raw_val).split("-")[0].split(":")
+                if len(parts) == 2:
+                    link = f"https://gnomad.broadinstitute.org/variant/{parts[0]}-{parts[1]}-{r.get('REF','')}-{r.get('ALT','')}?dataset=gnomad_r4"
+                else:
+                    link = "#"
+                cells.append(f'<td><strong><a href="{link}" target="_blank" style="color:#2980b9; text-decoration:none;">{loc}</a></strong></td>')
+            elif fmt == "tier":
+                tier_str = str(raw_val)
+                badge = "badge-tier4"
+                if "Tier 1" in tier_str: badge = "badge-tier1"
+                elif "Tier 2" in tier_str: badge = "badge-tier2"
+                elif "Tier 3" in tier_str: badge = "badge-tier3"
+                cells.append(f'<td><span class="badge {badge}">{tier_str.split(" (")[0]}</span></td>')
+            elif fmt == "impact":
+                imp = _safe_str(raw_val, 15)
+                cells.append(f'<td><span class="impact-{imp.lower()}">{imp}</span></td>')
+            elif fmt == "code":
+                cells.append(f'<td><code>{_safe_str(raw_val, 32)}</code></td>')
+            elif fmt == "score1":
+                cells.append(f'<td><strong>{_safe_float(raw_val, 1)}</strong></td>')
+            elif fmt == "float2":
+                cells.append(f'<td>{_safe_float(raw_val, 2)}</td>')
+            elif fmt == "float6":
+                cells.append(f'<td>{_safe_float(raw_val, 6)}</td>')
+            elif fmt == "bold_float2":
+                cells.append(f'<td><strong>{_safe_float(raw_val, 2)}</strong></td>')
+            else:
+                cells.append(f'<td>{_safe_str(raw_val, 30)}</td>')
+        rows.append(f"<tr>{''.join(cells)}</tr>")
+    return "\n".join(rows)
+
 def generate_gene_report(pq_path, out_html_path):
-    logger.info(f"Loading {pq_path} for clinical report generation...")
+    logger.info(f"Loading {pq_path} for 4-tab clinical report generation...")
     df = pd.read_parquet(pq_path)
     
     gene_name = os.path.basename(pq_path).split(".")[0]
@@ -54,43 +109,73 @@ def generate_gene_report(pq_path, out_html_path):
     n_total = len(df)
     logger.info(f"Processing {gene_name} ({n_total:,} variants)...")
 
-    # Extract Key Metrics
+    # Gene Meta
     pli_val = df["pLI_gene_value"].dropna().iloc[0] if "pLI_gene_value" in df.columns and len(df["pLI_gene_value"].dropna()) > 0 else "N/A"
     gene_prio = df["gene_priority"].dropna().iloc[0] if "gene_priority" in df.columns and len(df["gene_priority"].dropna()) > 0 else "N/A"
     mane_tx = df["MANE_SELECT"].dropna().iloc[0] if "MANE_SELECT" in df.columns and len(df["MANE_SELECT"].dropna()) > 0 else (df["Feature"].dropna().iloc[0] if "Feature" in df.columns and len(df["Feature"].dropna()) > 0 else "-")
 
-    # Tier Counts
-    tier_col = df["PRIORITY_TIER"].astype(str) if "PRIORITY_TIER" in df.columns else pd.Series("Tier 4 (Benign / Tolerated)", index=df.index)
+    # --- Tool Availability & Disclaimers ---
+    disclaimers = []
+    
+    # SpliceAI Provenance
+    has_custom_spliceai = ("spliceai_custom_MAX" in df.columns) and (df["spliceai_custom_MAX"].notna().sum() > 0)
+    if has_custom_spliceai:
+        disclaimers.append(('provenance', '🧬 <strong>Custom SpliceAI Active</strong>: Evaluated with local <strong>±10,000 bp (20 kb) context window</strong> (-D 10000) for comprehensive deep intronic & non-canonical junction discovery.'))
+    else:
+        disclaimers.append(('info', 'ℹ️ <strong>VEP SpliceAI Active</strong>: Evaluated with Illumina precomputed lookup table (<strong>500 bp window</strong>). Custom 20kb inference was not computed for this batch.'))
+
+    # Tool checks
+    tool_status_checks = [
+        ("AlphaMissense", "am_pathogenicity" in df.columns and df["am_pathogenicity"].notna().sum() > 0),
+        ("REVEL", "REVEL_score" in df.columns and df["REVEL_score"].notna().sum() > 0),
+        ("SPiP", ("SPiP_prediction" in df.columns or "SPiP" in df.columns) and (df.get("SPiP_prediction", df.get("SPiP", pd.Series(dtype=float))).notna().sum() > 0)),
+        ("SpliceVault", "SpliceVault_status" in df.columns and (get_col_string(df, "SpliceVault_status") == "aberrant_event_detected").sum() > 0),
+        ("Pangolin", "Pangolin_max_score" in df.columns and df["Pangolin_max_score"].notna().sum() > 0),
+        ("Branchpointer / LaBranchoR", "Branchpoint_status" in df.columns or "LaBranchoR_score" in df.columns),
+        ("UTRAnnotator (5' UTR)", "5UTR_consequence" in df.columns and df["5UTR_consequence"].notna().sum() > 0),
+        ("UTR.annotation (Kozak/uAUG/PolyA)", any(c in df.columns for c in ["lost_start_codon", "lost_stop_codon", "utr_num_kozak_gainedOrLost", "mrl_gainedOrLost"])),
+    ]
+    for tool_name, is_present in tool_status_checks:
+        if not is_present:
+            disclaimers.append(('warning', f'⚠️ <strong>{tool_name}</strong>: Column not present or unindexed for this gene dataset; prioritization applied graceful fallback.'))
+
+    # Numeric Extractions
+    splice_custom = get_col_numeric(df, "spliceai_custom_MAX", 0.0)
+    splice_vep = get_col_numeric(df, "spliceAI_MAX", 0.0)
+    splice_score = np.where(splice_custom > 0, splice_custom, splice_vep)
+    df["SPLICE_MAX_UNIFIED"] = splice_score
+    
+    spip_score = get_col_numeric(df, "SPiP_prediction", get_col_numeric(df, "SPiP", 0.0))
+    pangolin_score = get_col_numeric(df, "Pangolin_max_score", 0.0)
+    revel_score = get_col_numeric(df, "REVEL_score", 0.0)
+    am_score = get_col_numeric(df, "am_pathogenicity", 0.0)
+    cadd_score = get_col_numeric(df, "CADD_PHRED", get_col_numeric(df, "CADD_phred", 0.0))
+    af_score = get_col_numeric(df, "gnomADv4_AF_grpmax_joint", get_col_numeric(df, "AF", 0.0))
+    intron_offset = get_col_numeric(df, "intron_offset_signed", 0.0)
+    prio_score = get_col_numeric(df, "VARIANT_PRIORITY_SCORE", 0.0)
+
+    conseq = get_col_string(df, "Consequence", "").str.lower()
+    tier_col = get_col_string(df, "PRIORITY_TIER", "Tier 4 (Benign / Tolerated)")
+    impact_col = get_col_string(df, "NEW_IMPACT", get_col_string(df, "IMPACT", "MODIFIER"))
+
+    # Global Tier Counts
     n_tier1 = (tier_col.str.contains("Tier 1")).sum()
     n_tier2 = (tier_col.str.contains("Tier 2")).sum()
     n_tier3 = (tier_col.str.contains("Tier 3")).sum()
     n_tier4 = (tier_col.str.contains("Tier 4")).sum()
 
-    # High Splicing & High Missense counts
-    splice_score = pd.to_numeric(df.get("spliceai_custom_MAX", df.get("spliceAI_MAX", 0)), errors="coerce").fillna(0)
-    revel_score = pd.to_numeric(df.get("REVEL_score", 0), errors="coerce").fillna(0)
-    am_score = pd.to_numeric(df.get("am_pathogenicity", 0), errors="coerce").fillna(0)
-    sv_events = (df.get("SpliceVault_status", "") == "aberrant_event_detected").sum() if "SpliceVault_status" in df.columns else 0
-    bp_disrupt = (df.get("Branchpoint_status", "") == "disrupted").sum() if "Branchpoint_status" in df.columns else 0
-
-    n_splice_path = (splice_score >= 0.50).sum()
-    n_missense_path = ((am_score >= 0.564) & (revel_score >= 0.75)).sum()
-
-    # Interactive Plots generation via Plotly
     import plotly.express as px
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
 
-    # 1. Tier Donut Chart
+    # =========================================================================
+    # TAB 1: GENERAL / OVERVIEW CHARTS
+    # =========================================================================
     tier_df = pd.DataFrame({
         "Tier": ["Tier 1 (Critical Pathogenic)", "Tier 2 (Likely Deleterious)", "Tier 3 (VUS / Moderate)", "Tier 4 (Benign / Tolerated)"],
-        "Count": [n_tier1, n_tier2, n_tier3, n_tier4],
-        "Color": ["#e74c3c", "#e67e22", "#f1c40f", "#2ecc71"]
+        "Count": [n_tier1, n_tier2, n_tier3, n_tier4]
     })
     fig_donut = px.pie(
-        tier_df,
-        values="Count",
-        names="Tier",
+        tier_df, values="Count", names="Tier",
         color="Tier",
         color_discrete_map={
             "Tier 1 (Critical Pathogenic)": "#e74c3c",
@@ -99,24 +184,57 @@ def generate_gene_report(pq_path, out_html_path):
             "Tier 4 (Benign / Tolerated)": "#2ecc71"
         },
         hole=0.45,
-        title=f"Clinical Triage Stratification ({n_total:,} variants)"
+        title=f"Clinical Triage Stratification ({n_total:,} Variants)"
     )
     fig_donut.update_traces(textposition='inside', textinfo='percent+label')
-    fig_donut.update_layout(showlegend=False, margin=dict(t=40, b=20, l=20, r=20), height=340)
+    fig_donut.update_layout(showlegend=False, margin=dict(t=40, b=20, l=20, r=20), height=330)
 
-    # 2. Pathogenicity Scatter (AlphaMissense vs REVEL, color by Tier)
-    sub_missense = df[(revel_score > 0) | (am_score > 0)].copy()
-    if len(sub_missense) > 0:
-        sub_missense["AM_val"] = pd.to_numeric(sub_missense.get("am_pathogenicity", 0), errors="coerce").fillna(0)
-        sub_missense["REVEL_val"] = pd.to_numeric(sub_missense.get("REVEL_score", 0), errors="coerce").fillna(0)
-        sub_missense["Tier_Label"] = sub_missense["PRIORITY_TIER"].astype(str)
-        sub_missense["HGVSc_clean"] = sub_missense["HGVSc"].astype(str).str.split(":").str[-1]
-        sub_missense["HGVSp_clean"] = sub_missense["HGVSp"].astype(str).str.split(":").str[-1]
+    # Top Candidate Table (Tier 1 & 2)
+    top_overall_df = df[tier_col.str.contains("Tier 1|Tier 2") | (prio_score >= 35.0)].sort_values("VARIANT_PRIORITY_SCORE", ascending=False).head(200)
+    general_cols = [
+        ("Locus (GRCh38)", "Locus", "locus"),
+        ("HGVSc", "HGVSc", "code"),
+        ("HGVSp", "HGVSp", "code"),
+        ("Priority Tier", "PRIORITY_TIER", "tier"),
+        ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
+        ("NEW_IMPACT", "NEW_IMPACT", "impact"),
+        ("Consequence", "Consequence", "str"),
+        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
+        ("AlphaMissense", "am_pathogenicity", "bold_float2"),
+        ("REVEL", "REVEL_score", "float2"),
+        ("ClinVar", "CLNSIG", "str"),
+    ]
+    general_table_html = build_table_rows(top_overall_df, general_cols)
 
-        fig_missense = px.scatter(
-            sub_missense,
-            x="REVEL_val",
-            y="AM_val",
+    # =========================================================================
+    # TAB 2: SPLICING TAB
+    # =========================================================================
+    splice_mask = (
+        (splice_score >= 0.20) |
+        (spip_score >= 0.20) |
+        (pangolin_score >= 0.20) |
+        (get_col_string(df, "SpliceVault_status") == "aberrant_event_detected") |
+        (get_col_string(df, "Branchpoint_status") == "disrupted") |
+        (conseq.str.contains("splice"))
+    )
+    df_splice = df[splice_mask].copy().sort_values("VARIANT_PRIORITY_SCORE", ascending=False)
+    n_splice_total = len(df_splice)
+    n_splice_high = (splice_score >= 0.50).sum()
+    n_splice_deep = ((splice_score >= 0.20) & (intron_offset.abs() > 500)).sum()
+    n_splice_vault = (get_col_string(df, "SpliceVault_status") == "aberrant_event_detected").sum()
+    n_branchpoint = (get_col_string(df, "Branchpoint_status") == "disrupted").sum()
+
+    # Splicing Offset Scatter Plot
+    if len(df_splice) > 0:
+        df_splice_plot = df_splice.copy()
+        df_splice_plot["Splice_Score"] = df_splice_plot["SPLICE_MAX_UNIFIED"].astype(float)
+        df_splice_plot["Offset"] = get_col_numeric(df_splice_plot, "intron_offset_signed", 0.0)
+        df_splice_plot["Tier_Label"] = get_col_string(df_splice_plot, "PRIORITY_TIER", "Tier 4")
+
+        fig_splice_scatter = px.scatter(
+            df_splice_plot,
+            x="Offset", y="Splice_Score",
             color="Tier_Label",
             color_discrete_map={
                 "Tier 1 (Critical Pathogenic Candidate)": "#e74c3c",
@@ -124,29 +242,103 @@ def generate_gene_report(pq_path, out_html_path):
                 "Tier 3 (VUS / Moderate Potential)": "#f1c40f",
                 "Tier 4 (Benign / Tolerated)": "#95a5a6"
             },
-            hover_data=["HGVSc_clean", "HGVSp_clean", "Consequence"],
-            labels={"REVEL_val": "REVEL Score (0-1)", "AM_val": "AlphaMissense Pathogenicity (0-1)"},
-            title="Missense Pathogenicity Correlation (REVEL vs AlphaMissense)"
+            hover_data=["HGVSc", "Consequence"],
+            labels={"Offset": "Distance to Splice Site (bp, signed)", "Splice_Score": "SpliceAI Max Δ Score"},
+            title="SpliceAI Δ vs Intronic Distance"
         )
-        fig_missense.add_vline(x=0.75, line_dash="dash", line_color="#e74c3c", annotation_text="REVEL ≥ 0.75")
-        fig_missense.add_hline(y=0.564, line_dash="dash", line_color="#e67e22", annotation_text="AlphaMissense ≥ 0.564")
-        fig_missense.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=340)
+        fig_splice_scatter.add_hline(y=0.50, line_dash="dash", line_color="#e74c3c", annotation_text="High SpliceAI ≥ 0.50")
+        fig_splice_scatter.add_hline(y=0.20, line_dash="dot", line_color="#f1c40f", annotation_text="Moderate SpliceAI ≥ 0.20")
+        fig_splice_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
     else:
-        fig_missense = go.Figure()
-        fig_missense.update_layout(title="No Missense Predictors Available", height=340)
+        fig_splice_scatter = go.Figure()
+        fig_splice_scatter.update_layout(title="No Splicing Variants Detected", height=330)
 
-    # 3. Splicing Landscape (Signed Intron Offset vs SpliceAI Custom Δ)
-    sub_splice = df[splice_score >= 0.10].copy()
-    if len(sub_splice) > 0:
-        sub_splice["Splice_Score"] = pd.to_numeric(sub_splice.get("spliceai_custom_MAX", sub_splice.get("spliceAI_MAX", 0)), errors="coerce").fillna(0)
-        sub_splice["Offset"] = pd.to_numeric(sub_splice.get("intron_offset_signed", 0), errors="coerce").fillna(0)
-        sub_splice["Tier_Label"] = sub_splice["PRIORITY_TIER"].astype(str)
-        sub_splice["HGVSc_clean"] = sub_splice["HGVSc"].astype(str).str.split(":").str[-1]
+    splice_table_cols = [
+        ("Locus (GRCh38)", "Locus", "locus"),
+        ("HGVSc", "HGVSc", "code"),
+        ("Offset (bp)", "intron_offset_signed", "str"),
+        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
+        ("SpliceAI Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
+        ("DS_AG", "spliceai_custom_DS_AG", "float2"),
+        ("DS_AL", "spliceai_custom_DS_AL", "float2"),
+        ("DS_DG", "spliceai_custom_DS_DG", "float2"),
+        ("DS_DL", "spliceai_custom_DS_DL", "float2"),
+        ("SPiP Pred", "SPiP_prediction", "float2"),
+        ("SpliceVault", "SpliceVault_status", "str"),
+        ("Branchpoint", "Branchpoint_status", "str"),
+        ("ClinVar", "CLNSIG", "str"),
+    ]
+    splice_table_html = build_table_rows(df_splice.head(250), splice_table_cols)
 
-        fig_splice = px.scatter(
-            sub_splice,
-            x="Offset",
-            y="Splice_Score",
+    # =========================================================================
+    # TAB 3: UTR TAB
+    # =========================================================================
+    utr_mask = (
+        (conseq.str.contains("utr|5_prime|3_prime|prime_utr")) |
+        (df.get("5UTR_consequence", pd.Series(dtype=str)).notna()) |
+        (get_col_string(df, "utr_num_kozak_gainedOrLost").str.lower().isin(["gained", "lost", "true"])) |
+        (get_col_string(df, "utr_num_uAUG_gainedOrLost").str.lower().isin(["gained", "lost", "true"]))
+    )
+    df_utr = df[utr_mask].copy().sort_values("VARIANT_PRIORITY_SCORE", ascending=False)
+    n_utr_total = len(df_utr)
+    n_5utr_conseq = (df.get("5UTR_consequence", pd.Series(dtype=str)).notna() & (get_col_string(df, "5UTR_consequence") != "nan") & (get_col_string(df, "5UTR_consequence") != "-") & (get_col_string(df, "5UTR_consequence") != "")).sum() if "5UTR_consequence" in df.columns else 0
+    n_kozak = (get_col_string(df, "utr_num_kozak_gainedOrLost").str.lower().isin(["gained", "lost", "true"])).sum()
+    n_uaug = (get_col_string(df, "utr_num_uAUG_gainedOrLost").str.lower().isin(["gained", "lost", "true"])).sum()
+    n_start_stop = (conseq.str.contains("start_lost|stop_lost|lost_start|lost_stop")).sum()
+
+    # UTR Consequence Chart
+    if len(df_utr) > 0:
+        utr_counts = df_utr["Consequence"].value_counts().head(8).reset_index()
+        utr_counts.columns = ["Consequence", "Count"]
+        fig_utr_bar = px.bar(
+            utr_counts, x="Count", y="Consequence", orientation="h",
+            title="UTR Variant Consequence Distribution",
+            color="Count", color_continuous_scale="Teal"
+        )
+        fig_utr_bar.update_layout(yaxis={'categoryorder': 'total ascending'}, margin=dict(t=40, b=20, l=20, r=20), height=330)
+    else:
+        fig_utr_bar = go.Figure()
+        fig_utr_bar.update_layout(title="No UTR Variants Detected", height=330)
+
+    utr_table_cols = [
+        ("Locus (GRCh38)", "Locus", "locus"),
+        ("HGVSc", "HGVSc", "code"),
+        ("Consequence", "Consequence", "str"),
+        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
+        ("NEW_IMPACT", "NEW_IMPACT", "impact"),
+        ("5UTR Consequence", "5UTR_consequence", "str"),
+        ("Kozak Alt", "utr_num_kozak_gainedOrLost", "str"),
+        ("uAUG Alt", "utr_num_uAUG_gainedOrLost", "str"),
+        ("MRL Alt", "mrl_gainedOrLost", "str"),
+        ("PolyA Alt", "num_polyA_signal_gainedOrLost", "str"),
+        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("ClinVar", "CLNSIG", "str"),
+    ]
+    utr_table_html = build_table_rows(df_utr.head(250), utr_table_cols)
+
+    # =========================================================================
+    # TAB 4: MISSENSE TAB
+    # =========================================================================
+    missense_mask = conseq.str.contains("missense")
+    df_missense = df[missense_mask].copy().sort_values("VARIANT_PRIORITY_SCORE", ascending=False)
+    n_missense_total = len(df_missense)
+    n_am_path = (am_score >= 0.564).sum()
+    n_revel_path = (revel_score >= 0.75).sum()
+    n_consensus_path = ((am_score >= 0.564) & (revel_score >= 0.75)).sum()
+    n_cadd_high = (cadd_score >= 25.0).sum()
+
+    # Missense Quadrant Scatter
+    if len(df_missense) > 0:
+        df_missense_plot = df_missense[(df_missense["am_pathogenicity"].notna()) | (df_missense["REVEL_score"].notna())].copy()
+        df_missense_plot["AM_val"] = get_col_numeric(df_missense_plot, "am_pathogenicity", 0.0)
+        df_missense_plot["REVEL_val"] = get_col_numeric(df_missense_plot, "REVEL_score", 0.0)
+        df_missense_plot["Tier_Label"] = get_col_string(df_missense_plot, "PRIORITY_TIER", "Tier 4")
+
+        fig_missense_scatter = px.scatter(
+            df_missense_plot,
+            x="REVEL_val", y="AM_val",
             color="Tier_Label",
             color_discrete_map={
                 "Tier 1 (Critical Pathogenic Candidate)": "#e74c3c",
@@ -154,100 +346,62 @@ def generate_gene_report(pq_path, out_html_path):
                 "Tier 3 (VUS / Moderate Potential)": "#f1c40f",
                 "Tier 4 (Benign / Tolerated)": "#95a5a6"
             },
-            hover_data=["HGVSc_clean", "Consequence"],
-            labels={"Offset": "Intron Offset (bp from Junction, signed)", "Splice_Score": "SpliceAI Custom Δ Score"},
-            title="Splicing Alteration Landscape vs Intronic Distance"
+            hover_data=["HGVSc", "HGVSp", "Consequence"],
+            labels={"REVEL_val": "REVEL Score (0-1)", "AM_val": "AlphaMissense Score (0-1)"},
+            title="Missense Pathogenicity (REVEL vs AlphaMissense)"
         )
-        fig_splice.add_hline(y=0.50, line_dash="dash", line_color="#e74c3c", annotation_text="High SpliceAI ≥ 0.50")
-        fig_splice.add_hline(y=0.20, line_dash="dot", line_color="#f1c40f", annotation_text="Moderate SpliceAI ≥ 0.20")
-        fig_splice.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=340)
+        fig_missense_scatter.add_vline(x=0.75, line_dash="dash", line_color="#e74c3c", annotation_text="REVEL ≥ 0.75")
+        fig_missense_scatter.add_hline(y=0.564, line_dash="dash", line_color="#e67e22", annotation_text="AlphaMissense ≥ 0.564")
+        fig_missense_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
     else:
-        fig_splice = go.Figure()
-        fig_splice.update_layout(title="No Splicing Alterations Detected", height=340)
+        fig_missense_scatter = go.Figure()
+        fig_missense_scatter.update_layout(title="No Missense Variants Detected", height=330)
 
-    # 4. Filter High-Priority Candidate Variants for the Clinical Table (Tier 1, Tier 2, and Top Tier 3)
-    prio_mask = tier_col.str.contains("Tier 1|Tier 2") | (pd.to_numeric(df.get("VARIANT_PRIORITY_SCORE", 0), errors="coerce").fillna(0) >= 30.0)
-    prio_df = df[prio_mask].copy()
-    prio_df = prio_df.sort_values("VARIANT_PRIORITY_SCORE", ascending=False)
-    
-    # Cap table to top 200 candidates to keep HTML responsive
-    prio_df = prio_df.head(250)
-
-    table_rows = []
-    for _, r in prio_df.iterrows():
-        locus = _safe_str(r.get("Locus", "-"), 22)
-        hgvsc = _safe_str(r.get("HGVSc", "-"), 30)
-        hgvsp = _safe_str(r.get("HGVSp", "-"), 25)
-        tier_val = str(r.get("PRIORITY_TIER", "Tier 4"))
-        
-        tier_badge = "badge-tier4"
-        if "Tier 1" in tier_val:
-            tier_badge = "badge-tier1"
-        elif "Tier 2" in tier_val:
-            tier_badge = "badge-tier2"
-        elif "Tier 3" in tier_val:
-            tier_badge = "badge-tier3"
-
-        score_val = _safe_float(r.get("VARIANT_PRIORITY_SCORE", 0), 1)
-        impact_val = _safe_str(r.get("NEW_IMPACT", r.get("IMPACT", "-")), 15)
-        conseq_val = _safe_str(r.get("Consequence", "-"), 25)
-        af_val = _safe_float(r.get("gnomADv4_AF_grpmax_joint", r.get("AF", 0)), 6)
-        
-        splice_val = _safe_float(r.get("spliceai_custom_MAX", r.get("spliceAI_MAX", 0)), 2)
-        spip_val = _safe_float(r.get("SPiP_prediction", r.get("SPiP", 0)), 2)
-        am_val = _safe_float(r.get("am_pathogenicity", 0), 2)
-        revel_val = _safe_float(r.get("REVEL_score", 0), 2)
-        sv_stat = _safe_str(r.get("SpliceVault_status", "-"), 18)
-        cln_val = _safe_str(r.get("CLNSIG", r.get("clinvar_clnsig", "-")), 22)
-
-        # External Links
-        loc_parts = str(r.get("Locus", "")).split("-")[0].split(":")
-        if len(loc_parts) == 2:
-            chr_num, pos_num = loc_parts[0], loc_parts[1]
-            gnomad_link = f"https://gnomad.broadinstitute.org/variant/{chr_num}-{pos_num}-{r.get('REF','')}-{r.get('ALT','')}?dataset=gnomad_r4"
-        else:
-            gnomad_link = "#"
-
-        table_rows.append(f"""
-        <tr>
-            <td><strong><a href="{gnomad_link}" target="_blank" style="color:#2980b9; text-decoration:none;">{locus}</a></strong></td>
-            <td><code>{hgvsc}</code></td>
-            <td><code>{hgvsp}</code></td>
-            <td><span class="badge {tier_badge}">{tier_val.split(' (')[0]}</span></td>
-            <td><strong>{score_val}</strong></td>
-            <td><span class="impact-{impact_val.lower()}">{impact_val}</span></td>
-            <td>{conseq_val}</td>
-            <td>{af_val}</td>
-            <td><strong>{splice_val}</strong></td>
-            <td>{spip_val}</td>
-            <td><strong>{am_val}</strong></td>
-            <td>{revel_val}</td>
-            <td>{sv_stat}</td>
-            <td>{cln_val}</td>
-        </tr>
-        """)
+    missense_table_cols = [
+        ("Locus (GRCh38)", "Locus", "locus"),
+        ("HGVSc", "HGVSc", "code"),
+        ("HGVSp", "HGVSp", "code"),
+        ("Tier", "PRIORITY_TIER", "tier"),
+        ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
+        ("AlphaMissense", "am_pathogenicity", "bold_float2"),
+        ("AM Class", "am_class", "str"),
+        ("REVEL", "REVEL_score", "bold_float2"),
+        ("CADD Phred", "CADD_PHRED", "float2"),
+        ("Polyphen2", "Polyphen2_HVAR_pred", "str"),
+        ("SIFT", "SIFT_pred", "str"),
+        ("gnomAD AF", "gnomADv4_AF_grpmax_joint", "float6"),
+        ("ClinVar", "CLNSIG", "str"),
+    ]
+    missense_table_html = build_table_rows(df_missense.head(250), missense_table_cols)
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    # Build Complete HTML Document
+    # Render Disclaimers HTML
+    disclaimer_items = []
+    for dtype, msg in disclaimers:
+        dclass = "disc-info" if dtype == "info" else ("disc-prov" if dtype == "provenance" else "disc-warn")
+        disclaimer_items.append(f'<div class="disclaimer-banner {dclass}">{msg}</div>')
+    disclaimers_html = "\n".join(disclaimer_items)
+
+    # Assemble HTML
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clinical Prioritization Report: {gene_name} | GRCh38</title>
+    <title>Clinical Prioritization Dashboard: {gene_name} | GRCh38</title>
     <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
     <style>
         :root {{
-            --bg-color: #f4f7f9;
+            --bg-color: #f8fafc;
             --card-bg: #ffffff;
-            --text-main: #2c3e50;
-            --text-muted: #7f8c8d;
-            --primary: #2980b9;
-            --tier1: #e74c3c;
-            --tier2: #e67e22;
-            --tier3: #f1c40f;
-            --tier4: #2ecc71;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --primary: #2563eb;
+            --tier1: #dc2626;
+            --tier2: #ea580c;
+            --tier3: #d97706;
+            --tier4: #16a34a;
             --border-color: #e2e8f0;
         }}
         body {{
@@ -258,244 +412,534 @@ def generate_gene_report(pq_path, out_html_path):
             padding: 24px;
         }}
         .header-banner {{
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
             color: white;
-            padding: 28px 32px;
+            padding: 24px 30px;
             border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            margin-bottom: 24px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            margin-bottom: 20px;
         }}
         .header-banner h1 {{
-            margin: 0 0 8px 0;
-            font-size: 28px;
+            margin: 0 0 6px 0;
+            font-size: 26px;
             font-weight: 700;
         }}
         .meta-tags {{
             display: flex;
-            gap: 12px;
+            gap: 10px;
             flex-wrap: wrap;
-            margin-top: 12px;
+            margin-top: 10px;
         }}
         .meta-tag {{
-            background: rgba(255,255,255,0.18);
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 13px;
+            background: rgba(255,255,255,0.15);
+            padding: 4px 10px;
+            border-radius: 16px;
+            font-size: 12px;
             font-weight: 500;
         }}
+        .disclaimers-container {{
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }}
+        .disclaimer-banner {{
+            padding: 10px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            line-height: 1.4;
+        }}
+        .disc-prov {{ background: #ecfdf5; border-left: 4px solid #059669; color: #065f46; }}
+        .disc-info {{ background: #eff6ff; border-left: 4px solid #3b82f6; color: #1e40af; }}
+        .disc-warn {{ background: #fffbeb; border-left: 4px solid #f59e0b; color: #92400e; }}
+        
+        /* Navigation Tabs */
+        .tab-nav {{
+            display: flex;
+            gap: 8px;
+            border-bottom: 2px solid var(--border-color);
+            margin-bottom: 24px;
+            background: var(--card-bg);
+            padding: 8px 12px 0 12px;
+            border-radius: 10px 10px 0 0;
+        }}
+        .tab-btn {{
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s ease;
+            border-radius: 6px 6px 0 0;
+        }}
+        .tab-btn:hover {{
+            color: var(--primary);
+            background: #f1f5f9;
+        }}
+        .tab-btn.active {{
+            color: var(--primary);
+            border-bottom: 3px solid var(--primary);
+            background: #eff6ff;
+        }}
+        .tab-content {{
+            display: none;
+        }}
+        .tab-content.active {{
+            display: block;
+        }}
+
+        /* KPI Cards */
         .kpi-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
             gap: 16px;
             margin-bottom: 24px;
         }}
         .kpi-card {{
             background: var(--card-bg);
-            padding: 20px;
+            padding: 16px 20px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
             text-align: center;
         }}
-        .kpi-card.t1 {{ border-top: 5px solid var(--tier1); }}
-        .kpi-card.t2 {{ border-top: 5px solid var(--tier2); }}
-        .kpi-card.t3 {{ border-top: 5px solid var(--tier3); }}
-        .kpi-card.t4 {{ border-top: 5px solid var(--tier4); }}
+        .kpi-card.t1 {{ border-top: 4px solid var(--tier1); }}
+        .kpi-card.t2 {{ border-top: 4px solid var(--tier2); }}
+        .kpi-card.t3 {{ border-top: 4px solid var(--tier3); }}
+        .kpi-card.t4 {{ border-top: 4px solid var(--tier4); }}
+        .kpi-card.blue {{ border-top: 4px solid var(--primary); }}
         .kpi-title {{
-            font-size: 13px;
+            font-size: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--text-muted);
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }}
         .kpi-value {{
-            font-size: 32px;
+            font-size: 28px;
             font-weight: 700;
         }}
         .kpi-value.t1 {{ color: var(--tier1); }}
         .kpi-value.t2 {{ color: var(--tier2); }}
-        .kpi-value.t3 {{ color: #d4ac0d; }}
+        .kpi-value.t3 {{ color: var(--tier3); }}
         .kpi-value.t4 {{ color: var(--tier4); }}
+        .kpi-value.blue {{ color: var(--primary); }}
+
+        /* Charts */
         .charts-grid {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
             gap: 20px;
-            margin-bottom: 28px;
+            margin-bottom: 24px;
         }}
         .chart-card {{
             background: var(--card-bg);
-            padding: 16px;
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+        }}
+
+        /* Table */
+        .table-section {{
+            background: var(--card-bg);
+            padding: 20px;
             border-radius: 10px;
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-        }}
-        .table-section {{
-            background: var(--card-bg);
-            padding: 24px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             margin-bottom: 30px;
         }}
         .table-header-flex {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             flex-wrap: wrap;
-            gap: 12px;
+            gap: 10px;
         }}
         .search-box {{
-            padding: 8px 16px;
+            padding: 8px 14px;
             border-radius: 20px;
-            border: 1px solid #cbd5e0;
-            font-size: 14px;
+            border: 1px solid #cbd5e1;
+            font-size: 13px;
             width: 260px;
         }}
         .table-container {{
             overflow-x: auto;
-            max-height: 650px;
+            max-height: 550px;
         }}
         table {{
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
+            font-size: 12.5px;
             text-align: left;
         }}
         th {{
             background-color: #f8fafc;
             color: #475569;
             font-weight: 600;
-            padding: 10px 12px;
+            padding: 9px 12px;
             border-bottom: 2px solid var(--border-color);
             position: sticky;
             top: 0;
             z-index: 10;
         }}
         td {{
-            padding: 10px 12px;
-            border-bottom: 1px solid #edf2f7;
+            padding: 9px 12px;
+            border-bottom: 1px solid #f1f5f9;
             white-space: nowrap;
         }}
         tr:hover {{
-            background-color: #f1f5f9;
+            background-color: #f8fafc;
         }}
         .badge {{
             display: inline-block;
-            padding: 3px 8px;
-            border-radius: 12px;
+            padding: 2px 7px;
+            border-radius: 10px;
             font-size: 11px;
             font-weight: 700;
             color: white;
         }}
         .badge-tier1 {{ background-color: var(--tier1); }}
         .badge-tier2 {{ background-color: var(--tier2); }}
-        .badge-tier3 {{ background-color: #f39c12; }}
+        .badge-tier3 {{ background-color: var(--tier3); }}
         .badge-tier4 {{ background-color: var(--tier4); }}
-        .impact-high {{ color: #c0392b; font-weight: 700; }}
-        .impact-moderate {{ color: #d35400; font-weight: 600; }}
-        .impact-low {{ color: #27ae60; }}
-        .impact-modifier {{ color: #7f8c8d; }}
+        .impact-high {{ color: #dc2626; font-weight: 700; }}
+        .impact-moderate {{ color: #ea580c; font-weight: 600; }}
+        .impact-low {{ color: #16a34a; }}
+        .impact-modifier {{ color: #64748b; }}
         .footer {{
             text-align: center;
             font-size: 12px;
             color: var(--text-muted);
-            margin-top: 40px;
+            margin-top: 30px;
         }}
     </style>
 </head>
 <body>
     <div class="header-banner">
-        <h1>🧬 Gene Clinical Prioritization Report: {gene_name}</h1>
-        <div>Reference Transcript: <strong>{mane_tx}</strong> | Genome Build: <strong>GRCh38</strong> | Generated: <strong>{timestamp}</strong></div>
+        <h1>🧬 Gene Clinical Prioritization Dashboard: {gene_name}</h1>
+        <div>Transcript: <strong>{mane_tx}</strong> | Genome Build: <strong>GRCh38</strong> | Generated: <strong>{timestamp}</strong></div>
         <div class="meta-tags">
             <span class="meta-tag">Gene Constraint (pLI): <strong>{pli_val}</strong></span>
             <span class="meta-tag">ClinGen Priority: <strong>{gene_prio}</strong></span>
             <span class="meta-tag">Total Cohort Variants: <strong>{n_total:,}</strong></span>
-            <span class="meta-tag">High Splicing Candidates: <strong>{n_splice_path:,}</strong></span>
-            <span class="meta-tag">Consensus Missense Candidates: <strong>{n_missense_path:,}</strong></span>
+            <span class="meta-tag">Splice Alterations: <strong>{n_splice_total:,}</strong></span>
+            <span class="meta-tag">UTR Alterations: <strong>{n_utr_total:,}</strong></span>
+            <span class="meta-tag">Missense Variants: <strong>{n_missense_total:,}</strong></span>
         </div>
     </div>
 
-    <!-- KPI Cards -->
-    <div class="kpi-grid">
-        <div class="kpi-card t1">
-            <div class="kpi-title">Tier 1: Critical Pathogenic</div>
-            <div class="kpi-value t1">{n_tier1:,}</div>
-            <small>Immediate diagnostic review</small>
-        </div>
-        <div class="kpi-card t2">
-            <div class="kpi-title">Tier 2: Likely Deleterious</div>
-            <div class="kpi-value t2">{n_tier2:,}</div>
-            <small>Strong candidate for validation</small>
-        </div>
-        <div class="kpi-card t3">
-            <div class="kpi-title">Tier 3: VUS / Moderate</div>
-            <div class="kpi-value t3">{n_tier3:,}</div>
-            <small>Secondary research follow-up</small>
-        </div>
-        <div class="kpi-card t4">
-            <div class="kpi-title">Tier 4: Benign / Filtered</div>
-            <div class="kpi-value t4">{n_tier4:,}</div>
-            <small>Common / non-damaging</small>
-        </div>
+    <!-- Disclaimers & Provenance -->
+    <div class="disclaimers-container">
+        {disclaimers_html}
     </div>
 
-    <!-- Charts -->
-    <div class="charts-grid">
-        <div class="chart-card">
-            {fig_donut.to_html(full_html=False, include_plotlyjs=False)}
-        </div>
-        <div class="chart-card">
-            {fig_missense.to_html(full_html=False, include_plotlyjs=False)}
-        </div>
-        <div class="chart-card">
-            {fig_splice.to_html(full_html=False, include_plotlyjs=False)}
-        </div>
+    <!-- Tab Navigation -->
+    <div class="tab-nav">
+        <button class="tab-btn active" onclick="switchTab('tab-general')">📊 General / Overview</button>
+        <button class="tab-btn" onclick="switchTab('tab-splicing')">🧬 Splicing Alterations ({n_splice_total:,})</button>
+        <button class="tab-btn" onclick="switchTab('tab-utr')">🎯 5'/3' UTR & Translation ({n_utr_total:,})</button>
+        <button class="tab-btn" onclick="switchTab('tab-missense')">🔬 Missense Pathogenicity ({n_missense_total:,})</button>
     </div>
 
-    <!-- Clinical Triage Table -->
-    <div class="table-section">
-        <div class="table-header-flex">
-            <div>
-                <h2 style="margin:0 0 4px 0;">📋 Top Prioritized Candidate Variants ({len(prio_df)} displayed)</h2>
-                <small style="color:var(--text-muted);">Includes Tier 1, Tier 2, and high-scoring Tier 3 candidates ranked by multi-omics priority score</small>
+    <!-- ==================== TAB 1: GENERAL ==================== -->
+    <div id="tab-general" class="tab-content active">
+        <div class="kpi-grid">
+            <div class="kpi-card t1">
+                <div class="kpi-title">Tier 1: Critical Pathogenic</div>
+                <div class="kpi-value t1">{n_tier1:,}</div>
+                <small>Immediate diagnostic review</small>
             </div>
-            <input type="text" id="tableSearch" class="search-box" placeholder="🔍 Search locus, HGVSc, consequence..." onkeyup="filterTable()">
+            <div class="kpi-card t2">
+                <div class="kpi-title">Tier 2: Likely Deleterious</div>
+                <div class="kpi-value t2">{n_tier2:,}</div>
+                <small>Strong candidate for validation</small>
+            </div>
+            <div class="kpi-card t3">
+                <div class="kpi-title">Tier 3: VUS / Moderate</div>
+                <div class="kpi-value t3">{n_tier3:,}</div>
+                <small>Secondary research candidate</small>
+            </div>
+            <div class="kpi-card t4">
+                <div class="kpi-title">Tier 4: Benign / Tolerated</div>
+                <div class="kpi-value t4">{n_tier4:,}</div>
+                <small>Common / non-damaging</small>
+            </div>
         </div>
 
-        <div class="table-container">
-            <table id="clinicalTable">
-                <thead>
-                    <tr>
-                        <th>Locus (GRCh38)</th>
-                        <th>HGVSc</th>
-                        <th>HGVSp</th>
-                        <th>Priority Tier</th>
-                        <th>Score</th>
-                        <th>NEW_IMPACT</th>
-                        <th>Consequence</th>
-                        <th>gnomAD AF</th>
-                        <th>SpliceAI Δ</th>
-                        <th>SPiP</th>
-                        <th>AlphaMissense</th>
-                        <th>REVEL</th>
-                        <th>SpliceVault</th>
-                        <th>ClinVar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {''.join(table_rows)}
-                </tbody>
-            </table>
+        <div class="charts-grid">
+            <div class="chart-card">
+                {fig_donut.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+            <div class="chart-card">
+                {fig_missense_scatter.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+            <div class="chart-card">
+                {fig_splice_scatter.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header-flex">
+                <div>
+                    <h3 style="margin:0 0 2px 0;">Top Prioritized Candidate Variants ({len(top_overall_df)} Candidates)</h3>
+                    <small style="color:var(--text-muted);">Includes Tier 1, Tier 2, and high-scoring Tier 3 candidates ranked by multi-evidence score</small>
+                </div>
+                <input type="text" class="search-box" placeholder="🔍 Search table..." onkeyup="filterTable(this, 'generalTable')">
+            </div>
+            <div class="table-container">
+                <table id="generalTable">
+                    <thead>
+                        <tr>
+                            <th>Locus (GRCh38)</th>
+                            <th>HGVSc</th>
+                            <th>HGVSp</th>
+                            <th>Tier</th>
+                            <th>Score</th>
+                            <th>NEW_IMPACT</th>
+                            <th>Consequence</th>
+                            <th>gnomAD AF</th>
+                            <th>SpliceAI Δ</th>
+                            <th>AlphaMissense</th>
+                            <th>REVEL</th>
+                            <th>ClinVar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {general_table_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 2: SPLICING ==================== -->
+    <div id="tab-splicing" class="tab-content">
+        <div class="kpi-grid">
+            <div class="kpi-card blue">
+                <div class="kpi-title">Total Splice Candidates</div>
+                <div class="kpi-value blue">{n_splice_total:,}</div>
+                <small>SpliceAI / SPiP / Pangolin ≥ 0.20</small>
+            </div>
+            <div class="kpi-card t1">
+                <div class="kpi-title">High-Impact SpliceAI (≥ 0.50)</div>
+                <div class="kpi-value t1">{n_splice_high:,}</div>
+                <small>High confidence splice disruption</small>
+            </div>
+            <div class="kpi-card t2">
+                <div class="kpi-title">Deep Intronic Events (>500bp)</div>
+                <div class="kpi-value t2">{n_splice_deep:,}</div>
+                <small>Custom 20kb discovery</small>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-title">SpliceVault RNA Events</div>
+                <div class="kpi-value blue">{n_splice_vault:,}</div>
+                <small>Empirical RNA mis-splicing</small>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-title">Branchpoint Disruptions</div>
+                <div class="kpi-value blue">{n_branchpoint:,}</div>
+                <small>Branchpointer / LaBranchoR</small>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_splice_scatter.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header-flex">
+                <div>
+                    <h3 style="margin:0 0 2px 0;">Splicing Altering Variants ({len(df_splice)} Candidates)</h3>
+                    <small style="color:var(--text-muted);">Displaying only variants with predicted splicing effects or junction disruptions</small>
+                </div>
+                <input type="text" class="search-box" placeholder="🔍 Search splicing table..." onkeyup="filterTable(this, 'spliceTable')">
+            </div>
+            <div class="table-container">
+                <table id="spliceTable">
+                    <thead>
+                        <tr>
+                            <th>Locus (GRCh38)</th>
+                            <th>HGVSc</th>
+                            <th>Offset</th>
+                            <th>Tier</th>
+                            <th>Score</th>
+                            <th>SpliceAI Δ</th>
+                            <th>DS_AG</th>
+                            <th>DS_AL</th>
+                            <th>DS_DG</th>
+                            <th>DS_DL</th>
+                            <th>SPiP Pred</th>
+                            <th>SpliceVault</th>
+                            <th>Branchpoint</th>
+                            <th>ClinVar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {splice_table_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 3: UTR ==================== -->
+    <div id="tab-utr" class="tab-content">
+        <div class="kpi-grid">
+            <div class="kpi-card blue">
+                <div class="kpi-title">Total UTR Variants</div>
+                <div class="kpi-value blue">{n_utr_total:,}</div>
+                <small>5' & 3' UTR sequences</small>
+            </div>
+            <div class="kpi-card t1">
+                <div class="kpi-title">5' UTR Translation Consequences</div>
+                <div class="kpi-value t1">{n_5utr_conseq:,}</div>
+                <small>5UTR.annotator hits</small>
+            </div>
+            <div class="kpi-card t2">
+                <div class="kpi-title">Kozak / uAUG Alterations</div>
+                <div class="kpi-value t2">{n_kozak + n_uaug:,}</div>
+                <small>Upstream ORF / Kozak shifts</small>
+            </div>
+            <div class="kpi-card t1">
+                <div class="kpi-title">Start / Stop Codon Lost</div>
+                <div class="kpi-value t1">{n_start_stop:,}</div>
+                <small>Initiation / termination loss</small>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_utr_bar.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header-flex">
+                <div>
+                    <h3 style="margin:0 0 2px 0;">5' & 3' UTR Variants ({len(df_utr)} Candidates)</h3>
+                    <small style="color:var(--text-muted);">Displaying only non-coding regulatory and translation-modifying UTR variants</small>
+                </div>
+                <input type="text" class="search-box" placeholder="🔍 Search UTR table..." onkeyup="filterTable(this, 'utrTable')">
+            </div>
+            <div class="table-container">
+                <table id="utrTable">
+                    <thead>
+                        <tr>
+                            <th>Locus (GRCh38)</th>
+                            <th>HGVSc</th>
+                            <th>Consequence</th>
+                            <th>Tier</th>
+                            <th>Score</th>
+                            <th>NEW_IMPACT</th>
+                            <th>5UTR Consequence</th>
+                            <th>Kozak Alt</th>
+                            <th>uAUG Alt</th>
+                            <th>MRL Alt</th>
+                            <th>PolyA Alt</th>
+                            <th>gnomAD AF</th>
+                            <th>ClinVar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {utr_table_html}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 4: MISSENSE ==================== -->
+    <div id="tab-missense" class="tab-content">
+        <div class="kpi-grid">
+            <div class="kpi-card blue">
+                <div class="kpi-title">Total Missense Variants</div>
+                <div class="kpi-value blue">{n_missense_total:,}</div>
+                <small>Non-synonymous coding</small>
+            </div>
+            <div class="kpi-card t1">
+                <div class="kpi-title">Consensus Pathogenic (AM+REVEL)</div>
+                <div class="kpi-value t1">{n_consensus_path:,}</div>
+                <small>AM ≥ 0.564 & REVEL ≥ 0.75</small>
+            </div>
+            <div class="kpi-card t2">
+                <div class="kpi-title">AlphaMissense Pathogenic</div>
+                <div class="kpi-value t2">{n_am_path:,}</div>
+                <small>DeepMind AM ≥ 0.564</small>
+            </div>
+            <div class="kpi-card t2">
+                <div class="kpi-title">REVEL Pathogenic</div>
+                <div class="kpi-value t2">{n_revel_path:,}</div>
+                <small>Ensemble REVEL ≥ 0.75</small>
+            </div>
+            <div class="kpi-card blue">
+                <div class="kpi-title">CADD Phred ≥ 25</div>
+                <div class="kpi-value blue">{n_cadd_high:,}</div>
+                <small>Top 0.3% conserved</small>
+            </div>
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_missense_scatter.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="table-header-flex">
+                <div>
+                    <h3 style="margin:0 0 2px 0;">Missense Variants ({len(df_missense)} Candidates)</h3>
+                    <small style="color:var(--text-muted);">Displaying only non-synonymous amino acid substitutions</small>
+                </div>
+                <input type="text" class="search-box" placeholder="🔍 Search missense table..." onkeyup="filterTable(this, 'missenseTable')">
+            </div>
+            <div class="table-container">
+                <table id="missenseTable">
+                    <thead>
+                        <tr>
+                            <th>Locus (GRCh38)</th>
+                            <th>HGVSc</th>
+                            <th>HGVSp</th>
+                            <th>Tier</th>
+                            <th>Score</th>
+                            <th>AlphaMissense</th>
+                            <th>AM Class</th>
+                            <th>REVEL</th>
+                            <th>CADD Phred</th>
+                            <th>Polyphen2</th>
+                            <th>SIFT</th>
+                            <th>gnomAD AF</th>
+                            <th>ClinVar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {missense_table_html}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 
     <script>
-        function filterTable() {{
-            let input = document.getElementById("tableSearch");
+        function switchTab(tabId) {{
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.currentTarget.classList.add('active');
+            
+            window.dispatchEvent(new Event('resize'));
+        }}
+
+        function filterTable(input, tableId) {{
             let filter = input.value.toLowerCase();
-            let table = document.getElementById("clinicalTable");
+            let table = document.getElementById(tableId);
             let tr = table.getElementsByTagName("tr");
 
             for (let i = 1; i < tr.length; i++) {{
@@ -523,11 +967,11 @@ def generate_gene_report(pq_path, out_html_path):
     with open(out_html_path, "w") as f:
         f.write(html_content)
 
-    logger.info(f"Successfully generated medical clinical dashboard at: {out_html_path}")
+    logger.info(f"Successfully generated 4-tab clinical dashboard at: {out_html_path}")
     return True
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate Medical Clinical Prioritization Report per Gene")
+    parser = argparse.ArgumentParser(description="Generate 4-Tab Medical Clinical Prioritization Dashboard per Gene")
     parser.add_argument("--input", help="Path to single gene parquet file (.parsed.clean.pq)")
     parser.add_argument("--output", help="Path for output HTML dashboard")
     parser.add_argument("--run-dir", default="RUNS/run_20260813_1028", help="Run directory containing results/ folder to process in batch")
