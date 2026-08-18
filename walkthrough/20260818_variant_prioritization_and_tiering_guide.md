@@ -79,17 +79,20 @@ $$\text{Priority Score} = S_{\text{LoF}} + S_{\text{Splicing}} + S_{\text{Missen
 ### Weight Breakdown:
 - **$S_{\text{LoF}}$ (up to +35 pts)**: `+35.0` for canonical LoF (`stop_gained`, `frameshift`, `splice_donor`, `splice_acceptor`).
 - **$S_{\text{Splicing}}$ (up to +40 pts)**:
-  - $\max(\text{SpliceAI}, \text{SPiP}, \text{Pangolin}) \times 30.0$
+  - $\max(\text{SpliceAI}_{\text{custom / fallback}}, \text{SPiP}, \text{Pangolin}) \times 30.0$ (Prioritizes **Custom 20kb `spliceai_custom_MAX`** with automatic fallback to VEP `spliceAI_MAX`).
   - `+5.0` bonus for empirical `SpliceVault` aberrant RNA event.
   - `+5.0` bonus for `Branchpointer` / `LaBranchoR` motif disruption.
 - **$S_{\text{Missense}}$ (up to +25 pts)**: $\max(\text{AlphaMissense}, \text{REVEL}) \times 25.0$.
 - **$S_{\text{Constraint}}$ (+10 pts)**: `+10.0` for `pLI_gene_value >= 0.90`.
-- **$S_{\text{ClinVar}}$ (+20 pts)**: `+20.0` for ClinVar Pathogenic / Likely Pathogenic.
-- **$P_{\text{AF}}$ (Allele Frequency Penalty)**:
-  - $\text{AF} \ge 0.01$: $-50.0\text{ pts}$
-  - $0.001 \le \text{AF} < 0.01$: $-20.0\text{ pts}$
-  - $0.0001 \le \text{AF} < 0.001$: $-5.0\text{ pts}$
-  - $\text{AF} < 0.0001$ or absent: $0.0\text{ pts}$
+- **$S_{\text{ClinVar}}$ (+45 pts / -40 pts)**:
+  - `+45.0` for ClinVar Pathogenic / Likely Pathogenic.
+  - `-40.0` for ClinVar Benign / Likely Benign.
+- **$P_{\text{AF}}$ (Allele Frequency ACMG PM2 Bonus & BS1 Penalty)**:
+  - Ultra-rare / novel ($\text{AF} < 0.00001$ or unobserved in gnomAD): **`+15.0 pts`** (ACMG PM2 strong)
+  - Very rare ($0.00001 \le \text{AF} < 0.0001$): **`+10.0 pts`**
+  - Rare ($0.0001 \le \text{AF} < 0.001$): **`+5.0 pts`**
+  - Low-frequency ($0.001 \le \text{AF} < 0.01$): **`0.0 pts`**
+  - Common polymorphism ($\text{AF} \ge 0.01$): **`-50.0 pts`** (ACMG BS1 benign)
 - **Bounding**: Bounded to the interval $[0.0, 100.0]$ and rounded to 1 decimal place.
 
 ---
