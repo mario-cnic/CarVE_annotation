@@ -472,3 +472,6 @@ Branchpoint_status
 LaBranchoR_score
 LaBranchoR_acc_dist
 LaBranchoR_status
+MaxEntScan_ref
+MaxEntScan_alt
+MaxEntScan_diff
