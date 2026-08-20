@@ -1,9 +1,14 @@
+import sys
 import os
 import pytest
 import pysam
 import tempfile
 import shutil
-from src.python.split_vcf_chunks import split_vcf_into_chunks
+
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/python')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
+
+from split_vcf_chunks import split_vcf_into_chunks
 
 
 def create_mock_vcf(vcf_path: str, num_records: int = 50):

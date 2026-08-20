@@ -15,4 +15,4 @@ mkdir -p _log
 source ~/.bashrc
 # Adjust conda env or R module loading here if necessary
 # [AUTO-UPDATE] Path updated to shared/utils
-mamba run -p /data_lab_PGP/shared/utils/conda_envs/r4.4 Rscript src/R/03_burden.R "$GENE" "$INPUT_DIR"
+mamba run -p /data_lab_PGP/shared/utils/conda_envs/r4.4 Rscript src/downstream/03_burden.R "$GENE" "$INPUT_DIR"

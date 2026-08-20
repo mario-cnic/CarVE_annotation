@@ -1,8 +1,8 @@
 LICENSE
 README.md
 setup.py
-/home/mruizp/data_lab_PGP/pipelines/annotation_pipeline_new/src/external/Pangolin-main/scripts/create_db.py
-/home/mruizp/data_lab_PGP/pipelines/annotation_pipeline_new/src/external/Pangolin-main/scripts/custom_usage.py
+/data_lab_PGP/pipelines/annotation_pipeline_new/src/external/Pangolin-main/scripts/create_db.py
+/data_lab_PGP/pipelines/annotation_pipeline_new/src/external/Pangolin-main/scripts/custom_usage.py
 pangolin/__init__.py
 pangolin/model.py
 pangolin/pangolin.py

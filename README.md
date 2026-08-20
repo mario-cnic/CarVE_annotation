@@ -36,8 +36,9 @@ This repository contains a production-ready, modular HPC bash and Python pipelin
 
 ---
 
-## 📁 Repository Architecture & RUNS Folder
+## 📁 Repository Architecture & Codebase Organization
 
+### Execution Directory (`RUNS/<RUN_NAME>/`)
 All execution outputs, intermediate files, logs, and figures are organized within a dedicated, isolated run folder inside `RUNS/`:
 
 ```
@@ -49,6 +50,19 @@ RUNS/<RUN_NAME>/
 ├── plots/                                    # Publication-grade static plots (PDF & PNG)
 ├── reports/                                  # Standalone interactive HTML dashboards
 └── _log/                                     # Standard error and stdout logs per step and gene
+```
+
+### Source Modules (`src/`)
+The codebase is organized into clean, functional modules:
+
+```
+src/
+├── python/                                   # Core active Python pipeline modules (Step 1-6)
+├── hpc/                                      # Core SGE cluster drivers & execution wrappers
+├── R/                                        # Core plotting & statistical libraries
+├── downstream/                               # Cohort burden & association analysis scripts
+├── tools/                                    # Reference builders, backfills, & exploratory utilities
+└── external/                                 # Third-party source dependencies (Pangolin-main)
 ```
 
 ---
@@ -190,6 +204,11 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-12: Apptainer / Singularity Container Architecture & Build Guide](./walkthrough/20260812_apptainer_container_architecture_guide.md)
 - [2026-08-13: Pipeline Run Execution Audit & Diagnostics (run_20260812_1750)](./walkthrough/20260813_last_pipeline_execution_audit.md)
 - [2026-08-17: HPC Cluster Run Progress & Throughput Diagnosis (run_20260813_1028)](./walkthrough/20260817_pipeline_run_progress_audit.md)
+- [2026-08-18: Multi-Evidence Variant Prioritization & Tiering Guide](./walkthrough/20260818_variant_prioritization_and_tiering_guide.md)
+- [2026-08-18: High-Throughput SpliceAI Parallel VCF Chunking](./walkthrough/20260818_spliceai_parallel_vcf_chunking.md)
+- [2026-08-19: Pipeline Session Handover Summary & Architecture Updates](./walkthrough/20260819_pipeline_session_summary.md)
+- [2026-08-19: Comprehensive Dual Pipeline Execution Progress Audit](./walkthrough/20260819_dual_pipeline_execution_progress_audit.md)
+- [2026-08-19: Source Directory Reorganization & Obsolete Script Archival](./walkthrough/20260819_src_directory_reorganization_and_cleanup.md)
 
 ---
 

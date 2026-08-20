@@ -32,15 +32,19 @@ export OMP_NUM_THREADS=${THREADS:-4}
 export MKL_NUM_THREADS=${THREADS:-4}
 export OPENBLAS_NUM_THREADS=${THREADS:-4}
 
-# Decompress if input is gzipped
+LOCAL_INPUT="$INPUT"
+CLEAN_LOCAL_INPUT=false
+
+# Decompress safely to a job-isolated temporary file if input is gzipped
 if [[ $INPUT == *.gz ]]; then
-    gunzip -k -f $INPUT
-    INPUT=${INPUT%.gz}
+    LOCAL_INPUT="${OUTPUT}.input_tmp.vcf"
+    gunzip -c "$INPUT" > "$LOCAL_INPUT"
+    CLEAN_LOCAL_INPUT=true
 fi
 
 # ----------------- Logger Setup -----------------
 LOGGER_SCRIPT="src/hpc/logger.sh"
-if [ -f "$LOGGER_SCRIPT" ] && [ -n "$LOG_DIR" ]; then
+if [ -f "$LOGGER_SCRIPT" ] && [ -n "${LOG_DIR:-}" ]; then
     source "$LOGGER_SCRIPT"
     log_step_start "pangolin" "$INPUT"
     TIME_LOG="$LOG_DIR/pangolin.time"
@@ -51,7 +55,7 @@ fi
 # ------------------------------------------------
 
 PYTHON_BIN=$PANGOLIN_ENV/bin/python3
-PANGOLIN_REPO=src/external/Pangolin-main
+PANGOLIN_REPO="src/external/Pangolin-main"
 BGZIP_BIN=$PANGOLIN_ENV/bin/bgzip
 if [ ! -x "$BGZIP_BIN" ]; then
     BGZIP_BIN=bgzip
@@ -61,35 +65,46 @@ if [ ! -x "$TABIX_BIN" ]; then
     TABIX_BIN=tabix
 fi
 
-export PYTHONPATH="$PANGOLIN_REPO:$PANGOLIN_ENV/lib/python3.12/site-packages:$PANGOLIN_ENV/lib/python3.10/site-packages:${PYTHONPATH:-}"
+export PYTHONPATH="$PANGOLIN_ENV/lib/python3.12/site-packages:$PANGOLIN_REPO:${PYTHONPATH:-}"
 
-echo "Running Pangolin Splicing Predictor on $INPUT..."
+# Ensure output directory exists
+mkdir -p "$(dirname "$OUTPUT")"
+RAW_OUT="${OUTPUT%.gz}"
+
+echo "Running Pangolin Splicing Predictor on $LOCAL_INPUT..."
 if [ -n "$TIME_CMD" ]; then
     $TIME_CMD $PYTHON_BIN -m pangolin.pangolin \
-        "$INPUT" \
+        "$LOCAL_INPUT" \
         "$FASTA" \
         "$DB" \
-        "$OUTPUT" \
+        "$RAW_OUT" \
         -d 10000
     CMD_EXIT_CODE=$?
 else
     $PYTHON_BIN -m pangolin.pangolin \
-        "$INPUT" \
+        "$LOCAL_INPUT" \
         "$FASTA" \
         "$DB" \
-        "$OUTPUT" \
+        "$RAW_OUT" \
         -d 10000
     CMD_EXIT_CODE=$?
 fi
 
-echo "Compressing and indexing output VCF..."
-$BGZIP_BIN -f "$OUTPUT"
-$TABIX_BIN -f "${OUTPUT}.gz"
+# Clean isolated temporary uncompressed input
+if [ "$CLEAN_LOCAL_INPUT" = true ] && [ -f "$LOCAL_INPUT" ]; then
+    rm -f "$LOCAL_INPUT"
+fi
 
-echo "Pangolin annotation completed. Final output: ${OUTPUT}.gz"
+echo "Compressing and indexing output VCF..."
+if [ -f "$RAW_OUT" ]; then
+    $BGZIP_BIN -f "$RAW_OUT"
+    $TABIX_BIN -f "${RAW_OUT}.gz"
+fi
+
+echo "Pangolin annotation completed. Final output: ${RAW_OUT}.gz"
 
 # ----------------- Logger End -----------------
-if [ -f "$LOGGER_SCRIPT" ] && [ -n "$LOG_DIR" ]; then
-    log_step_end "pangolin" "${OUTPUT}.gz" "$CMD_EXIT_CODE" "$TIME_LOG"
+if [ -f "$LOGGER_SCRIPT" ] && [ -n "${LOG_DIR:-}" ]; then
+    log_step_end "pangolin" "${RAW_OUT}.gz" "$CMD_EXIT_CODE" "$TIME_LOG"
 fi
 # ----------------------------------------------

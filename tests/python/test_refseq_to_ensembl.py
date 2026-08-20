@@ -5,7 +5,7 @@ import pandas as pd
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/python')))
 
-import refseq_to_ensembl as rte
+import query_new_transcripts as qnt
 
 def test_map_refseq_to_ensembl():
     mapping_df = pd.DataFrame({

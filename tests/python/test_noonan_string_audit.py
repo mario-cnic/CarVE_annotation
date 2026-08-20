@@ -3,6 +3,7 @@ import os
 import pytest
 import pandas as pd
 
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/tools')))
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/python')))
 
 import noonan_string_audit as nsa
