@@ -20,9 +20,9 @@ if [ ! -f "$DB" ]; then
     DB=/home/mruizp/data_lab_PGP/shared/utils/pangolin_db/pangolin_grch38.db
 fi
 
-PANGOLIN_ENV=/data_lab_PGP/shared/utils/conda_envs/pangolin_env
-if [ ! -d "$PANGOLIN_ENV" ] || [ ! -f "$PANGOLIN_ENV/lib/python3.12/site-packages/numpy/__init__.py" ]; then
-    PANGOLIN_ENV=/home/mruizp/conda_envs/pangolin_env
+PANGOLIN_ENV=/home/mruizp/conda_envs/pangolin_env
+if [ ! -d "$PANGOLIN_ENV" ] || [ ! -x "$PANGOLIN_ENV/bin/python3" ]; then
+    PANGOLIN_ENV=/data_lab_PGP/shared/utils/conda_envs/pangolin_env
 fi
 if [ ! -d "$PANGOLIN_ENV" ]; then
     PANGOLIN_ENV=/home/mruizp/data_lab_PGP/shared/utils/conda_envs/pangolin_env
@@ -65,6 +65,7 @@ if [ ! -x "$TABIX_BIN" ]; then
     TABIX_BIN=tabix
 fi
 
+export PATH="$PANGOLIN_ENV/bin:$PATH"
 export PYTHONPATH="$PANGOLIN_ENV/lib/python3.12/site-packages:$PANGOLIN_REPO:${PYTHONPATH:-}"
 
 # Ensure output directory exists

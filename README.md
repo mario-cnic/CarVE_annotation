@@ -30,9 +30,11 @@ This repository contains a production-ready, modular HPC bash and Python pipelin
 4. **Customizable Filtering Module**:
    - Customizable command-line thresholds for gnomAD AF (`--max-af`), REVEL (`--min-revel`), AlphaMissense (`--min-alphamissense`), SPiP (`--min-spip`), CADD (`--min-cadd`), and VEP consequences (`--consequences`).
 
-5. **Automated Visualization Suite**:
+5. **Automated Visualization & Clinical Report Suite**:
    - **Static Publication Plots (R ggplot2)**: Consequence breakdown barplots, REVEL vs AlphaMissense correlation scatter plots, and AF spectrum histograms saved as PDF and PNG.
-   - **Interactive HTML Dashboards (Plotly)**: Standalone HTML report containing interactive charts with hover tooltips and filtering metric summaries.
+   - **Interactive 4-Tab Clinical Prioritization Dashboards (`generate_clinical_prioritization_report.py`)**:
+     - **Multi-Track SVG Transcript Visualizer & Variant Position Map**: Interactive Plotly multi-track diagram mapping genomic/cDNA positions and amino acid coordinates across exon-intron boundaries, displaying priority tiers, SpliceAI Δ, and AlphaMissense scores.
+     - **gnomAD v4.1 Joint PopMax Frequencies**: Full extraction of `gnomADv4_AF_grpmax_joint` with population ancestry labels (`AFR`, `AMR`, `EAS`, `NFE`, `SAS`, etc.).
 
 ---
 
@@ -107,8 +109,10 @@ bash main.sh \
 
 | Flag | Type | Description |
 | --- | --- | --- |
-| `--raw-dir <DIR>` | Directory | **(Required)** Path to input variant directory containing `.xlsx`, `.csv`, `.tsv`, `.pq`, or `.vcf` files |
+| `--raw-dir <DIR>` | Directory | **(Required for custom runs)** Path to input variant directory containing `.xlsx`, `.csv`, `.tsv`, `.pq`, or `.vcf` files |
 | `--run-name <NAME>`| String | Custom run folder name in `RUNS/` (default: folder name of `--raw-dir`) |
+| `--test` | Flag | Run end-to-end test suite on 50-variant test dataset into `test_data/test_run/` with `--overwrite-all` |
+| `--audit-run <DIR>`| String | Run master auditor to inspect quality, completeness %, and schema consistency of a run folder |
 | `--gene <GENE>` | String | Filter execution to specific gene (case-insensitive) |
 | `--build <BUILD>` | String | Input assembly build: `hg19` or `GRCh38` (default: `GRCh38`) |
 | `--output-format <FMT>` | String | Output format: `pq` (Parquet), `tsv`, or `xlsx` |
@@ -209,6 +213,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-19: Pipeline Session Handover Summary & Architecture Updates](./walkthrough/20260819_pipeline_session_summary.md)
 - [2026-08-19: Comprehensive Dual Pipeline Execution Progress Audit](./walkthrough/20260819_dual_pipeline_execution_progress_audit.md)
 - [2026-08-19: Source Directory Reorganization & Obsolete Script Archival](./walkthrough/20260819_src_directory_reorganization_and_cleanup.md)
+- [2026-08-20: Interactive Multi-Track Transcript & Exon Lollipop Visualization](./walkthrough/20260820_transcript_visualization_implementation.md)
 
 ---
 

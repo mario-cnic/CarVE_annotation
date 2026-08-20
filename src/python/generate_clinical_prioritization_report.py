@@ -104,6 +104,39 @@ def _extract_gnomadv4_af_grpmax(df):
 
     return pd.Series(formatted, index=df.index), af_series, is_fallback
 
+def _build_gnomad_variant_link(r):
+    loc_val = str(r.get("Locus", ""))
+    chrom, pos, ref_b, alt_b = "", "", "", ""
+    ref_b = r.get("ref", r.get("REF", ""))
+    alt_b = r.get("alt", r.get("ALT", ""))
+    if ref_b is None or (isinstance(ref_b, float) and pd.isna(ref_b)): ref_b = ""
+    if alt_b is None or (isinstance(alt_b, float) and pd.isna(alt_b)): alt_b = ""
+    
+    if ":" in loc_val:
+        parts = loc_val.split(":")
+        chrom = parts[0].replace("chr", "")
+        rest = parts[1]
+        if "-" in rest:
+            subparts = rest.split("-")
+            pos = subparts[0]
+            if len(subparts) >= 3:
+                if not ref_b: ref_b = subparts[1]
+                if not alt_b: alt_b = subparts[2]
+        else:
+            pos = rest
+            
+    if not chrom: chrom = str(r.get("CHROM", r.get("chr", ""))).replace("chr", "")
+    if not pos: pos = str(r.get("POS", r.get("pos", "")))
+    
+    ref_b = str(ref_b).strip()
+    alt_b = str(alt_b).strip()
+    
+    if chrom and pos and ref_b and alt_b and ref_b != "None" and alt_b != "None":
+        return f"https://gnomad.broadinstitute.org/variant/{chrom}-{pos}-{ref_b}-{alt_b}?dataset=gnomad_r4"
+    elif chrom and pos:
+        return f"https://gnomad.broadinstitute.org/region/{chrom}-{pos}-{pos}?dataset=gnomad_r4"
+    return "#"
+
 def render_table_html(df_subset, col_defs, table_id):
     """
     Dynamically generates the complete <table> HTML with perfectly aligned <thead> and <tbody>
@@ -116,11 +149,7 @@ def render_table_html(df_subset, col_defs, table_id):
             raw_val = r.get(key, None)
             if fmt == "locus":
                 loc = _safe_str(raw_val, 24)
-                parts = str(raw_val).split("-")[0].split(":")
-                if len(parts) == 2:
-                    link = f"https://gnomad.broadinstitute.org/variant/{parts[0]}-{parts[1]}-{r.get('REF','')}-{r.get('ALT','')}?dataset=gnomad_r4"
-                else:
-                    link = "#"
+                link = _build_gnomad_variant_link(r)
                 cells.append(f'<td><strong><a href="{link}" target="_blank" style="color:#2563eb; text-decoration:none;">{loc}</a></strong></td>')
             elif fmt == "tier":
                 tier_str = str(raw_val)
@@ -167,6 +196,321 @@ def render_table_html(df_subset, col_defs, table_id):
         </tbody>
     </table>
     """
+
+def build_transcript_exon_model(df):
+    """
+    Reconstructs dynamic exon-intron coordinate ranges [exon_start, exon_end]
+    and transcript bounds for a gene dataset using POS / Locus, EXON VEP tags,
+    intron_offset_signed, and cDNA/CDS positions.
+    Returns: dict with gene_chrom, strand, min_pos, max_pos, exons list of dicts.
+    """
+    if "POS" in df.columns and df["POS"].notna().sum() > 0:
+        pos_series = pd.to_numeric(df["POS"], errors="coerce")
+    else:
+        pos_series = df["Locus"].astype(str).apply(lambda x: int(x.split(":")[1].split("-")[0]) if ":" in str(x) and "-" in str(x) else np.nan)
+    
+    df_pos = df.copy()
+    df_pos["_POS"] = pos_series
+    df_pos = df_pos.dropna(subset=["_POS"])
+    
+    if len(df_pos) == 0:
+        return None
+
+    chrom = "-"
+    if "CHROM" in df_pos.columns and df_pos["CHROM"].notna().sum() > 0:
+        chrom = str(df_pos["CHROM"].iloc[0])
+    elif "Locus" in df_pos.columns:
+        chrom = str(df_pos["Locus"].iloc[0]).split(":")[0]
+
+    strand = 1
+    if "STRAND" in df_pos.columns and df_pos["STRAND"].notna().sum() > 0:
+        try:
+            s_val = int(df_pos["STRAND"].iloc[0])
+            if s_val in [-1, 1]:
+                strand = s_val
+        except (ValueError, TypeError):
+            pass
+
+    min_pos = int(df_pos["_POS"].min())
+    max_pos = int(df_pos["_POS"].max())
+
+    exons_dict = {}
+    if "EXON" in df_pos.columns:
+        exon_sub = df_pos[df_pos["EXON"].notna() & (df_pos["EXON"].astype(str) != "None") & (df_pos["EXON"].astype(str) != "-")]
+        for _, r in exon_sub.iterrows():
+            ex_str = str(r["EXON"]).split("/")[0].strip()
+            try:
+                ex_num = int(ex_str)
+                pos = int(r["_POS"])
+                offset = 0
+                if "intron_offset_signed" in r and pd.notna(r["intron_offset_signed"]):
+                    try:
+                        offset = int(r["intron_offset_signed"])
+                    except (ValueError, TypeError):
+                        offset = 0
+                
+                exon_pos = pos - offset if offset < 0 else pos
+                
+                if ex_num not in exons_dict:
+                    exons_dict[ex_num] = {"min": exon_pos, "max": exon_pos, "num": ex_num}
+                else:
+                    exons_dict[ex_num]["min"] = min(exons_dict[ex_num]["min"], exon_pos)
+                    exons_dict[ex_num]["max"] = max(exons_dict[ex_num]["max"], exon_pos)
+            except ValueError:
+                continue
+
+    exons_list = []
+    if exons_dict:
+        sorted_keys = sorted(exons_dict.keys())
+        for k in sorted_keys:
+            exons_list.append({
+                "num": k,
+                "label": f"Exon {k}",
+                "start": exons_dict[k]["min"],
+                "end": exons_dict[k]["max"]
+            })
+    
+    return {
+        "chrom": chrom,
+        "strand": strand,
+        "min_pos": min_pos,
+        "max_pos": max_pos,
+        "exons": exons_list
+    }
+
+def create_transcript_visualization_figure(df, track_mode="overview"):
+    """
+    Generates an interactive Plotly multi-track figure visualizing variants along the transcript model.
+    track_mode options:
+      - 'overview': X = Genomic Position (POS), Y = VARIANT_PRIORITY_SCORE (0-100), color = Tier
+      - 'splicing': X = Genomic Position (POS), Y = SpliceAI Δ Score (0-1), color = Tier
+      - 'missense': X = Amino Acid Position (aapos), Y = AlphaMissense Score (0-1), color = Tier
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    if len(df) == 0:
+        fig = go.Figure()
+        fig.update_layout(title="No Variants Available for Transcript Visualization", height=350)
+        return fig
+
+    if "POS" in df.columns and df["POS"].notna().sum() > 0:
+        pos_series = pd.to_numeric(df["POS"], errors="coerce")
+    else:
+        pos_series = df["Locus"].astype(str).apply(lambda x: int(x.split(":")[1].split("-")[0]) if ":" in str(x) and "-" in str(x) else np.nan)
+
+    plot_df = df.copy()
+    plot_df["_POS"] = pos_series
+    plot_df = plot_df.dropna(subset=["_POS"])
+
+    if len(plot_df) == 0:
+        fig = go.Figure()
+        fig.update_layout(title="No Genomic Position Data Available", height=350)
+        return fig
+
+    tier_series = get_col_string(plot_df, "PRIORITY_TIER", "Tier 4 (Benign / Tolerated)")
+    prio_series = get_col_numeric(plot_df, "VARIANT_PRIORITY_SCORE", 0.0)
+    hgvsc_series = get_col_string(plot_df, "HGVSc", "-")
+    hgvsp_series = get_col_string(plot_df, "HGVSp", "-")
+    conseq_series = get_col_string(plot_df, "Consequence", "-")
+    locus_series = get_col_string(plot_df, "Locus", "-")
+    splice_series = get_col_numeric(plot_df, "SPLICE_MAX_UNIFIED", 0.0)
+    am_series = get_col_numeric(plot_df, "am_pathogenicity", 0.0)
+    revel_series = get_col_numeric(plot_df, "REVEL_score", 0.0)
+    clinvar_series = get_col_string(plot_df, "CLINVAR_DISPLAY", "-")
+    exon_series = get_col_string(plot_df, "EXON", "-")
+    offset_series = get_col_numeric(plot_df, "intron_offset_signed", 0.0)
+    aapos_series = get_col_numeric(plot_df, "aapos", get_col_numeric(plot_df, "Protein_position", 0.0))
+
+    if track_mode == "splicing":
+        y_vals = splice_series
+        y_title = "SpliceAI Max Δ Score"
+        y_range = [-0.05, 1.05]
+        title_text = "🧬 Splicing Transcript Map (SpliceAI Δ along Gene Architecture)"
+    elif track_mode == "missense":
+        y_vals = am_series
+        y_title = "AlphaMissense Score"
+        y_range = [-0.05, 1.05]
+        title_text = "🔬 Missense Protein / Transcript Map (AlphaMissense Score)"
+    else: # overview
+        y_vals = prio_series
+        y_title = "Priority Score"
+        y_range = [-5, 105]
+        title_text = "📊 Interactive Gene Transcript & Variant Lollipop Map"
+
+    plot_df["_Y"] = y_vals
+
+    if track_mode == "missense" and (aapos_series > 0).sum() > 0:
+        plot_df["_X"] = aapos_series
+        x_title = "Amino Acid Position (aapos)"
+        use_genomic_exons = False
+    else:
+        plot_df["_X"] = plot_df["_POS"]
+        x_title = f"Genomic Coordinate (GRCh38, chr{str(locus_series.iloc[0]).split(':')[0]})"
+        use_genomic_exons = True
+
+    tx_model = build_transcript_exon_model(plot_df)
+
+    fig = make_subplots(
+        rows=2, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.10,
+        row_heights=[0.75, 0.25]
+    )
+
+    tier_colors = {
+        "Tier 1": "#dc2626",
+        "Tier 2": "#ea580c",
+        "Tier 3": "#d97706",
+        "Tier 4": "#16a34a"
+    }
+
+    def get_tier_color(t_str):
+        if "Tier 1" in str(t_str): return tier_colors["Tier 1"]
+        if "Tier 2" in str(t_str): return tier_colors["Tier 2"]
+        if "Tier 3" in str(t_str): return tier_colors["Tier 3"]
+        return tier_colors["Tier 4"]
+
+    hover_texts = []
+    for idx, r in plot_df.iterrows():
+        ht = (
+            f"<b>{r.get('Locus','-')}</b><br>"
+            f"<b>HGVSc:</b> {r.get('HGVSc', '-')}<br>"
+            f"<b>HGVSp:</b> {r.get('HGVSp', '-')}<br>"
+            f"<b>Consequence:</b> {r.get('Consequence', '-')}<br>"
+            f"<b>Exon:</b> {r.get('EXON', '-')}<br>"
+            f"<b>Signed Intron Offset:</b> {r.get('intron_offset_signed', 0)} bp<br>"
+            f"<b>Priority Tier:</b> {r.get('PRIORITY_TIER', '-')}<br>"
+            f"<b>Priority Score:</b> {r.get('VARIANT_PRIORITY_SCORE', 0):.1f}<br>"
+            f"<b>SpliceAI Δ:</b> {r.get('SPLICE_MAX_UNIFIED', 0):.2f}<br>"
+            f"<b>AlphaMissense:</b> {r.get('am_pathogenicity', 0):.2f}<br>"
+            f"<b>ClinVar:</b> {r.get('CLINVAR_DISPLAY', '-')}"
+        )
+        hover_texts.append(ht)
+
+    x_stems = []
+    y_stems = []
+    for x_val, y_val in zip(plot_df["_X"], plot_df["_Y"]):
+        x_stems.extend([x_val, x_val, None])
+        y_stems.extend([0, y_val, None])
+
+    fig.add_trace(
+        go.Scatter(
+            x=x_stems, y=y_stems,
+            mode="lines",
+            line=dict(color="#cbd5e1", width=1.5),
+            hoverinfo="none",
+            showlegend=False
+        ),
+        row=1, col=1
+    )
+
+    for tier_key, tier_name, t_color in [
+        ("Tier 1", "Tier 1 (Critical Pathogenic)", "#dc2626"),
+        ("Tier 2", "Tier 2 (Likely Deleterious)", "#ea580c"),
+        ("Tier 3", "Tier 3 (VUS / Moderate)", "#d97706"),
+        ("Tier 4", "Tier 4 (Benign / Tolerated)", "#16a34a"),
+    ]:
+        sub_indices = [i for i, t in enumerate(tier_series) if tier_key in str(t)]
+        if len(sub_indices) > 0:
+            sub_df = plot_df.iloc[sub_indices]
+            fig.add_trace(
+                go.Scatter(
+                    x=sub_df["_X"],
+                    y=sub_df["_Y"],
+                    mode="markers",
+                    name=tier_name,
+                    marker=dict(
+                        size=9,
+                        color=t_color,
+                        line=dict(width=1, color="#ffffff")
+                    ),
+                    text=[hover_texts[i] for i in sub_indices],
+                    hoverinfo="text"
+                ),
+                row=1, col=1
+            )
+
+    if track_mode == "overview":
+        fig.add_hline(y=75.0, line_dash="dash", line_color="#dc2626", annotation_text="Tier 1 (≥75)", row=1, col=1)
+        fig.add_hline(y=50.0, line_dash="dot", line_color="#ea580c", annotation_text="Tier 2 (≥50)", row=1, col=1)
+    elif track_mode == "splicing":
+        fig.add_hline(y=0.50, line_dash="dash", line_color="#dc2626", annotation_text="High SpliceAI ≥ 0.50", row=1, col=1)
+        fig.add_hline(y=0.20, line_dash="dot", line_color="#d97706", annotation_text="Moderate SpliceAI ≥ 0.20", row=1, col=1)
+    elif track_mode == "missense":
+        fig.add_hline(y=0.564, line_dash="dash", line_color="#dc2626", annotation_text="AlphaMissense ≥ 0.564", row=1, col=1)
+
+    if tx_model and use_genomic_exons and len(tx_model["exons"]) > 0:
+        fig.add_trace(
+            go.Scatter(
+                x=[tx_model["min_pos"], tx_model["max_pos"]],
+                y=[0, 0],
+                mode="lines",
+                line=dict(color="#475569", width=3),
+                hoverinfo="none",
+                showlegend=False
+            ),
+            row=2, col=1
+        )
+
+        for ex in tx_model["exons"]:
+            ex_start = ex["start"]
+            ex_end = ex["end"]
+            if ex_start == ex_end:
+                ex_start -= 20
+                ex_end += 20
+
+            fig.add_trace(
+                go.Scatter(
+                    x=[ex_start, ex_end, ex_end, ex_start, ex_start],
+                    y=[-0.4, -0.4, 0.4, 0.4, -0.4],
+                    fill="toself",
+                    fillcolor="#2563eb",
+                    line=dict(color="#1d4ed8", width=1.5),
+                    name=ex["label"],
+                    text=f"<b>{ex['label']}</b><br>Genomic Range: {ex_start:,} - {ex_end:,} bp",
+                    hoverinfo="text",
+                    showlegend=False
+                ),
+                row=2, col=1
+            )
+            fig.add_annotation(
+                x=(ex_start + ex_end) / 2,
+                y=0,
+                text=f"E{ex['num']}",
+                showarrow=False,
+                font=dict(size=10, color="#ffffff"),
+                row=2, col=1
+            )
+    else:
+        min_x = plot_df["_X"].min()
+        max_x = plot_df["_X"].max()
+        fig.add_trace(
+            go.Scatter(
+                x=[min_x, max_x],
+                y=[0, 0],
+                mode="lines+markers",
+                line=dict(color="#2563eb", width=6),
+                name="Transcript Model",
+                hoverinfo="none",
+                showlegend=False
+            ),
+            row=2, col=1
+        )
+
+    fig.update_xaxes(title_text=x_title, row=2, col=1)
+    fig.update_yaxes(title_text=y_title, range=y_range, row=1, col=1)
+    fig.update_yaxes(title_text="Exons", range=[-0.8, 0.8], showticklabels=False, row=2, col=1)
+
+    fig.update_layout(
+        title=dict(text=f"<b>{title_text}</b>", font=dict(size=15)),
+        height=420,
+        margin=dict(t=50, b=30, l=60, r=30),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        hovermode="closest"
+    )
+
+    return fig
 
 def generate_gene_report(pq_path, out_html_path):
     logger.info(f"Loading {pq_path} for 4-tab clinical report generation...")
@@ -234,6 +578,7 @@ def generate_gene_report(pq_path, out_html_path):
     cadd_score = get_col_numeric(df, "CADD_PHRED", get_col_numeric(df, "CADD_phred", 0.0))
     intron_offset = get_col_numeric(df, "intron_offset_signed", 0.0)
     prio_score = get_col_numeric(df, "VARIANT_PRIORITY_SCORE", 0.0)
+    df["VARIANT_PRIORITY_SCORE"] = prio_score
 
     conseq = get_col_string(df, "Consequence", "").str.lower()
     tier_col = get_col_string(df, "PRIORITY_TIER", "Tier 4 (Benign / Tolerated)")
@@ -457,6 +802,11 @@ def generate_gene_report(pq_path, out_html_path):
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
     missense_table_html = render_table_html(df_missense.head(250), missense_table_cols, "missenseTable")
+
+    # Interactive Transcript Visualization Figures
+    fig_transcript_overview = create_transcript_visualization_figure(df, track_mode="overview")
+    fig_transcript_splice = create_transcript_visualization_figure(df_splice, track_mode="splicing")
+    fig_transcript_missense = create_transcript_visualization_figure(df_missense, track_mode="missense")
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -755,6 +1105,12 @@ def generate_gene_report(pq_path, out_html_path):
             </div>
         </div>
 
+        <div class="charts-grid" style="margin-bottom: 20px;">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_transcript_overview.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
+        </div>
+
         <div class="charts-grid">
             <div class="chart-card">
                 {fig_donut.to_html(full_html=False, include_plotlyjs=False)}
@@ -812,6 +1168,9 @@ def generate_gene_report(pq_path, out_html_path):
         </div>
 
         <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_transcript_splice.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
             <div class="chart-card" style="grid-column: 1 / -1;">
                 {fig_splice_scatter.to_html(full_html=False, include_plotlyjs=False)}
             </div>
@@ -907,6 +1266,9 @@ def generate_gene_report(pq_path, out_html_path):
         </div>
 
         <div class="charts-grid">
+            <div class="chart-card" style="grid-column: 1 / -1;">
+                {fig_transcript_missense.to_html(full_html=False, include_plotlyjs=False)}
+            </div>
             <div class="chart-card" style="grid-column: 1 / -1;">
                 {fig_missense_scatter.to_html(full_html=False, include_plotlyjs=False)}
             </div>

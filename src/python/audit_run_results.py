@@ -69,10 +69,19 @@ def count_vcf_variants(vcf_path):
         return 0
     try:
         if vcf_path.endswith(".gz"):
-            cmd = f"zcat '{vcf_path}' | grep -v '^#' | wc -l"
+            if os.path.exists(vcf_path + ".tbi") or os.path.exists(vcf_path + ".csi"):
+                for b_bin in ["/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools", "/home/mruizp/apps/miniforge3/envs/genomics/bin/bcftools", "bcftools"]:
+                    try:
+                        res = subprocess.check_output(f"{b_bin} index -n '{vcf_path}' 2>/dev/null", shell=True).decode().strip()
+                        if res.isdigit() and int(res) > 0:
+                            return int(res)
+                    except Exception:
+                        pass
+            cmd = f"zgrep -c '^[^#]' '{vcf_path}' 2>/dev/null || echo 0"
         else:
-            cmd = f"grep -v '^#' '{vcf_path}' | wc -l"
-        return int(subprocess.check_output(cmd, shell=True, stderr=subprocess.DEVNULL).decode().strip())
+            cmd = f"grep -c '^[^#]' '{vcf_path}' 2>/dev/null || echo 0"
+        res = subprocess.check_output(cmd, shell=True).decode().strip()
+        return int(res) if res.isdigit() else 0
     except Exception:
         return 0
 

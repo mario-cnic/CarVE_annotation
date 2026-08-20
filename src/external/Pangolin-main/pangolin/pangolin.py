@@ -68,7 +68,16 @@ def compute_score(ref_seq, alt_seq, strand, d, models):
 
 
 def get_genes(chr, pos, gtf):
-    genes = gtf.region((chr, pos-1, pos-1), featuretype="gene")
+    try:
+        genes = list(gtf.region((chr, pos-1, pos-1), featuretype="gene"))
+    except Exception:
+        genes = []
+    if not genes:
+        alt_chr = chr[3:] if chr.startswith("chr") else "chr" + chr
+        try:
+            genes = list(gtf.region((alt_chr, pos-1, pos-1), featuretype="gene"))
+        except Exception:
+            genes = []
     genes_pos, genes_neg = {}, {}
 
     for gene in genes:

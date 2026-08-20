@@ -16,6 +16,7 @@ SLEEP_TIME=5
 RUN_NAME=""
 AUDIT_RUN=""
 audit_only=false
+is_test_mode=false
 
 # Customizable Filtering Parameters
 MAX_AF=""
@@ -102,6 +103,12 @@ while [[ $# -gt 0 ]]; do
             ;;
         --audit-only)
             audit_only=true
+            shift 1
+            ;;
+        --test)
+            is_test_mode=true
+            RAW_MASTER_DIR="test_data/raw_vcfs"
+            overwrite_all=true
             shift 1
             ;;
         # Overall & Granular Force / Skip Flags
@@ -237,6 +244,7 @@ if [ -z "$RAW_MASTER_DIR" ]; then
     echo "  --consequences <LIST>      Comma-separated list of target VEP consequences"
     echo ""
     echo "Quality Audit & Standalone Diagnostics:"
+    echo "  --test                     Run end-to-end test suite on test dataset into test_data/test_run/"
     echo "  --audit-run <DIR/NAME>     Audit quality, completeness %, and schemas of a run directory"
     echo "  --audit-only               Run only the audit report on the specified run without submitting jobs"
     echo ""
@@ -279,12 +287,20 @@ if [ -n "$SKIP_GENES" ]; then
     SKIP_GENES=$(echo "$SKIP_GENES" | tr '[:lower:]' '[:upper:]')
 fi
 
-RAW_FOLDER=$(basename "$RAW_MASTER_DIR")
-if [ -z "$RUN_NAME" ]; then
-    RUN_NAME="$RAW_FOLDER"
+if [ "$is_test_mode" = true ]; then
+    job_pfx="t_"
+    if [ -z "$RUN_NAME" ]; then
+        RUN_NAME="test_run"
+    fi
+    RUN_BASE_DIR="test_data/${RUN_NAME}"
+else
+    job_pfx=""
+    RAW_FOLDER=$(basename "$RAW_MASTER_DIR")
+    if [ -z "$RUN_NAME" ]; then
+        RUN_NAME="$RAW_FOLDER"
+    fi
+    RUN_BASE_DIR="RUNS/${RUN_NAME}"
 fi
-
-RUN_BASE_DIR="RUNS/${RUN_NAME}"
 TMP_MASTER_DIR="${RUN_BASE_DIR}/_tmp"
 ANNOTATION_MASTER_DIR="${RUN_BASE_DIR}/annotation"
 RESULTS_MASTER_DIR="${RUN_BASE_DIR}/results"
@@ -353,7 +369,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
 
     if [ "$skip_varconv" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_varconv" = true ] || ! is_valid_file "$vcf_gz"; then
-            var_conv_job=$(qsub -N "varconv_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 1 \
+            var_conv_job=$(qsub -N "${job_pfx}varconv_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 1 \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.varconv.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.varconv.err" \
                 -b y bash src/hpc/variant_converter.sh "$input_file" "$vcf_file" --build "$INPUT_BUILD" "$COLUMN_PARAM" | awk '{print $3}')
@@ -377,7 +393,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     spip_job=""
     if [ "$skip_spip" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_spip" = true ] || (! is_valid_file "$spip_vcf_gz" && ! is_valid_file "$spip_vcf"); then
-            spip_job=$(qsub -N "spip_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
+            spip_job=$(qsub -N "${job_pfx}spip_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spip.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spip.err" \
@@ -394,7 +410,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     vep_job=""
     if [ "$skip_vep" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_vep" = true ] || ! is_valid_file "$vep_vcf"; then
-            vep_job=$(qsub -N "vep_${gene_name}" -P BIGN -A PGP -l h_vmem=15G -pe smp 4 \
+            vep_job=$(qsub -N "${job_pfx}vep_${gene_name}" -P BIGN -A PGP -l h_vmem=15G -pe smp 4 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vep.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vep.err" \
@@ -411,7 +427,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     pangolin_job=""
     if [ "$skip_pangolin" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_pangolin" = true ] || ! is_valid_file "$pangolin_vcf"; then
-            pangolin_job=$(qsub -N "pangolin_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
+            pangolin_job=$(qsub -N "${job_pfx}pangolin_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 4 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.pangolin.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.pangolin.err" \
@@ -428,7 +444,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     spliceai_job=""
     if [ "$skip_spliceai" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_spliceai" = true ] || ! is_valid_file "$spliceai_vcf"; then
-            spliceai_job=$(qsub -N "spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 4 \
+            spliceai_job=$(qsub -N "${job_pfx}spliceai_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 4 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.spliceai.err" \
@@ -445,7 +461,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     branchpoint_job=""
     if [ "$skip_branchpoint" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_branchpoint" = true ] || ! is_valid_file "$branchpoint_vcf"; then
-            branchpoint_job=$(qsub -N "branchpoint_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 2 \
+            branchpoint_job=$(qsub -N "${job_pfx}branchpoint_${gene_name}" -P BIGN -A PGP -l h_vmem=10G -pe smp 2 \
                 $pred_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.branchpoint.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.branchpoint.err" \
@@ -470,7 +486,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
 
     if [ "$skip_merge" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_merge" = true ] || [ ${#active_predictor_jobs[@]} -gt 0 ] || ! is_valid_file "$final_annotated_vcf"; then
-            merge_ann_job=$(qsub -N "merge_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+            merge_ann_job=$(qsub -N "${job_pfx}merge_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
                 $merge_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.merge.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.merge.err" \
@@ -490,7 +506,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
 
     if [ "$skip_vcf2parsed" = false ]; then
         if [ "$overwrite_all" = true ] || [ "$force_vcf2parsed" = true ] || [ -n "$merge_ann_job" ] || ! is_valid_file "$final_output_file"; then
-            vcf2parsed_job=$(qsub -N "vcf2parsed_${gene_name}" -P BIGN -A PGP -l h_vmem=80G -pe smp 1 \
+            vcf2parsed_job=$(qsub -N "${job_pfx}vcf2parsed_${gene_name}" -P BIGN -A PGP -l h_vmem=80G -pe smp 1 \
                 $vcf2parsed_hold_flag \
                 -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2parsed.out" \
                 -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.vcf2parsed.err" \
@@ -516,25 +532,25 @@ for input_file in "$RAW_MASTER_DIR"/*; do
         [ -n "$MIN_CADD" ] && filter_flags="$filter_flags --min-cadd $MIN_CADD"
         [ -n "$CONSEQUENCES" ] && filter_flags="$filter_flags --consequences \"$CONSEQUENCES\""
 
-        filter_job=$(qsub -N "filter_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+        filter_job=$(qsub -N "${job_pfx}filter_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.err" \
             -b y $PYTHON_EXE src/python/filter_and_summarize.py $filter_flags | awk '{print $3}')
 
-        plot_job=$(qsub -N "plot_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+        plot_job=$(qsub -N "${job_pfx}plot_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.plot.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.plot.err" \
             -b y $R_EXE src/R/plot_annotation_results.R --input "$final_output_file" --output-dir "$PLOTS_MASTER_DIR" | awk '{print $3}')
 
-        report_job=$(qsub -N "report_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+        report_job=$(qsub -N "${job_pfx}report_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.report.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.report.err" \
             -b y $PYTHON_EXE src/python/generate_interactive_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_interactive_dashboard.html" | awk '{print $3}')
 
-        clinical_report_job=$(qsub -N "clinrep_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
+        clinical_report_job=$(qsub -N "${job_pfx}clinrep_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.err" \
@@ -554,7 +570,7 @@ done
 # Step 6: Run-Level Automated Quality & Completeness Auditor Job
 if [ ${#all_terminal_jobs[@]} -gt 0 ]; then
     audit_hold_ids=$(IFS=,; echo "${all_terminal_jobs[*]}")
-    audit_job=$(qsub -N "audit_${RUN_NAME}" -P BIGN -A PGP -l h_vmem=15G -pe smp 1 \
+    audit_job=$(qsub -N "${job_pfx}audit_${RUN_NAME}" -P BIGN -A PGP -l h_vmem=15G -pe smp 1 \
         -hold_jid "$audit_hold_ids" \
         -o "$ERROR_LOG_DIR/master_audit.out" \
         -e "$ERROR_LOG_DIR/master_audit.err" \
