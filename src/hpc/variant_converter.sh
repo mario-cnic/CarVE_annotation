@@ -130,12 +130,30 @@ fi
 
 # Sort and index output VCF if successful
 if [[ "$OUTPUT" == *.vcf && $CMD_EXIT_CODE -eq 0 ]]; then
-    BCFTOOLS="/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools"
-    TABIX="/data_lab_PGP/shared/utils/conda_envs/genomics/bin/tabix"
-    if [ -x "$BCFTOOLS" ] && [ -x "$TABIX" ]; then
-        $BCFTOOLS sort -Oz -o "${OUTPUT}.gz" "$OUTPUT"
-        $TABIX -f "${OUTPUT}.gz"
+    BCFTOOLS="/home/mruizp/apps/miniforge3/envs/genomics/bin/bcftools"
+    if [ ! -x "$BCFTOOLS" ]; then
+        BCFTOOLS="/home/mruizp/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools"
     fi
+    if [ ! -x "$BCFTOOLS" ]; then
+        BCFTOOLS="/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools"
+    fi
+    if [ ! -x "$BCFTOOLS" ]; then
+        BCFTOOLS=$(which bcftools || echo "bcftools")
+    fi
+
+    TABIX="/home/mruizp/apps/miniforge3/envs/genomics/bin/tabix"
+    if [ ! -x "$TABIX" ]; then
+        TABIX="/home/mruizp/data_lab_PGP/shared/utils/conda_envs/genomics/bin/tabix"
+    fi
+    if [ ! -x "$TABIX" ]; then
+        TABIX="/data_lab_PGP/shared/utils/conda_envs/genomics/bin/tabix"
+    fi
+    if [ ! -x "$TABIX" ]; then
+        TABIX=$(which tabix || echo "tabix")
+    fi
+
+    $BCFTOOLS sort -Oz -o "${OUTPUT}.gz" "$OUTPUT"
+    $TABIX -f "${OUTPUT}.gz"
 fi
 
 if [ -f "$LOGGER_SCRIPT" ] && [ -n "${LOG_DIR:-}" ]; then

@@ -108,7 +108,6 @@ while [[ $# -gt 0 ]]; do
         --test)
             is_test_mode=true
             RAW_MASTER_DIR="test_data/raw_vcfs"
-            overwrite_all=true
             shift 1
             ;;
         # Overall & Granular Force / Skip Flags
@@ -195,7 +194,13 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PYTHON_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
+PYTHON_EXE="/home/mruizp/apps/miniforge3/envs/datasci/bin/python3"
+if [ ! -x "$PYTHON_EXE" ]; then
+    PYTHON_EXE="/home/mruizp/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
+fi
+if [ ! -x "$PYTHON_EXE" ]; then
+    PYTHON_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
+fi
 if [ ! -x "$PYTHON_EXE" ]; then
     PYTHON_EXE="python3"
 fi
@@ -536,7 +541,7 @@ for input_file in "$RAW_MASTER_DIR"/*; do
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.err" \
-            -b y $PYTHON_EXE src/python/filter_and_summarize.py $filter_flags | awk '{print $3}')
+            -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/filter_and_summarize.py $filter_flags | awk '{print $3}')
 
         plot_job=$(qsub -N "${job_pfx}plot_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
@@ -548,13 +553,13 @@ for input_file in "$RAW_MASTER_DIR"/*; do
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.report.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.report.err" \
-            -b y $PYTHON_EXE src/python/generate_interactive_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_interactive_dashboard.html" | awk '{print $3}')
+            -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/generate_interactive_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_interactive_dashboard.html" | awk '{print $3}')
 
         clinical_report_job=$(qsub -N "${job_pfx}clinrep_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.clinrep.err" \
-            -b y $PYTHON_EXE src/python/generate_clinical_prioritization_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_clinical_prioritization_report.html" | awk '{print $3}')
+            -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/generate_clinical_prioritization_report.py --input "$final_output_file" --output "$REPORTS_MASTER_DIR/${gene_name}_clinical_prioritization_report.html" | awk '{print $3}')
 
         [ -n "$clinical_report_job" ] && all_terminal_jobs+=("$clinical_report_job")
         [ -n "$report_job" ] && all_terminal_jobs+=("$report_job")
@@ -574,7 +579,7 @@ if [ ${#all_terminal_jobs[@]} -gt 0 ]; then
         -hold_jid "$audit_hold_ids" \
         -o "$ERROR_LOG_DIR/master_audit.out" \
         -e "$ERROR_LOG_DIR/master_audit.err" \
-        -b y $PYTHON_EXE src/python/audit_run_results.py \
+        -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/audit_run_results.py \
             --run-dir "$RUN_BASE_DIR" \
             --raw-dir "$RAW_MASTER_DIR" \
             --output-report "$REPORTS_MASTER_DIR/audit_report_${RUN_NAME}.md" | awk '{print $3}')

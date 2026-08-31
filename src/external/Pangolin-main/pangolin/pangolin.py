@@ -1,4 +1,7 @@
 import os
+import sys
+import gzip
+import pysam
 import argparse
 try:
     from pkg_resources import resource_filename
@@ -68,18 +71,17 @@ def compute_score(ref_seq, alt_seq, strand, d, models):
 
 
 def get_genes(chr, pos, gtf):
-    try:
-        genes = list(gtf.region((chr, pos-1, pos-1), featuretype="gene"))
-    except Exception:
-        genes = []
-    if not genes:
-        alt_chr = chr[3:] if chr.startswith("chr") else "chr" + chr
+    genes = []
+    candidates = [chr, chr[3:] if chr.startswith("chr") else f"chr{chr}"]
+    for c in candidates:
         try:
-            genes = list(gtf.region((alt_chr, pos-1, pos-1), featuretype="gene"))
+            genes = list(gtf.region((c, pos-1, pos-1), featuretype="gene"))
+            if genes:
+                break
         except Exception:
-            genes = []
-    genes_pos, genes_neg = {}, {}
+            pass
 
+    genes_pos, genes_neg = {}, {}
     for gene in genes:
         if gene[3] > pos or gene[4] < pos:
             continue
@@ -101,10 +103,10 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
 
     if len(set("ACGT").intersection(set(ref))) == 0 or len(set("ACGT").intersection(set(alt))) == 0 \
             or (len(ref) != 1 and len(alt) != 1 and len(ref) != len(alt)):
-        print("[Line %s]" % lnum, "WARNING, skipping variant: Variant format not supported.")
+        print("[Line %s]" % lnum, "WARNING, skipping variant: Variant format not supported.", file=sys.stderr)
         return -1
     elif len(ref) > 2*d:
-        print("[Line %s]" % lnum, "WARNING, skipping variant: Deletion too large")
+        print("[Line %s]" % lnum, "WARNING, skipping variant: Deletion too large", file=sys.stderr)
         return -1
 
     import pysam
@@ -118,14 +120,14 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
     try:
         seq = fasta.fetch(chr, pos - 5001 - d, pos + len(ref) + 4999 + d).upper()
     except Exception as e:
-        print(e)
+        print(e, file=sys.stderr)
         print("[Line %s]" % lnum, "WARNING, skipping variant: Could not get sequence, possibly because the variant is too close to chromosome ends. "
-                                  "See error message above.")
+                                  "See error message above.", file=sys.stderr)
         return -1    
 
     if seq[5000+d:5000+d+len(ref)] != ref:
         print("[Line %s]" % lnum, "WARNING, skipping variant: Mismatch between FASTA (ref base: %s) and variant file (ref base: %s)."
-              % (seq[5000+d:5000+d+len(ref)], ref))
+              % (seq[5000+d:5000+d+len(ref)], ref), file=sys.stderr)
         return -1
 
     ref_seq = seq
@@ -134,7 +136,7 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
     # get genes that intersect variant
     genes_pos, genes_neg = get_genes(chr, pos, gtf)
     if len(genes_pos)+len(genes_neg)==0:
-        print("[Line %s]" % lnum, "WARNING, skipping variant: Variant not contained in a gene body. Do GTF/FASTA chromosome names match?")
+        print("[Line %s]" % lnum, "WARNING, skipping variant: Variant not contained in a gene body. Do GTF/FASTA chromosome names match?", file=sys.stderr)
         return -1
 
     # get splice scores
@@ -248,29 +250,22 @@ def main():
             model.eval()
             models.append(model)
 
-    if variants.endswith(".vcf"):
-        lnum = 0
-        # count the number of header lines
-        for line in open(variants, 'r'):
-            lnum += 1
-            if line[0] != '#':
-                break
-
-        variants = vcf.Reader(filename=variants)
-        variants.infos["Pangolin"] = vcf.parser._Info(
-            "Pangolin", ".", "String", "Pangolin splice scores.", None, None, None
-        )
+    if variants.endswith(".vcf") or variants.endswith(".vcf.gz"):
+        variants_path = variants
         out_path = args.output_file if args.output_file.endswith(".vcf") else args.output_file + ".vcf"
-        fout = vcf.Writer(open(out_path, 'w'), variants)
+        
+        v_in = pysam.VariantFile(variants_path)
+        v_in.header.info.add("Pangolin", ".", "String", "Pangolin splice score predictions")
+        v_out = pysam.VariantFile(out_path, "w", header=v_in.header)
 
-        for i, variant in enumerate(variants):
-            scores = process_variant(lnum+i, str(variant.CHROM), int(variant.POS), variant.REF, str(variant.ALT[0]), gtf, models, args)
+        for i, variant in enumerate(v_in):
+            scores = process_variant(i+1, str(variant.chrom), int(variant.pos), variant.ref, str(variant.alts[0]), gtf, models, args)
             if scores != -1:
-                variant.INFO["Pangolin"] = scores
-            fout.write_record(variant)
-            fout.flush()
+                variant.info["Pangolin"] = str(scores)
+            v_out.write(variant)
 
-        fout.close()
+        v_in.close()
+        v_out.close()
 
     elif variants.endswith(".csv"):
         col_ids = args.column_ids.split(',')

@@ -36,6 +36,11 @@ This repository contains a production-ready, modular HPC bash and Python pipelin
      - **Multi-Track SVG Transcript Visualizer & Variant Position Map**: Interactive Plotly multi-track diagram mapping genomic/cDNA positions and amino acid coordinates across exon-intron boundaries, displaying priority tiers, SpliceAI Δ, and AlphaMissense scores.
      - **gnomAD v4.1 Joint PopMax Frequencies**: Full extraction of `gnomADv4_AF_grpmax_joint` with population ancestry labels (`AFR`, `AMR`, `EAS`, `NFE`, `SAS`, etc.).
 
+6. **Standalone Clinical Reporting Web Application ([run_web_app.sh](./run_web_app.sh))**:
+   - Drag-and-drop web UI built with Streamlit for clinicians and researchers.
+   - Upload any variant file (`.vcf`, `.vcf.gz`, `.parquet`, `.pq`, `.xlsx`, `.csv`, `.tsv`).
+   - Automated ACMG/ClinGen priority tiering, live interactive filtering, Plotly charts, embedded 4-tab clinical report preview, and export center (`.html`, `.xlsx`, `.pq`).
+
 ---
 
 ## 📁 Repository Architecture & Codebase Organization

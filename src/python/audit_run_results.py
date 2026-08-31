@@ -15,6 +15,10 @@ Audits genomic variant annotation pipeline runs:
 
 import os
 import sys
+
+# Prevent CWD sys.path precedence from shadowing site-packages C extension modules (numpy/pandas)
+sys.path = [p for p in sys.path if p not in ("", ".")]
+
 import glob
 import re
 import argparse

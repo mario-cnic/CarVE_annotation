@@ -133,7 +133,7 @@ if [ "$NUM_VARS" -ge "$CHUNK_THRESHOLD" ]; then
         (
             echo "  [Worker Pool] Starting SpliceAI on $c_base..."
             $PYTHON_BIN $SPLICEAI_SCRIPT "$chunk_file" "$c_out_raw" "$FASTA" -d 10000
-            $BGZIP_BIN -f "$c_out_raw"
+            $BGZIP_BIN -f -@ 4 "$c_out_raw"
             $TABIX_BIN -f "$c_out_gz"
             echo "  [Worker Pool] Finished: $c_base"
         ) &
@@ -186,7 +186,7 @@ else
     
     echo "Compressing and indexing output VCF..."
     if [ -f "$RAW_OUT" ]; then
-        $BGZIP_BIN -f "$RAW_OUT"
+        $BGZIP_BIN -f -@ 4 "$RAW_OUT"
     fi
     $TABIX_BIN -f "$FINAL_OUT"
 fi

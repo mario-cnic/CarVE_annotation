@@ -36,6 +36,8 @@ def parse_args():
     parser.add_argument("--min-alphamissense", type=float, default=None, help="Minimum AlphaMissense score threshold (e.g. 0.80)")
     parser.add_argument("--min-spip", type=float, default=None, help="Minimum SPiP splicing score threshold (e.g. 0.50)")
     parser.add_argument("--min-cadd", type=float, default=None, help="Minimum CADD phred score threshold (e.g. 20.0)")
+    parser.add_argument("--min-qual", type=float, default=None, help="Minimum VCF QUAL phred score threshold (e.g. 30.0)")
+    parser.add_argument("--pass-qc-only", action="store_true", help="Filter out variants with LOW_QUAL status in QC_STATUS")
     parser.add_argument("--consequences", type=str, default=None, help="Comma-separated list of target VEP consequences")
     parser.add_argument("--output-format", choices=["pq", "parquet", "tsv", "xlsx"], default="pq", help="Output file format")
     return parser.parse_args()
@@ -61,13 +63,27 @@ def load_data(input_path):
     else:
         raise ValueError(f"Unsupported input file format: {input_path}")
 
-def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None, min_cadd=None, consequences=None):
+def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None, min_cadd=None, min_qual=None, pass_qc_only=False, consequences=None):
     total_start = len(df)
     logger.info(f"Starting filtering on dataset with {total_start} variants...")
     filtered_df = df.copy()
 
     # Track filter steps
     stats = {"Total_Input_Variants": total_start}
+
+    # 0. Base Caller Quality Controls
+    if pass_qc_only and "QC_STATUS" in filtered_df.columns:
+        mask = filtered_df["QC_STATUS"] != "LOW_QUAL"
+        filtered_df = filtered_df[mask]
+        logger.info(f"Filter pass_qc_only: Retained {len(filtered_df)} / {total_start} variants.")
+        stats["PASS_QC_Only"] = len(filtered_df)
+
+    if min_qual is not None and "QUAL" in filtered_df.columns:
+        qual_vals = pd.to_numeric(filtered_df["QUAL"], errors="coerce")
+        mask = (qual_vals >= min_qual) | (qual_vals.isna())
+        filtered_df = filtered_df[mask]
+        logger.info(f"Filter min_qual >= {min_qual}: Retained {len(filtered_df)} variants.")
+        stats[f"QUAL_>=_{min_qual}"] = len(filtered_df)
 
     # 1. gnomAD Allele Frequency Filter
     if max_af is not None:
@@ -169,6 +185,8 @@ def main():
         min_am=args.min_alphamissense,
         min_spip=args.min_spip,
         min_cadd=args.min_cadd,
+        min_qual=args.min_qual,
+        pass_qc_only=args.pass_qc_only,
         consequences=args.consequences
     )
 

@@ -151,6 +151,15 @@ def render_table_html(df_subset, col_defs, table_id):
                 loc = _safe_str(raw_val, 24)
                 link = _build_gnomad_variant_link(r)
                 cells.append(f'<td><strong><a href="{link}" target="_blank" style="color:#2563eb; text-decoration:none;">{loc}</a></strong></td>')
+            elif fmt == "qc":
+                qc_str = str(raw_val)
+                badge = "badge-tier4"
+                if "PASS" in qc_str: badge = "badge-tier1"
+                elif "UNSCORED" in qc_str or "MISSING" in qc_str: badge = "badge-tier3"
+                elif "LOW_QUAL" in qc_str or "FAIL" in qc_str: badge = "badge-tier4"
+                detail = _safe_str(r.get("QC_DETAIL", ""), 60)
+                title_attr = f'title="{detail}"' if detail else ''
+                cells.append(f'<td><span class="badge {badge}" {title_attr}>{qc_str}</span></td>')
             elif fmt == "tier":
                 tier_str = str(raw_val)
                 badge = "badge-tier4"
@@ -590,8 +599,17 @@ def generate_gene_report(pq_path, out_html_path):
     n_tier3 = (tier_col.str.contains("Tier 3")).sum()
     n_tier4 = (tier_col.str.contains("Tier 4")).sum()
 
-    import plotly.express as px
-    import plotly.graph_objects as go
+    try:
+        import plotly.express as px
+        import plotly.graph_objects as go
+        has_plotly = True
+    except ImportError:
+        has_plotly = False
+
+    def render_fig_html(fig):
+        if has_plotly and fig is not None:
+            return fig.to_html(full_html=False, include_plotlyjs=False)
+        return '<div style="padding:20px;text-align:center;color:#64748b;">Plotly library not available for chart rendering.</div>'
 
     # =========================================================================
     # TAB 1: GENERAL / OVERVIEW CHARTS
@@ -600,25 +618,31 @@ def generate_gene_report(pq_path, out_html_path):
         "Tier": ["Tier 1 (Critical Pathogenic)", "Tier 2 (Likely Deleterious)", "Tier 3 (VUS / Moderate)", "Tier 4 (Benign / Tolerated)"],
         "Count": [n_tier1, n_tier2, n_tier3, n_tier4]
     })
-    fig_donut = px.pie(
-        tier_df, values="Count", names="Tier",
-        color="Tier",
-        color_discrete_map={
-            "Tier 1 (Critical Pathogenic)": "#dc2626",
-            "Tier 2 (Likely Deleterious)": "#ea580c",
-            "Tier 3 (VUS / Moderate)": "#d97706",
-            "Tier 4 (Benign / Tolerated)": "#16a34a"
-        },
-        hole=0.45,
-        title=f"Clinical Triage Stratification ({n_total:,} Variants)"
-    )
-    fig_donut.update_traces(textposition='inside', textinfo='percent+label')
-    fig_donut.update_layout(showlegend=False, margin=dict(t=40, b=20, l=20, r=20), height=330)
+    if has_plotly:
+        fig_donut = px.pie(
+            tier_df, values="Count", names="Tier",
+            color="Tier",
+            color_discrete_map={
+                "Tier 1 (Critical Pathogenic)": "#dc2626",
+                "Tier 2 (Likely Deleterious)": "#ea580c",
+                "Tier 3 (VUS / Moderate)": "#d97706",
+                "Tier 4 (Benign / Tolerated)": "#16a34a"
+            },
+            hole=0.45,
+            title=f"Clinical Triage Stratification ({n_total:,} Variants)"
+        )
+        fig_donut.update_traces(textposition='inside', textinfo='percent+label')
+        fig_donut.update_layout(showlegend=False, margin=dict(t=40, b=20, l=20, r=20), height=330)
+    else:
+        fig_donut = None
 
-    # Top Candidate Table (Tier 1 & 2)
+    # Top Candidate Table (Tier 1 & 2 or highest scoring fallback)
     top_overall_df = df[tier_col.str.contains("Tier 1|Tier 2") | (prio_score >= 35.0)].sort_values("VARIANT_PRIORITY_SCORE", ascending=False).head(200)
+    if len(top_overall_df) == 0 and len(df) > 0:
+        top_overall_df = df.sort_values("VARIANT_PRIORITY_SCORE", ascending=False).head(25)
     general_cols = [
         ("Locus (GRCh38)", "Locus", "locus"),
+        ("QC Status", "QC_STATUS", "qc"),
         ("HGVSc", "HGVSc", "code"),
         ("HGVSp", "HGVSp", "code"),
         ("Priority Tier", "PRIORITY_TIER", "tier"),
@@ -652,7 +676,7 @@ def generate_gene_report(pq_path, out_html_path):
     n_branchpoint = (get_col_string(df, "Branchpoint_status") == "disrupted").sum()
 
     # Splicing Offset Scatter Plot
-    if len(df_splice) > 0:
+    if has_plotly and len(df_splice) > 0:
         df_splice_plot = df_splice.copy()
         df_splice_plot["Splice_Score"] = df_splice_plot["SPLICE_MAX_UNIFIED"].astype(float)
         df_splice_plot["Offset"] = get_col_numeric(df_splice_plot, "intron_offset_signed", 0.0)
@@ -675,9 +699,11 @@ def generate_gene_report(pq_path, out_html_path):
         fig_splice_scatter.add_hline(y=0.50, line_dash="dash", line_color="#dc2626", annotation_text="High SpliceAI ≥ 0.50")
         fig_splice_scatter.add_hline(y=0.20, line_dash="dot", line_color="#d97706", annotation_text="Moderate SpliceAI ≥ 0.20")
         fig_splice_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
-    else:
+    elif has_plotly:
         fig_splice_scatter = go.Figure()
         fig_splice_scatter.update_layout(title="No Splicing Variants Detected", height=330)
+    else:
+        fig_splice_scatter = None
 
     splice_table_cols = [
         ("Locus (GRCh38)", "Locus", "locus"),
@@ -689,11 +715,8 @@ def generate_gene_report(pq_path, out_html_path):
         ("Score", "VARIANT_PRIORITY_SCORE", "score1"),
         ("gnomADv4 AF grpmax", "GNOMADV4_AF_GRPMAX_DISPLAY", "str"),
         ("SpliceAI Custom Δ", "SPLICE_MAX_UNIFIED", "bold_float2"),
-        ("DS_AG", "spliceai_custom_DS_AG", "float2"),
-        ("DS_AL", "spliceai_custom_DS_AL", "float2"),
-        ("DS_DG", "spliceai_custom_DS_DG", "float2"),
-        ("DS_DL", "spliceai_custom_DS_DL", "float2"),
         ("SPiP Pred", "SPiP_prediction", "float2"),
+        ("Pangolin", "Pangolin_max_score", "float2"),
         ("SpliceVault", "SpliceVault_status", "str"),
         ("Branchpoint", "Branchpoint_status", "str"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
@@ -759,7 +782,7 @@ def generate_gene_report(pq_path, out_html_path):
     n_cadd_high = (cadd_score >= 25.0).sum()
 
     # Missense Quadrant Scatter
-    if len(df_missense) > 0:
+    if has_plotly and len(df_missense) > 0:
         df_missense_plot = df_missense[(df_missense["am_pathogenicity"].notna()) | (df_missense["REVEL_score"].notna())].copy()
         df_missense_plot["AM_val"] = get_col_numeric(df_missense_plot, "am_pathogenicity", 0.0)
         df_missense_plot["REVEL_val"] = get_col_numeric(df_missense_plot, "REVEL_score", 0.0)
@@ -782,9 +805,11 @@ def generate_gene_report(pq_path, out_html_path):
         fig_missense_scatter.add_vline(x=0.75, line_dash="dash", line_color="#dc2626", annotation_text="REVEL ≥ 0.75")
         fig_missense_scatter.add_hline(y=0.564, line_dash="dash", line_color="#ea580c", annotation_text="AlphaMissense ≥ 0.564")
         fig_missense_scatter.update_layout(margin=dict(t=40, b=20, l=20, r=20), height=330)
-    else:
+    elif has_plotly:
         fig_missense_scatter = go.Figure()
         fig_missense_scatter.update_layout(title="No Missense Variants Detected", height=330)
+    else:
+        fig_missense_scatter = None
 
     missense_table_cols = [
         ("Locus (GRCh38)", "Locus", "locus"),
@@ -1107,19 +1132,19 @@ def generate_gene_report(pq_path, out_html_path):
 
         <div class="charts-grid" style="margin-bottom: 20px;">
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_transcript_overview.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_transcript_overview)}
             </div>
         </div>
 
         <div class="charts-grid">
             <div class="chart-card">
-                {fig_donut.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_donut)}
             </div>
             <div class="chart-card">
-                {fig_missense_scatter.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_missense_scatter)}
             </div>
             <div class="chart-card">
-                {fig_splice_scatter.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_splice_scatter)}
             </div>
         </div>
 
@@ -1169,10 +1194,10 @@ def generate_gene_report(pq_path, out_html_path):
 
         <div class="charts-grid">
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_transcript_splice.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_transcript_splice)}
             </div>
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_splice_scatter.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_splice_scatter)}
             </div>
         </div>
 
@@ -1217,7 +1242,7 @@ def generate_gene_report(pq_path, out_html_path):
 
         <div class="charts-grid">
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_utr_bar.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_utr_bar)}
             </div>
         </div>
 
@@ -1267,10 +1292,10 @@ def generate_gene_report(pq_path, out_html_path):
 
         <div class="charts-grid">
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_transcript_missense.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_transcript_missense)}
             </div>
             <div class="chart-card" style="grid-column: 1 / -1;">
-                {fig_missense_scatter.to_html(full_html=False, include_plotlyjs=False)}
+                {render_fig_html(fig_missense_scatter)}
             </div>
         </div>
 
