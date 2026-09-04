@@ -378,7 +378,7 @@ survival_analysis <- function(dataframe, time_var, event_var, group_var = NULL, 
 #'         Otherwise, returns a single violin plot.
 #' @export
 #' @importFrom dplyr filter group_split
-#' @importFrom ggplot2 ggplot aes_string geom_violin geom_jitter stat_summary labs theme_bw theme element_text scale_fill_manual scale_color_manual
+#' @importFrom ggplot2 ggplot aes geom_violin geom_jitter stat_summary labs theme_bw theme element_text scale_fill_manual scale_color_manual
 #' @importFrom ggplot2 ggsave
 #' @importFrom purrr map2 walk
 #' @importFrom rlang .data sym
@@ -395,19 +395,19 @@ violin_plot <- function(dataframe, variable, group_var, palette, strata_var = NU
   create_violin_plot <- function(data, title) {
     ggplot(data) +
       geom_violin(
-        aes_string(x = group_var, y = variable, fill = group_var),
+        aes(x = .data[[group_var]], y = .data[[variable]], fill = .data[[group_var]]),
         alpha = 0.5, color = "black", show.legend = FALSE, scale = "width"
       ) +
       geom_jitter(
-        aes_string(x = group_var, y = variable, color = group_var),
+        aes(x = .data[[group_var]], y = .data[[variable]], color = .data[[group_var]]),
         width = 0.2, alpha = 0.2, show.legend = FALSE
       ) +
       stat_summary(
-        aes_string(x = group_var, y = variable),
+        aes(x = .data[[group_var]], y = .data[[variable]]),
         fun = mean, geom = "crossbar", width = 0.3, color = "black", fatten = 0.5
       ) +
       stat_summary(
-        aes_string(x = group_var, y = variable),
+        aes(x = .data[[group_var]], y = .data[[variable]]),
         fun = mean, geom = "point", shape = 21, size = 3, fill = "black", color = "black"
       ) +
       labs(
@@ -500,7 +500,7 @@ violin_plot <- function(dataframe, variable, group_var, palette, strata_var = NU
 #'
 #' @return A list containing analysis summaries and plots.
 #' @export
-#' @importFrom ggplot2 ggplot aes_string geom_boxplot stat_summary labs theme_bw theme element_text scale_fill_manual ggsave
+#' @importFrom ggplot2 ggplot aes geom_boxplot stat_summary labs theme_bw theme element_text scale_fill_manual ggsave
 #' @importFrom dplyr filter group_split summarise group_by mutate
 #' @importFrom purrr map2
 #' @importFrom stats aov TukeyHSD kruskal.test p.adjust
@@ -605,7 +605,7 @@ means_analysis <- function(dataframe, variable, group_var, palette, strata_var =
   }
 
   # Create boxplot
-  boxplot <- ggplot(clean_data, aes_string(x = group_var, y = variable, fill = group_var)) +
+  boxplot <- ggplot(clean_data, aes(x = .data[[group_var]], y = .data[[variable]], fill = .data[[group_var]])) +
     geom_boxplot(alpha = 0.5, color = "black", outlier.shape = 16, outlier.size = 2) +
     stat_summary(fun = mean, geom = "point", shape = 21, size = 3, fill = "black", color = "black") +
     labs(
@@ -799,8 +799,8 @@ scatter_plot <- function(dataframe, x, y, group_var, palette, strata_var = NULL,
 
     # Crear el scatter plot con la línea de regresión
     plot <- ggplot(data) +
-      geom_point(aes_string(x = x, y = y, color = group_var), size = 2, alpha = 0.7) +
-      geom_smooth(aes_string(x = x, y = y), method = "lm", se = FALSE, color = "black", linetype = "dashed") +
+      geom_point(aes(x = .data[[x]], y = .data[[y]], color = .data[[group_var]]), size = 2, alpha = 0.7) +
+      geom_smooth(aes(x = .data[[x]], y = .data[[y]]), method = "lm", se = FALSE, color = "black", linetype = "dashed") +
       labs(
         title = title,
         x = x,

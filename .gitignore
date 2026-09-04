@@ -6,6 +6,7 @@ __pycache__/
 
 # Large execution outputs and run directories
 RUNS/
+test_data/
 _tmp/
 _log/
 *.vcf

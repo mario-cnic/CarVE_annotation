@@ -287,9 +287,145 @@ def build_transcript_exon_model(df):
         "exons": exons_list
     }
 
+def create_multigene_manhattan_figure(df):
+    """
+    Renders a Chromosomal Karyotype Manhattan Scatter Plot and Gene Burden Chart
+    for Multi-Gene / Whole-Exome (WES) / Whole-Genome (WGS) datasets.
+    """
+    import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
+
+    plot_df = df.copy()
+    
+    # Ensure Chromosome column exists and is formatted nicely
+    if "CHROM" in plot_df.columns:
+        chrom_series = plot_df["CHROM"].astype(str).str.replace("chr", "", case=False)
+    elif "Locus" in plot_df.columns:
+        chrom_series = plot_df["Locus"].astype(str).apply(lambda s: s.split(":")[0].replace("chr", ""))
+    else:
+        chrom_series = pd.Series(["1"] * len(plot_df))
+    
+    plot_df["_CHROM_CLEAN"] = chrom_series
+    
+    # Sort chromosomes logically (1..22, X, Y, MT)
+    def chrom_key(c):
+        c_str = str(c).upper().strip()
+        if c_str == "X": return 23
+        if c_str == "Y": return 24
+        if c_str in ["M", "MT"]: return 25
+        try:
+            return int(c_str)
+        except ValueError:
+            return 99
+            
+    plot_df["_CHROM_ORDER"] = plot_df["_CHROM_CLEAN"].apply(chrom_key)
+    plot_df = plot_df.sort_values("_CHROM_ORDER")
+    
+    prio_series = get_col_numeric(plot_df, "VARIANT_PRIORITY_SCORE", 0.0)
+    tier_series = get_col_string(plot_df, "PRIORITY_TIER", "Tier 4 (Benign / Tolerated)")
+    plot_df["_SCORE"] = prio_series
+    plot_df["_TIER"] = tier_series
+    
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=(
+            f"🌐 Chromosomal Manhattan Distribution ({len(plot_df):,} Variants across {plot_df['SYMBOL'].nunique()} Genes)",
+            "📊 Top Prioritized Gene Burden (Ranked by Variant Severity)"
+        ),
+        vertical_spacing=0.15,
+        row_heights=[0.60, 0.40]
+    )
+    
+    tier_colors = {
+        "Tier 1": "#dc2626",
+        "Tier 2": "#ea580c",
+        "Tier 3": "#d97706",
+        "Tier 4": "#16a34a"
+    }
+    
+    # 1. Add Manhattan Points by Tier
+    for tier_label, color in tier_colors.items():
+        sub = plot_df[plot_df["_TIER"].str.contains(tier_label, na=False)]
+        if len(sub) == 0:
+            continue
+            
+        hover_texts = []
+        for _, r in sub.iterrows():
+            ht = (
+                f"<b>Gene:</b> {r.get('SYMBOL', '-')}<br>"
+                f"<b>Locus:</b> {r.get('Locus', '-')}<br>"
+                f"<b>HGVSc:</b> {r.get('HGVSc', '-')}<br>"
+                f"<b>HGVSp:</b> {r.get('HGVSp', '-')}<br>"
+                f"<b>Consequence:</b> {r.get('Consequence', '-')}<br>"
+                f"<b>Priority Tier:</b> {r.get('PRIORITY_TIER', '-')}<br>"
+                f"<b>Priority Score:</b> {r.get('VARIANT_PRIORITY_SCORE', 0):.1f}<br>"
+                f"<b>SpliceAI Δ:</b> {r.get('SPLICE_MAX_UNIFIED', 0):.2f}<br>"
+                f"<b>AlphaMissense:</b> {r.get('am_pathogenicity', 0):.2f}"
+            )
+            hover_texts.append(ht)
+            
+        fig.add_trace(
+            go.Scatter(
+                x=sub["_CHROM_CLEAN"],
+                y=sub["_SCORE"],
+                mode="markers",
+                name=tier_label,
+                marker=dict(color=color, size=8, opacity=0.85),
+                text=hover_texts,
+                hoverinfo="text"
+            ),
+            row=1, col=1
+        )
+        
+    # 2. Add Top Gene Burden Bar Chart
+    if "SYMBOL" in plot_df.columns:
+        gene_counts = plot_df.groupby(["SYMBOL", "_TIER"]).size().unstack(fill_value=0)
+        if len(gene_counts) > 0:
+            gene_scores = pd.Series(0, index=gene_counts.index)
+            for col in gene_counts.columns:
+                if "Tier 1" in col: gene_scores += gene_counts[col] * 100
+                elif "Tier 2" in col: gene_scores += gene_counts[col] * 50
+                elif "Tier 3" in col: gene_scores += gene_counts[col] * 10
+            
+            top_genes = gene_scores.sort_values(ascending=False).head(20).index
+            sub_gene_counts = gene_counts.loc[top_genes]
+            
+            for tier_label, color in tier_colors.items():
+                matching_cols = [c for c in sub_gene_counts.columns if tier_label in c]
+                if matching_cols:
+                    counts = sub_gene_counts[matching_cols[0]]
+                    fig.add_trace(
+                        go.Bar(
+                            x=sub_gene_counts.index,
+                            y=counts,
+                            name=tier_label,
+                            marker_color=color,
+                            showlegend=False
+                        ),
+                        row=2, col=1
+                    )
+                
+    fig.update_layout(
+        title_text=f"🌐 Chromosomal Manhattan Distribution ({len(plot_df):,} Variants across {plot_df['SYMBOL'].nunique()} Genes)",
+        barmode="stack",
+        height=700,
+        margin=dict(l=40, r=40, t=80, b=40),
+        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff",
+        hovermode="closest"
+    )
+    fig.update_xaxes(title_text="Chromosome", row=1, col=1)
+    fig.update_yaxes(title_text="Priority Score", range=[-5, 105], row=1, col=1)
+    fig.update_xaxes(title_text="Top Prioritized Gene Symbol", row=2, col=1)
+    fig.update_yaxes(title_text="Variant Count", row=2, col=1)
+    
+    return fig
+
+
 def create_transcript_visualization_figure(df, track_mode="overview"):
     """
-    Generates an interactive Plotly multi-track figure visualizing variants along the transcript model.
+    Renders an interactive Lollipop & Transcript Exon Architecture Map using Plotly.
+    Automatically switches to Multi-Gene Chromosomal Manhattan View if dataset contains >1 gene.
     track_mode options:
       - 'overview': X = Genomic Position (POS), Y = VARIANT_PRIORITY_SCORE (0-100), color = Tier
       - 'splicing': X = Genomic Position (POS), Y = SpliceAI Δ Score (0-1), color = Tier
@@ -302,6 +438,9 @@ def create_transcript_visualization_figure(df, track_mode="overview"):
         fig = go.Figure()
         fig.update_layout(title="No Variants Available for Transcript Visualization", height=350)
         return fig
+
+    if "SYMBOL" in df.columns and df["SYMBOL"].dropna().nunique() > 1:
+        return create_multigene_manhattan_figure(df)
 
     if "POS" in df.columns and df["POS"].notna().sum() > 0:
         pos_series = pd.to_numeric(df["POS"], errors="coerce")
@@ -655,6 +794,34 @@ def generate_gene_report(pq_path, out_html_path):
         ("REVEL", "REVEL_score", "float2"),
         ("ClinVar", "CLINVAR_DISPLAY", "clinvar"),
     ]
+    # Pedigree Inheritance Provenance Banner
+    if "INHERITANCE_MODEL" in df.columns and (df["INHERITANCE_MODEL"] != "Single Sample / Not Applicable").any():
+        inh_counts = df["INHERITANCE_MODEL"].value_counts().to_dict()
+        summary_parts = [f"<strong>{k}</strong>: {v:,}" for k, v in inh_counts.items() if k not in ["Unclassified", "Single Sample / Not Applicable"]]
+        if summary_parts:
+            summary_str = ", ".join(summary_parts)
+            disclaimers.append(('provenance', f'🧬 <strong>Pedigree Inheritance Active</strong>: {summary_str}. Priorities boosted for De Novo (+20 pts) & Recessive/Compound Het/X-linked (+15 pts).'))
+
+    if "INHERITANCE_MODEL" in df.columns and (df["INHERITANCE_MODEL"] != "Single Sample / Not Applicable").any():
+        general_cols.insert(5, ("Inheritance Model", "INHERITANCE_MODEL", "str"))
+        if "SAMPLE_GENOTYPES_SUMMARY" in df.columns and df["SAMPLE_GENOTYPES_SUMMARY"].str.len().max() > 0:
+            general_cols.insert(6, ("Sample Genotypes", "SAMPLE_GENOTYPES_SUMMARY", "str"))
+    if "COMPOUND_HET_PAIR" in df.columns and (df["COMPOUND_HET_PAIR"].astype(str).str.len() > 0).any():
+        general_cols.insert(7, ("Compound Het Pair Details", "COMPOUND_HET_PAIR", "str"))
+        
+        # Build Compound Het Pair Callout Card
+        pair_rows = df[df["COMPOUND_HET_PAIR"].astype(str).str.len() > 0]
+        pair_html_items = []
+        for symbol, group in pair_rows.groupby("SYMBOL"):
+            item_str = f"<li><strong>{symbol} Pairings</strong>:<br/>"
+            for _, r in group.iterrows():
+                item_str += f"&nbsp;&nbsp;&bull; <code>{r['Locus']}</code> ({r.get('HGVSc', '-')}) &rarr; <em>{r['COMPOUND_HET_PAIR']}</em><br/>"
+            item_str += "</li>"
+            pair_html_items.append(item_str)
+        
+        if pair_html_items:
+            disclaimers.append(('provenance', f'🔗 <strong>Compound Heterozygous Allele Pairings Detected</strong>:<ul style="margin-top:6px;margin-bottom:0px;padding-left:20px;">{"".join(pair_html_items)}</ul>'))
+
     general_table_html = render_table_html(top_overall_df, general_cols, "generalTable")
 
     # =========================================================================
@@ -783,7 +950,9 @@ def generate_gene_report(pq_path, out_html_path):
 
     # Missense Quadrant Scatter
     if has_plotly and len(df_missense) > 0:
-        df_missense_plot = df_missense[(df_missense["am_pathogenicity"].notna()) | (df_missense["REVEL_score"].notna())].copy()
+        am_series = df_missense["am_pathogenicity"] if "am_pathogenicity" in df_missense.columns else pd.Series(np.nan, index=df_missense.index)
+        revel_series = df_missense["REVEL_score"] if "REVEL_score" in df_missense.columns else pd.Series(np.nan, index=df_missense.index)
+        df_missense_plot = df_missense[(am_series.notna()) | (revel_series.notna())].copy()
         df_missense_plot["AM_val"] = get_col_numeric(df_missense_plot, "am_pathogenicity", 0.0)
         df_missense_plot["REVEL_val"] = get_col_numeric(df_missense_plot, "REVEL_score", 0.0)
         df_missense_plot["Tier_Label"] = get_col_string(df_missense_plot, "PRIORITY_TIER", "Tier 4")
@@ -1103,6 +1272,7 @@ def generate_gene_report(pq_path, out_html_path):
         <button class="tab-btn" onclick="switchTab('tab-splicing')">🧬 Splicing Alterations ({n_splice_total:,})</button>
         <button class="tab-btn" onclick="switchTab('tab-utr')">🎯 5'/3' UTR & Translation ({n_utr_total:,})</button>
         <button class="tab-btn" onclick="switchTab('tab-missense')">🔬 Missense Pathogenicity ({n_missense_total:,})</button>
+        <button class="tab-btn" onclick="switchTab('tab-help')">❓ Help & Methodology</button>
     </div>
 
     <!-- ==================== TAB 1: GENERAL ==================== -->
@@ -1168,7 +1338,7 @@ def generate_gene_report(pq_path, out_html_path):
             <div class="kpi-card blue">
                 <div class="kpi-title">Total Splice Candidates</div>
                 <div class="kpi-value blue">{n_splice_total:,}</div>
-                <small>SpliceAI / SPiP / Pangolin ≥ 0.20</small>
+                <small>Predictor score ≥ 0.20 or SpliceVault/Branchpoint</small>
             </div>
             <div class="kpi-card t1">
                 <div class="kpi-title">High-Impact SpliceAI (≥ 0.50)</div>
@@ -1310,6 +1480,92 @@ def generate_gene_report(pq_path, out_html_path):
             <div class="table-container">
                 {missense_table_html}
             </div>
+        </div>
+    </div>
+
+    <!-- ==================== TAB 5: HELP & METHODOLOGY ==================== -->
+    <div id="tab-help" class="tab-content">
+        <div class="table-section" style="background:#ffffff; padding:24px; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+            <h2 style="margin-top:0; color:#1e293b; border-bottom:2px solid #e2e8f0; padding-bottom:10px;">
+                ❓ Pipeline Architecture & 4-Tier Clinical Prioritization Algorithm
+            </h2>
+            
+            <p style="font-size:14px; line-height:1.6; color:#475569;">
+                This dashboard presents automated multi-evidence variant annotations and clinical triage classification computed by the 
+                <strong>Cardiovascular & Genomic Multi-Omics Annotation Pipeline</strong> (GRCh38 build).
+            </p>
+
+            <h3 style="color:#2563eb; margin-top:24px;">🏆 The 4-Tier Clinical Stratification Framework</h3>
+            <p style="font-size:13.5px; line-height:1.5;">
+                Variants are stratified into 4 prioritized clinical tiers adhering to ACMG/ClinGen sequence variant guidelines:
+            </p>
+            <table style="width:100%; border-collapse:collapse; margin-bottom:20px; font-size:13px;">
+                <thead>
+                    <tr style="background:#f1f5f9;">
+                        <th style="padding:10px; border:1px solid #cbd5e1;">Tier Level</th>
+                        <th style="padding:10px; border:1px solid #cbd5e1;">Classification Category</th>
+                        <th style="padding:10px; border:1px solid #cbd5e1;">Algorithmic Rules & Thresholds</th>
+                        <th style="padding:10px; border:1px solid #cbd5e1;">Actionability</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; color:#dc2626;">Tier 1</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;"><span class="badge tier-1">Critical Pathogenic Candidate</span></td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">
+                            • ClinVar Pathogenic / Likely Pathogenic<br/>
+                            • High-Impact Loss-of-Function (stop_gained, frameshift, splice_acceptor, splice_donor)<br/>
+                            • Multi-Evidence Priority Score &ge; 60.0 with gnomAD AF &le; 0.0001 (1 &times; 10<sup>-4</sup>)
+                        </td>
+                        <td style="padding:10px; border:1px solid #cbd5e1; color:#dc2626; font-weight:600;">Immediate Diagnostic Review</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; color:#ea580c;">Tier 2</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;"><span class="badge tier-2">Likely Deleterious / Strong Candidate</span></td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">
+                            • High-confidence Missense / Splicing (Priority Score &ge; 35.0)<br/>
+                            • Confirmed <strong>De Novo</strong>, <strong>Autosomal Recessive (Hom)</strong>, or <strong>Compound Heterozygous (TRANS)</strong>
+                        </td>
+                        <td style="padding:10px; border:1px solid #cbd5e1; color:#ea580c; font-weight:600;">Strong Candidate for Validation</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; color:#d97706;">Tier 3</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;"><span class="badge tier-3">VUS / Moderate Potential</span></td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">
+                            • Priority Score &ge; 15.0 OR Splicing &Delta; &ge; 0.20 floor (SpliceAI 20kb, Pangolin, SPiP)<br/>
+                            • Moderate-impact amino acid alterations or UTR regulatory variants
+                        </td>
+                        <td style="padding:10px; border:1px solid #cbd5e1; color:#d97706; font-weight:600;">Secondary Research Candidate</td>
+                    </tr>
+                    <tr>
+                        <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; color:#16a34a;">Tier 4</td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;"><span class="badge tier-4">Benign / Tolerated</span></td>
+                        <td style="padding:10px; border:1px solid #cbd5e1;">
+                            • Common Population Variants (gnomAD v4.1 AF &gt; 0.01)<br/>
+                            • ClinVar Benign / Likely Benign OR Priority Score &lt; 15.0
+                        </td>
+                        <td style="padding:10px; border:1px solid #cbd5e1; color:#16a34a; font-weight:500;">Benign / Low Priority</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3 style="color:#2563eb; margin-top:24px;">📊 Multi-Evidence Population Frequency & Scoring Scale</h3>
+            <p style="font-size:13.5px; line-height:1.5;">
+                The <code>VARIANT_PRIORITY_SCORE</code> evaluates population rarity according to 3 distinct allele frequency (AF) tiers:
+            </p>
+            <ul style="font-size:13px; line-height:1.6; color:#334155;">
+                <li><strong>Ultra-Rare (AF &lt; 1 &times; 10<sup>-4</sup> or 0.0001)</strong>: Positive Score Bonus (+15.0 pts).</li>
+                <li><strong>Moderate Rarity (1 &times; 10<sup>-4</sup> &le; AF &le; 0.01 or 1%)</strong>: Neutral Score (0.0 pts).</li>
+                <li><strong>Common Variant (AF &gt; 0.01 or 1%)</strong>: Heavy Penalty (-30.0 pts).</li>
+            </ul>
+
+            <h3 style="color:#2563eb; margin-top:24px;">🧬 Pedigree & Phasing Definitions</h3>
+            <ul style="font-size:13px; line-height:1.6; color:#334155;">
+                <li><strong>De Novo</strong>: Proband is HET (0/1), both Father and Mother are HOMREF (0/0).</li>
+                <li><strong>Autosomal Recessive (Hom)</strong>: Proband is HOMALT (1/1), both Father and Mother are HET (0/1).</li>
+                <li><strong>Compound Heterozygous (TRANS)</strong>: Proband is HET for &ge; 2 rare variants in the same gene, with 1 paternal-only allele (Father HET/HOMALT, Mother HOMREF) AND 1 maternal-only allele (Father HOMREF, Mother HET/HOMALT).</li>
+                <li><strong>Unphased Candidate</strong>: Single sample or unparented individual with &ge; 2 rare HET variants in the same gene.</li>
+            </ul>
         </div>
     </div>
 

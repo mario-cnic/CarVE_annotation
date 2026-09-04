@@ -3,14 +3,10 @@ import sys
 import gzip
 import pysam
 import argparse
-try:
-    from pkg_resources import resource_filename
-except (ImportError, ModuleNotFoundError):
-    def resource_filename(package_or_requirement, resource_name):
-        return os.path.join(os.path.dirname(__file__), resource_name)
+def resource_filename(package_or_requirement, resource_name):
+    return os.path.join(os.path.dirname(__file__), resource_name)
 
 from pangolin.model import *
-import vcf
 import gffutils
 import pandas as pd
 import pyfastx
