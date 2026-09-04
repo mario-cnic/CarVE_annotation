@@ -4,8 +4,11 @@ import pytest
 import pandas as pd
 import numpy as np
 
-# Add shared/utils/src to path
-sys.path.insert(0, "/home/mruizp/data_lab_PGP/shared/utils/src")
+# Add src/python and shared/utils/src to path via config.py
+PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python"))
+import config
+
 from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS
 
 def test_parse_branchpointer_status():

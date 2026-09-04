@@ -27,6 +27,10 @@ import numpy as np
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("universal_variant_converter")
 
+# Load centralized pipeline environment config
+sys.path.insert(0, os.path.dirname(__file__))
+import config
+
 # Standard VCF header contigs (GRCh38)
 VCF_HEADER_GRCH38 = """##fileformat=VCFv4.2
 ##FILTER=<ID=PASS,Description="All filters passed">

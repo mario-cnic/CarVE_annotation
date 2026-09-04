@@ -70,6 +70,12 @@ src/
 ├── downstream/                               # Cohort burden & association analysis scripts
 ├── tools/                                    # Reference builders, backfills, & exploratory utilities
 └── external/                                 # Third-party source dependencies (Pangolin-main)
+
+config/
+└── env.sh                                    # Centralized shell environment & binary auto-detection
+
+archive/
+└── deprecated_scripts/                       # Safely archived legacy & superseded scripts
 ```
 
 ---
@@ -219,6 +225,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-19: Comprehensive Dual Pipeline Execution Progress Audit](./walkthrough/20260819_dual_pipeline_execution_progress_audit.md)
 - [2026-08-19: Source Directory Reorganization & Obsolete Script Archival](./walkthrough/20260819_src_directory_reorganization_and_cleanup.md)
 - [2026-08-20: Interactive Multi-Track Transcript & Exon Lollipop Visualization](./walkthrough/20260820_transcript_visualization_implementation.md)
+- [2026-09-04: Master Pipeline Architecture Audit & Improvement Roadmap](./walkthrough/20260904_pipeline_analysis_and_improvements.md)
 
 ---
 

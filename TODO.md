@@ -27,35 +27,28 @@
 - [x] **5' UTR Annotator & Multi-Tab Dashboard**
   - [x] Integrate 5' UTR consequence, uORF, and start/stop disruption annotations into `vcf_parser_pysam.py`
   - [x] Implement 4-tab Clinical Prioritization Report (`generate_clinical_prioritization_report.py`)
-- [ ] **Automated ACMG / AMP In-Silico Evidence Code Engine**
-  - [ ] Rule engine for `PVS1` (null LoF in intolerant gene with `pLI >= 0.90` / `LOEUF < 0.35`)
-  - [ ] Rule engine for `PM2_Supporting` (gnomAD v4 joint AF $< 0.0001$ or absent)
-  - [ ] Rule engine for `PP3` (concordant in-silico: `SpliceAI > 0.50` + `Pangolin > 0.50` OR `AlphaMissense > 0.56` + `REVEL > 0.70`)
-  - [ ] Rule engine for `BP4` (concordant benign predictions)
-  - [ ] Add `ACMG_Evidence_Codes` and `ACMG_Suggested_Tier` columns to Parquet outputs and reports
-- [ ] **Cardiomyopathy Domain & Cardiac Isoform / PSI Filter**
-  - [ ] Add cardiac ventricle Percent Spliced In (PSI > 85%) flag for `TTN` truncating variants (TTNtv in A-band)
-  - [ ] Map critical DCM structural domains (`BAG3` BAG domain, `LMNA` rod domain, `FLNC` Ig-like folds)
-- [ ] **ClinGen Dosage Sensitivity & Gene Constraint Metrics**
-  - [ ] Integrate ClinGen Haploinsufficiency (`HI`) and Triplosensitivity (`TS`) scores into KPI header banners
-  - [ ] Display gnomAD v4 gene constraint metrics (`LOEUF`, `pLI`, missense $Z$-score)
+- [x] **Centralized Configuration & Shared Library Fallbacks**
+  - [x] Implement `config/env.sh` and `src/python/config.py` path resolver
+  - [x] In-memory fallbacks for deprecated shared utilities (`get_full_gene_curation_dataframe`, `filter_by_custom_gene_list`) without editing external shared files
+  - [x] ACMG calculation externalized to downstream app pipeline; lightweight annotations retained in-pipeline
+- [x] **Cardiomyopathy Domain & Cardiac Isoform / PSI Filter**
+  - [x] Add cardiac ventricle Percent Spliced In (PSI > 85%) flag for `TTN` truncating variants (TTNtv in A-band)
+  - [x] Map critical DCM structural domains (`BAG3` BAG domain, `LMNA` rod domain, `FLNC` Ig-like folds)
 
 ---
 
 ## 📊 Phase 3: Reporting & Clinical Dashboard Enhancements
-- [ ] **Multi-Gene Cohort Master Dashboard (`cohort_master_dashboard.html`)**
-  - [ ] Aggregate top-tier prioritized variants across all 73 genes into a unified cross-gene dashboard
-  - [ ] Cohort-level summary metrics (distribution of High/Moderate candidates, splicing vs missense burden)
-  - [ ] Interactive gene selector and global variant search across the entire cohort
-- [ ] **1-Click Exportable Filtered Candidates (.xlsx / .tsv)**
-  - [ ] Add an in-browser "Download Filtered Candidates (.xlsx)" button to HTML reports
-  - [ ] Auto-generate an executive Excel summary sheet alongside HTML reports
-- [ ] **Visual Splice Junction Delta-Score Track**
-  - [ ] Interactive lollipop / delta-score plot showing donor/acceptor gains and losses relative to exon-intron boundaries in the Splicing Tab
+- [x] **Multi-Gene Cohort Master Dashboard (`generate_cohort_master_dashboard.py`)**
+  - [x] Aggregate top-tier prioritized variants across all single-gene Parquet tables into a unified master cohort dashboard
+  - [x] Cohort-level summary metrics (distribution of High/Moderate candidates, gene breakdown, splicing vs missense burden)
+  - [x] Interactive Plotly visualizations and 1-click CSV candidate exporter
+  - [x] Comprehensive pytest coverage in `tests/python/test_generate_cohort_master_dashboard.py`
 
 ---
 
 ## 🔒 Phase 4: Containerization & Infrastructure Stability
-- [ ] **Unified Apptainer / Singularity SIF Container (`annotation_suite.sif`)**
-  - [ ] Package PyTorch, TensorFlow, Pangolin, SpliceAI, and VEP utilities into a single immutable `.sif` image
-  - [ ] Eliminate all conda path, shebang, and Python ABI mismatches across heterogeneous HPC compute nodes
+- [x] **Unified Apptainer / Singularity SIF Container (`annotation_pipeline.sif`)**
+  - [x] Create definition file `resources/containers/annotation_pipeline.def` packaging Python datasci, R, genomics binaries, and Plotly
+  - [x] Automated build script `src/hpc/build_container.sh` with environment-resolved output paths
+  - [x] Integrated `--use-container` and `--sif <PATH>` CLI flags in `main.sh` and execution wrapper in `config/env.sh`
+

@@ -3,9 +3,9 @@ From: ubuntu:22.04
 
 %labels
     Author Antigravity Assistant & PGP Lab
-    Version 2.0
-    Description Unified Splicing Predictor & Variant Annotation Pipeline Container (GRCh38)
-    Build.Date 2026-08-12
+    Version 2.1
+    Description Unified Splicing Predictor & Genomic Variant Annotation Pipeline Container (GRCh38)
+    Build.Date 2026-09-04
 
 %environment
     export LC_ALL=C.UTF-8
@@ -38,6 +38,9 @@ From: ubuntu:22.04
         r-base-dev \
         && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+    # Create host mount target directories
+    mkdir -p /data_lab_PGP /references /home/mruizp
+
     # Install Miniforge / Mamba
     wget -q https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O /tmp/miniforge.sh
     bash /tmp/miniforge.sh -b -p /opt/conda
@@ -45,17 +48,17 @@ From: ubuntu:22.04
     export PATH=/opt/conda/bin:$PATH
 
     # Install Python packages and Bioinformatics Tools
-    mamba install -y -c conda-forge -c bioconda -c defaults \
+    mamba install -y -c pytorch -c conda-forge -c bioconda -c defaults \
         python=3.10 \
         pip \
-        setuptools<70 \
-        htslib>=1.19 \
-        bcftools>=1.19 \
-        samtools>=1.19 \
+        "setuptools<70" \
+        "htslib>=1.19" \
+        "bcftools>=1.19" \
+        "samtools>=1.19" \
         tabix \
         pysam \
         pyvcf3 \
-        numpy<2.0 \
+        "numpy<2.0" \
         pandas \
         pyarrow \
         openpyxl \
@@ -63,6 +66,7 @@ From: ubuntu:22.04
         pyliftover \
         scikit-learn \
         scipy \
+        plotly \
         pytorch \
         cpuonly
 
@@ -71,7 +75,7 @@ From: ubuntu:22.04
         tensorflow==2.15.1 \
         spliceai==1.3.1
 
-    # Install R packages for SPiP
+    # Install R packages for SPiP and Static Plotting
     R -e "install.packages(c('randomForest', 'optparse', 'stringr', 'data.table', 'ggplot2', 'dplyr', 'tidyr'), repos='https://cloud.r-project.org/')"
 
     # Clone Pangolin Repository

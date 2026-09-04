@@ -26,7 +26,9 @@ MIN_SPIP=""
 MIN_CADD=""
 CONSEQUENCES=""
 
-# Pipeline Checkpoint & Overwrite Flags (Default: Smart Resume / Skip Completed)
+# Modular Checkpoint Overrides & Container Options
+use_container_flag=false
+custom_sif_path=""
 overwrite_all=false
 force_varconv=false;    skip_varconv=false
 force_spip=false;       skip_spip=false
@@ -104,6 +106,15 @@ while [[ $# -gt 0 ]]; do
         --audit-only)
             audit_only=true
             shift 1
+            ;;
+        --use-container|--container)
+            use_container_flag=true
+            shift 1
+            ;;
+        --sif)
+            custom_sif_path="$2"
+            use_container_flag=true
+            shift 2
             ;;
         --test)
             is_test_mode=true
@@ -194,21 +205,20 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-PYTHON_EXE="/home/mruizp/apps/miniforge3/envs/datasci/bin/python3"
-if [ ! -x "$PYTHON_EXE" ]; then
-    PYTHON_EXE="/home/mruizp/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ "$use_container_flag" = true ]; then
+    export USE_CONTAINER=true
 fi
-if [ ! -x "$PYTHON_EXE" ]; then
-    PYTHON_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3"
-fi
-if [ ! -x "$PYTHON_EXE" ]; then
-    PYTHON_EXE="python3"
+if [ -n "$custom_sif_path" ]; then
+    export ANNOTATION_SIF="$custom_sif_path"
 fi
 
-R_EXE="/data_lab_PGP/shared/utils/conda_envs/datasci/bin/Rscript"
-if [ ! -x "$R_EXE" ]; then
-    R_EXE="Rscript"
+if [ -f "$SCRIPT_DIR/config/env.sh" ]; then
+    source "$SCRIPT_DIR/config/env.sh"
 fi
+
+PYTHON_EXE="${PYTHON_DATASCI:-python3}"
+R_EXE="${RSCRIPT_DATASCI:-Rscript}"
 
 # Built-in Direct Run Quality Auditor Invocation
 if [ -n "$AUDIT_RUN" ] || [ "$audit_only" = true ]; then
@@ -247,6 +257,8 @@ if [ -z "$RAW_MASTER_DIR" ]; then
     echo "  --min-spip <FLOAT>         Filter min SPiP splice score threshold"
     echo "  --min-cadd <FLOAT>         Filter min CADD phred score threshold"
     echo "  --consequences <LIST>      Comma-separated list of target VEP consequences"
+    echo "  --use-container            Execute pipeline commands inside Apptainer SIF container"
+    echo "  --sif <PATH>               Custom path to Apptainer SIF file (enables --use-container)"
     echo ""
     echo "Quality Audit & Standalone Diagnostics:"
     echo "  --test                     Run end-to-end test suite on test dataset into test_data/test_run/"

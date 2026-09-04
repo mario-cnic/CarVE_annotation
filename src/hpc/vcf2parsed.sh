@@ -17,25 +17,20 @@ INPUT=$1
 OUTPUT=$2
 GENE_SUBSET=${3:-""}
 
-VCF_PARSER=/data_lab_PGP/shared/utils/src/vcf_parser_pysam.py
-FILTER_VARIANTS=/data_lab_PGP/shared/utils/src/filter_variants.py
-
-if [ ! -f "$VCF_PARSER" ]; then
-    VCF_PARSER=/home/mruizp/data_lab_PGP/shared/utils/src/vcf_parser_pysam.py
-fi
-if [ ! -f "$FILTER_VARIANTS" ]; then
-    FILTER_VARIANTS=/home/mruizp/data_lab_PGP/shared/utils/src/filter_variants.py
-fi
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PIPELINE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
+if [ -f "$PIPELINE_ROOT/config/env.sh" ]; then
+    source "$PIPELINE_ROOT/config/env.sh"
+fi
+
+VCF_PARSER="${VCF_PARSER_SCRIPT:-${SHARED_SRC_DIR}/vcf_parser_pysam.py}"
+FILTER_VARIANTS="${FILTER_VARIANTS_SCRIPT:-${SHARED_SRC_DIR}/filter_variants.py}"
+
 if [ -f "$PIPELINE_ROOT/resources/all_but_old_gnomad_vep_cols.txt" ]; then
     VEP_COLS_FILE="$PIPELINE_ROOT/resources/all_but_old_gnomad_vep_cols.txt"
-elif [ -f "/data_lab_PGP/shared/utils/data/vcf_all_columns.txt" ]; then
-    VEP_COLS_FILE="/data_lab_PGP/shared/utils/data/vcf_all_columns.txt"
 else
-    VEP_COLS_FILE=/home/mruizp/data_lab_PGP/shared/utils/data/vcf_all_columns.txt
+    VEP_COLS_FILE="${VEP_COLUMNS_FILE:-${SHARED_DATA_DIR}/vcf_all_columns.txt}"
 fi
 
 LOG_LEVEL=INFO
@@ -83,21 +78,8 @@ if ! command -v run_command_timed &>/dev/null; then
 fi
 # ------------------------------------------------
 
-VCF_PARSER_PYTHON=/data_lab_PGP/shared/utils/conda_envs/vcf_parser/bin/python
-if [ ! -x "$VCF_PARSER_PYTHON" ]; then
-    VCF_PARSER_PYTHON=/home/mruizp/data_lab_PGP/shared/utils/conda_envs/vcf_parser/bin/python
-fi
-if [ ! -x "$VCF_PARSER_PYTHON" ]; then
-    VCF_PARSER_PYTHON=python3
-fi
-
-DATASCI_PYTHON=/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python
-if [ ! -x "$DATASCI_PYTHON" ]; then
-    DATASCI_PYTHON=/home/mruizp/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python
-fi
-if [ ! -x "$DATASCI_PYTHON" ]; then
-    DATASCI_PYTHON=python3
-fi
+VCF_PARSER_PYTHON="${PYTHON_VCF_PARSER:-python3}"
+DATASCI_PYTHON="${PYTHON_DATASCI:-python3}"
 
 echo "============================================================================"
 echo " ⚡ Streamlined Direct VCF-to-Parsed Table Converter"

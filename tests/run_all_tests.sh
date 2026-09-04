@@ -42,7 +42,7 @@ echo ""
 echo "----------------------------------------------------------------------------"
 echo " [3/3] Running Bash Unit Tests (sh)..."
 echo "----------------------------------------------------------------------------"
-if bash tests/bash/test_logger.sh && bash tests/bash/test_cli_args_main.sh; then
+if bash tests/bash/test_logger.sh && bash tests/bash/test_cli_args_main.sh && bash tests/bash/test_container_sif.sh; then
     echo "  ✅ Bash unit test suite PASSED."
 else
     echo "  ❌ Bash unit test suite FAILED."

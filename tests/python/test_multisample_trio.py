@@ -15,12 +15,9 @@ import sys
 import pandas as pd
 import pysam
 
-# Add shared/utils and src/python to sys.path
 PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-SHARED_UTILS = "/home/mruizp/data_lab_PGP/shared/utils/src"
-
-sys.path.insert(0, SHARED_UTILS)
 sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python"))
+import config
 
 from filter_variants import (
     build_newImpact,
