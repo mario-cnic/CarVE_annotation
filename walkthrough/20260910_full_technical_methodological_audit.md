@@ -140,6 +140,13 @@ ARG=["missense_variant,stop_gained"]     # <- literal quote characters land in a
 ```
 `filter_and_summarize.py`'s `consequences.split(',')` + `.strip()` does not remove quote characters, so the resulting match tokens are `"missense_variant` and `stop_gained"` — neither is ever a substring of any real (unquoted) `Consequence` value. **Every variant is filtered out** whenever `--consequences` is passed through `main.sh`, silently producing an empty `filtered_variants.pq`. Currently masked in practice by C4 (nothing reads that file), but this becomes a live silent-data-loss bug the moment C4 is fixed naively (e.g. by just pointing the reports at the filtered file).
 
+### C9. Every gene's filtered output collides on the same run-level filename — an overwrite bug and an SGE data race
+`main.sh:324`: `FILTERED_MASTER_DIR="${RUN_BASE_DIR}/filtered"` is a **run-level** directory, not per-gene (unlike `RESULTS_MASTER_DIR/${gene_name}.parsed.clean.pq`, which is correctly namespaced). `filter_and_summarize.py` (before this fix) always wrote to a fixed `<output-dir>/filtered_variants.<ext>` and `<output-dir>/filtering_summary_metrics.tsv`, with no gene component in the filename. `main.sh:552-568` submits one `filter_${gene_name}` SGE job per gene in the raw-dir loop, all writing into the same `$FILTERED_MASTER_DIR` with the same filenames.
+
+**Failure scenario**: any run processing more than one gene (the normal case — `main.sh` loops over every file in `--raw-dir`) submits N independent, often-concurrent SGE jobs that all write `RUNS/<RUN>/filtered/filtered_variants.pq`. Whichever job's `to_parquet()`/`to_csv()` call lands last wins; every other gene's filtered output for that run is silently destroyed, with no error, no warning, and no indication in `filtering_summary_metrics.tsv` (also collided) that anything but one gene was ever filtered. This is on top of, and independent from, the fact that C4 means nothing was reading this file anyway — but it would have made C4's fix actively wrong if not caught first: pointing per-gene reports at `filtered/filtered_variants.pq` would have shown every gene's report the same single leftover gene's data.
+
+*(Fixed alongside C8 below — see Resolution Log.)*
+
 ---
 
 ## 🟠 HIGH — Scientific-validity issues in ACMG/scoring/pedigree logic (`shared/utils/src/modules/{acmg,scoring,disease_hpo,pedigree}.py`)
@@ -263,3 +270,36 @@ Then ran the actual two-stage `vcf2parsed.sh` production path manually against a
 - `pytest tests/python/ -q` (this repo): still `34 passed` — the fix didn't break anything the existing suite covers, though per C3 that suite still doesn't exercise the real `vcf2parsed.sh` invocation directly (a gap that remains open — see Remediation item 1's CI suggestion).
 
 **Not yet done** (left for a follow-up pass, since the user asked to fix the import breakage first): committing these two fixes to git (pending user confirmation on commit scope/message), and everything from C4 onward in this document — the filtering-module disconnection, inert QC gating, ACMG/scoring issues, predictor-parsing issues, and infrastructure findings are all still open.
+
+*(Update: both fixes above were committed — `shared/utils` commit `4315e8d`, `annotation_pipeline_new` commit `59cce44` — after user confirmation.)*
+
+### 2026-09-10 (continued) — C8 and C9 fixed; user decision recorded on default QC policy
+
+**User decision**: default `main.sh` runs (no flags) must not apply any QC filter — this was already the de facto behavior (`--skip_quality_filter` always passed at the `vcf2parsed.sh` stage), so it's now confirmed as intentional rather than left as an unresolved question. QC filtering becomes available, opt-in, through two new `main.sh` flags.
+
+**C9 (run-level filename collision, discovered while implementing the C4 fix — logged above) — fixed**: `filter_and_summarize.py` gained an `--output-prefix` argument (default `None`, fully backward compatible for any other caller); `main.sh` now passes `--output-prefix "$gene_name"`, so outputs are `filtered/<GENE>_filtered_variants.<ext>` and `filtered/<GENE>_filtering_summary_metrics.tsv` — parallel to the existing `results/<GENE>.parsed.clean.pq` convention, no more run-level collision across genes.
+
+**C8 (shell-quoting bug) — fixed**: `main.sh`'s `filter_flags` changed from a plain string (which embedded literal `\"..\"` characters that survived into argv) to a bash array, expanded as `"${filter_flags[@]}"` at the `qsub` call site. Verified correct with the same reproduction technique used to originally catch the bug (a `py()`/nested-function stand-in for the qsub call, confirming clean argv splitting through an extra layer of indirection matching `qsub -b y bash run_python_hpc.sh ...`).
+
+**New opt-in QC flags added to `main.sh`**: `--min-qual <FLOAT>` and `--pass-qc-only`, threaded through to `filter_and_summarize.py`'s existing (previously unreachable) `--min-qual`/`--pass-qc-only` arguments. Neither is set by default, matching the user's decision.
+
+**Deliberately not done in this pass** (flagged to the user rather than decided unilaterally, per the advisor's review): whether/how the three report generators (`plot_annotation_results.R`, `generate_interactive_report.py`, `generate_clinical_prioritization_report.py`) should consume the now-correctly-named filtered output — the original C4 finding (filtering is invisible to every deliverable) is **not yet fixed**. Silently swapping every report's input source to the filtered file the moment any filter flag is passed would trade one silent behavior (flags do nothing) for another (reports quietly narrow with no on-report indication of what was excluded). This needs an explicit choice between: (a) reports always stay on the full unfiltered set, and the filtered file remains a correctly-produced side artifact only, or (b) reports switch to the filtered set only when filter flags were actually passed, with a visible banner stating which filters were applied and how many variants were excluded. Also flagged for a decision: the `--min-qual`/`--pass-qc-only` filters both let a variant with a **missing** `QUAL`/`QC_STATUS` value pass through (NaN-passthrough / not-`"LOW_QUAL"`-passthrough) — defensible for the evidence-based score filters (REVEL/CADD/etc., where "not scored" shouldn't count as "failed"), but arguably backwards for an explicit QC gate a user just opted into, where "we don't know this variant's QC status" is not the same claim as "this variant passed QC."
+
+**Verified**: `filter_and_summarize.py` re-run directly against real output from the earlier C1 verification (238-variant `MYBPC3` parquet) —
+- No flags: `238 / 238` retained (confirms default behavior is unchanged).
+- `--pass-qc-only --min-qual 30`: `238 → 191` retained (confirms the new opt-in QC flags do real, meaningful filtering when requested).
+- `--max-af 0.01 --consequences missense_variant,stop_gained`: `238 → 3` retained, output correctly named `MYBPC3_filtered_variants.pq`/`MYBPC3_filtering_summary_metrics.tsv` (confirms C8 and C9 fixes together).
+- `bash -n main.sh`, `pytest tests/python/ -q` (34 passed), `bash tests/bash/test_cli_args_main.sh` (all passed) — no regressions.
+
+**User decisions on the two open questions**:
+1. **C4 report-wiring**: reports (R plots, interactive report, clinical prioritization report) will **continue to always show the full unfiltered set**. `filtered/<GENE>_filtered_variants.<ext>` remains a separate, correctly-produced (post-C9) side artifact for anyone who wants a filtered view — it is not wired into any report. This is now the pipeline's intended design, not an open defect; C4 is considered resolved by this decision (documented, not code-changed further).
+2. **QC missing-data handling**: "these variants should pass the filter but be flagged as such"; if the whole dataset lacks QC values, that must be reported, not silently skipped; missing values must never be coerced to a numeric 0.
+
+**Implemented for decision 2** — `filter_and_summarize.py`'s `filter_dataframe()`:
+- `--pass-qc-only`: rows with a missing `QC_STATUS` still pass (not excluded), get a new `QC_STATUS_evaluated=False` column, and a `logger.warning` naming the count. Rows with a real, present `QC_STATUS == "LOW_QUAL"` are still correctly excluded — only the missing-data case changed.
+- `--min-qual`: identical treatment via a new `QUAL_evaluated` column; `qual_vals.isna()` is used directly (never `.fillna(0)`) so a missing QUAL is never made to look like a confirmed low value. Rows with a real QUAL below threshold are still correctly excluded.
+- If `QC_STATUS`/`QUAL` is **entirely absent** from the input (not just missing per-row), a `logger.warning` fires and `stats["QC_STATUS_column_present"] = False` / `stats["QUAL_column_present"] = False` is recorded in `filtering_summary_metrics.tsv` — this case is no longer silent.
+
+**Verified** with a direct unit-level test (not just a smoke run): a 4-row synthetic frame with one row of all-missing QC data confirms real sub-threshold rows are still excluded, the missing-data row is retained and flagged `False` in both new columns, and a second frame with no `QC_STATUS`/`QUAL` columns at all correctly logs both warnings and records `False` in the stats without crashing or filtering anything. `pytest tests/python/ -q` still 34/34 and `bash -n main.sh` clean after this change.
+
+**Status as of this update**: C1, C2, C3, C3b, C8, C9 fixed and verified; C4 resolved by explicit design decision (no code change needed beyond C9); the QC-missing-data handling requested alongside C5/C6 is implemented. **Not yet committed** — user asked to hold off on committing this round so the `main.sh`/`filter_and_summarize.py` diff can be reviewed first. Everything else in this document (C5/C6's remaining wiring already covered by the new opt-in flags; C7 genotype-extraction gap; the ACMG/scoring findings; predictor-parsing findings; orchestration/liftover findings) is still open.

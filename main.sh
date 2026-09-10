@@ -25,6 +25,8 @@ MIN_ALPHAMISSENSE=""
 MIN_SPIP=""
 MIN_CADD=""
 CONSEQUENCES=""
+MIN_QUAL=""
+PASS_QC_ONLY=false
 
 # Modular Checkpoint Overrides & Container Options
 use_container_flag=false
@@ -90,6 +92,14 @@ while [[ $# -gt 0 ]]; do
         --consequences)
             CONSEQUENCES="$2"
             shift 2
+            ;;
+        --min-qual)
+            MIN_QUAL="$2"
+            shift 2
+            ;;
+        --pass-qc-only)
+            PASS_QC_ONLY=true
+            shift 1
             ;;
         --sleep-time)
             SLEEP_TIME="$2"
@@ -257,6 +267,8 @@ if [ -z "$RAW_MASTER_DIR" ]; then
     echo "  --min-spip <FLOAT>         Filter min SPiP splice score threshold"
     echo "  --min-cadd <FLOAT>         Filter min CADD phred score threshold"
     echo "  --consequences <LIST>      Comma-separated list of target VEP consequences"
+    echo "  --min-qual <FLOAT>         Filter min VCF QUAL score threshold (opt-in; no QC filtering is applied by default)"
+    echo "  --pass-qc-only             Drop variants flagged QC_STATUS=LOW_QUAL (opt-in; no QC filtering is applied by default)"
     echo "  --use-container            Execute pipeline commands inside Apptainer SIF container"
     echo "  --sif <PATH>               Custom path to Apptainer SIF file (enables --use-container)"
     echo ""
@@ -541,19 +553,29 @@ for input_file in "$RAW_MASTER_DIR"/*; do
     fi
 
     if [ "$skip_reports" = false ]; then
-        filter_flags="--input $final_output_file --output-dir $FILTERED_MASTER_DIR"
-        [ -n "$MAX_AF" ] && filter_flags="$filter_flags --max-af $MAX_AF"
-        [ -n "$MIN_REVEL" ] && filter_flags="$filter_flags --min-revel $MIN_REVEL"
-        [ -n "$MIN_ALPHAMISSENSE" ] && filter_flags="$filter_flags --min-alphamissense $MIN_ALPHAMISSENSE"
-        [ -n "$MIN_SPIP" ] && filter_flags="$filter_flags --min-spip $MIN_SPIP"
-        [ -n "$MIN_CADD" ] && filter_flags="$filter_flags --min-cadd $MIN_CADD"
-        [ -n "$CONSEQUENCES" ] && filter_flags="$filter_flags --consequences \"$CONSEQUENCES\""
+        # Array (not a plain string) so values are passed through argv-safe, without
+        # the embedded-literal-quote-character bug that used to silently empty the
+        # --consequences filter (see walkthrough/20260910_full_technical_methodological_audit.md, C8).
+        # --output-prefix "$gene_name" avoids every gene's filter job colliding on the
+        # same run-level filtered_variants.pq / filtering_summary_metrics.tsv filename
+        # (C9 in the same audit).
+        filter_flags=(--input "$final_output_file" --output-dir "$FILTERED_MASTER_DIR" --output-prefix "$gene_name")
+        [ -n "$MAX_AF" ] && filter_flags+=(--max-af "$MAX_AF")
+        [ -n "$MIN_REVEL" ] && filter_flags+=(--min-revel "$MIN_REVEL")
+        [ -n "$MIN_ALPHAMISSENSE" ] && filter_flags+=(--min-alphamissense "$MIN_ALPHAMISSENSE")
+        [ -n "$MIN_SPIP" ] && filter_flags+=(--min-spip "$MIN_SPIP")
+        [ -n "$MIN_CADD" ] && filter_flags+=(--min-cadd "$MIN_CADD")
+        [ -n "$CONSEQUENCES" ] && filter_flags+=(--consequences "$CONSEQUENCES")
+        # QC filtering is opt-in only: no QC filter is applied unless --min-qual /
+        # --pass-qc-only is explicitly passed on the main.sh command line.
+        [ -n "$MIN_QUAL" ] && filter_flags+=(--min-qual "$MIN_QUAL")
+        [ "$PASS_QC_ONLY" = true ] && filter_flags+=(--pass-qc-only)
 
         filter_job=$(qsub -N "${job_pfx}filter_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \
             -o "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.out" \
             -e "$ERROR_LOG_DIR/${gene_name}/${gene_name}.filter.err" \
-            -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/filter_and_summarize.py $filter_flags | awk '{print $3}')
+            -b y bash src/hpc/run_python_hpc.sh "$PYTHON_EXE" src/python/filter_and_summarize.py "${filter_flags[@]}" | awk '{print $3}')
 
         plot_job=$(qsub -N "${job_pfx}plot_${gene_name}" -P BIGN -A PGP -l h_vmem=20G -pe smp 1 \
             $downstream_hold_flag \

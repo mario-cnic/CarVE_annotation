@@ -89,6 +89,15 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `LaBranchoR_acc_dist`: Distance in bp to 3' splice site acceptor.
 - `LaBranchoR_status`: Status contract (`scored`, `not_covered`, `error`).
 
+### F2. MaxEntScan (VEP plugin)
+- `MaxEntScan_ref`: Raw VEP-computed splice site strength score for the reference allele.
+- `MaxEntScan_alt`: Raw VEP-computed splice site strength score for the alternate allele.
+- `MaxEntScan_diff`: Raw VEP-computed ref/alt difference (VEP's own convention; kept as-is for reference).
+- `MaxEntScan_pct_decrease`: `(ref - alt) / ref`, computed in-pipeline. Only defined when `MaxEntScan_ref > 0`; negative values mean the alt allele's score is *higher* than ref (splice site strengthened/cryptic site created, not flagged by `MaxEntScan_disrupted`).
+- `MaxEntScan_disrupted`: `YES` if `MaxEntScan_pct_decrease >= 0.15` (a ≥15% relative decrease from ref to alt), else `NO`.
+- `MaxEntScan_status`: Status contract (`scored`, or `not_covered` if ref/alt are unavailable *or* `MaxEntScan_ref <= 0` — a non-positive reference score is a normal outcome, not a predictor failure, so it is never tagged `error`).
+- **Not yet used in `NEW_IMPACT`/`PRIORITY_TIER`/ACMG evidence** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
+
 ### G. Priority & Provenance Metadata
 - `5UTR_annotation`: UTR5 regulatory annotation (if applicable).
 - `5UTR_consequence`: UTR5 specific consequence term.

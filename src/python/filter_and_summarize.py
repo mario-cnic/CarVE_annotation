@@ -40,6 +40,7 @@ def parse_args():
     parser.add_argument("--pass-qc-only", action="store_true", help="Filter out variants with LOW_QUAL status in QC_STATUS")
     parser.add_argument("--consequences", type=str, default=None, help="Comma-separated list of target VEP consequences")
     parser.add_argument("--output-format", choices=["pq", "parquet", "tsv", "xlsx"], default="pq", help="Output file format")
+    parser.add_argument("--output-prefix", type=str, default=None, help="Prefix (e.g. gene name) for output filenames, to avoid collisions when multiple runs share --output-dir")
     return parser.parse_args()
 
 def load_data(input_path):
@@ -72,18 +73,55 @@ def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None
     stats = {"Total_Input_Variants": total_start}
 
     # 0. Base Caller Quality Controls
-    if pass_qc_only and "QC_STATUS" in filtered_df.columns:
-        mask = filtered_df["QC_STATUS"] != "LOW_QUAL"
-        filtered_df = filtered_df[mask]
-        logger.info(f"Filter pass_qc_only: Retained {len(filtered_df)} / {total_start} variants.")
-        stats["PASS_QC_Only"] = len(filtered_df)
+    # Missing QC/QUAL data is never coerced to a value (e.g. 0) that would make it look
+    # like a known-bad or known-good result. A variant with no recorded QC_STATUS/QUAL
+    # always passes these opt-in filters (we cannot exclude on evidence we don't have),
+    # but is explicitly flagged as QC-not-evaluated so it's never silently indistinguishable
+    # from a variant that was actually checked and passed.
+    if pass_qc_only:
+        if "QC_STATUS" in filtered_df.columns:
+            qc_missing_mask = filtered_df["QC_STATUS"].isna()
+            filtered_df["QC_STATUS_evaluated"] = ~qc_missing_mask
+            if qc_missing_mask.any():
+                logger.warning(
+                    f"{int(qc_missing_mask.sum())} variant(s) have no QC_STATUS value; "
+                    "retained by --pass-qc-only (not excluded for lack of evidence) but "
+                    "flagged QC_STATUS_evaluated=False for downstream review."
+                )
+            mask = (filtered_df["QC_STATUS"] != "LOW_QUAL") | qc_missing_mask
+            filtered_df = filtered_df[mask]
+            logger.info(f"Filter pass_qc_only: Retained {len(filtered_df)} / {total_start} variants.")
+            stats["PASS_QC_Only"] = len(filtered_df)
+            stats["QC_STATUS_missing_count"] = int(qc_missing_mask.sum())
+        else:
+            logger.warning(
+                "QC_STATUS column not present in this dataset at all — --pass-qc-only "
+                "cannot be evaluated for any variant; no variants excluded on this basis."
+            )
+            stats["QC_STATUS_column_present"] = False
 
-    if min_qual is not None and "QUAL" in filtered_df.columns:
-        qual_vals = pd.to_numeric(filtered_df["QUAL"], errors="coerce")
-        mask = (qual_vals >= min_qual) | (qual_vals.isna())
-        filtered_df = filtered_df[mask]
-        logger.info(f"Filter min_qual >= {min_qual}: Retained {len(filtered_df)} variants.")
-        stats[f"QUAL_>=_{min_qual}"] = len(filtered_df)
+    if min_qual is not None:
+        if "QUAL" in filtered_df.columns:
+            qual_vals = pd.to_numeric(filtered_df["QUAL"], errors="coerce")
+            qual_missing_mask = qual_vals.isna()
+            filtered_df["QUAL_evaluated"] = ~qual_missing_mask
+            if qual_missing_mask.any():
+                logger.warning(
+                    f"{int(qual_missing_mask.sum())} variant(s) have no QUAL value; "
+                    "retained by --min-qual (not excluded for lack of evidence, never "
+                    "coerced to 0) but flagged QUAL_evaluated=False for downstream review."
+                )
+            mask = (qual_vals >= min_qual) | qual_missing_mask
+            filtered_df = filtered_df[mask]
+            logger.info(f"Filter min_qual >= {min_qual}: Retained {len(filtered_df)} variants.")
+            stats[f"QUAL_>=_{min_qual}"] = len(filtered_df)
+            stats["QUAL_missing_count"] = int(qual_missing_mask.sum())
+        else:
+            logger.warning(
+                "QUAL column not present in this dataset at all — --min-qual cannot be "
+                "evaluated for any variant; no variants excluded on this basis."
+            )
+            stats["QUAL_column_present"] = False
 
     # 1. gnomAD Allele Frequency Filter
     if max_af is not None:
@@ -191,8 +229,9 @@ def main():
     )
 
     out_ext = "pq" if args.output_format in ("pq", "parquet") else args.output_format
-    out_file = os.path.join(args.output_dir, f"filtered_variants.{out_ext}")
-    stats_file = os.path.join(args.output_dir, "filtering_summary_metrics.tsv")
+    name_prefix = f"{args.output_prefix}_" if args.output_prefix else ""
+    out_file = os.path.join(args.output_dir, f"{name_prefix}filtered_variants.{out_ext}")
+    stats_file = os.path.join(args.output_dir, f"{name_prefix}filtering_summary_metrics.tsv")
 
     if out_ext == "pq":
         filtered_df.to_parquet(out_file, index=False)

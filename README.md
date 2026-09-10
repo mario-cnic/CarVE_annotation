@@ -227,6 +227,8 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-20: Interactive Multi-Track Transcript & Exon Lollipop Visualization](./walkthrough/20260820_transcript_visualization_implementation.md)
 - [2026-09-04: Master Pipeline Architecture Audit & Improvement Roadmap](./walkthrough/20260904_pipeline_analysis_and_improvements.md)
 - [2026-09-10: Full Technical & Methodological Audit (root-cause of broken filter_variants.py import, disconnected filtering module, inert QC, ACMG/scoring issues)](./walkthrough/20260910_full_technical_methodological_audit.md)
+- [2026-09-10: Predictor & Annotation Inventory + Audit (full list of every predictor actually running, incl. SpliceVarDB evidence silently inert, duplicate REVEL/SIFT/PolyPhen sources, dead MaxEntScan)](./walkthrough/20260910_predictor_inventory_and_audit.md)
+- [2026-09-10: ACMG Criteria & Priority Tier — Deprioritization Note (real classification now happens in the `clinical_variant_prioritization` web app; this pipeline's ACMG/tiering logic is not yet deprecated but is no longer the primary decision surface)](./walkthrough/20260910_acmg_tiering_deprioritization_note.md)
 
 ---
 
@@ -237,6 +239,8 @@ Run the built-in auditor script anytime to verify output `.pq` files, column sch
 ```bash
 python3 src/python/audit_run_results.py --run-dir RUNS/<RUN_NAME> --raw-dir RUNS/predictors_050826/input/by_gene
 ```
+
+See [BUG_TRACKER.md](./BUG_TRACKER.md) for the current status of every known defect (fixed, in progress, or open), and [walkthrough/20260910_full_technical_methodological_audit.md](./walkthrough/20260910_full_technical_methodological_audit.md) for full technical/methodological detail on each.
 
 ---
 
