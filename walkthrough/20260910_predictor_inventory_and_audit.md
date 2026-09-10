@@ -101,7 +101,7 @@ Two back-to-back checks in the same function (`build_newImpact`, `acmg.py:88-110
 - Full re-run of the real production path (`filter_variants.py` against the same 21-variant `MYBPC3` test data used throughout this session): exit 0, output shape unchanged (238×573), no crash. This test set has no real SpliceVarDB hits, so it doesn't demonstrate a changed classification on this particular data — the synthetic test is what confirms correctness; this run only confirms no regression.
 - `pytest tests/python/ -q`: still 34/34. No existing test covered `build_newImpact`'s SpliceVarDB branch at all — logged as its own gap (this bug could recur silently again without a regression test; worth adding one).
 
-**Not yet committed** — pending user confirmation, consistent with the rest of this session's fixes.
+**Committed**: `shared/utils@708a5c7`.
 
 ### 2026-09-10 (continued) — PRED-11 addressed: MaxEntScan now genuinely parsed and documented
 
@@ -116,4 +116,4 @@ Two back-to-back checks in the same function (`build_newImpact`, `acmg.py:88-110
 - `pytest tests/python/ -q`: still 34/34.
 - **Not independently verified**: the direction of `(ref - alt) / ref` (positive = weakened = flagged) against a real splice-disrupting variant. This test dataset has zero non-missing MaxEntScan values, so there is no real case available this session to confirm the sign convention empirically — only the arithmetic was checked (a synthetic test can't distinguish "correct direction" from "consistently wrong direction," since the test's own expected values were written against the same formula). This predictor has not produced a single `scored` row against real data in this session. Treat the direction as implemented-per-standard-convention but not yet empirically confirmed, and check it against real data with actual MaxEntScan coverage before relying on it.
 
-**Not yet committed** — pending user confirmation.
+**Committed**: `shared/utils@19925ed`.
