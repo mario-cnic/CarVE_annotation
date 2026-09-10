@@ -226,6 +226,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-08-19: Source Directory Reorganization & Obsolete Script Archival](./walkthrough/20260819_src_directory_reorganization_and_cleanup.md)
 - [2026-08-20: Interactive Multi-Track Transcript & Exon Lollipop Visualization](./walkthrough/20260820_transcript_visualization_implementation.md)
 - [2026-09-04: Master Pipeline Architecture Audit & Improvement Roadmap](./walkthrough/20260904_pipeline_analysis_and_improvements.md)
+- [2026-09-10: Full Technical & Methodological Audit (root-cause of broken filter_variants.py import, disconnected filtering module, inert QC, ACMG/scoring issues)](./walkthrough/20260910_full_technical_methodological_audit.md)
 
 ---
 

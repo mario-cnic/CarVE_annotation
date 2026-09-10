@@ -20,25 +20,6 @@ SHARED_DATA_DIR = os.getenv("SHARED_DATA_DIR", os.path.join(SHARED_UTILS_DIR, "d
 if os.path.exists(SHARED_SRC_DIR) and SHARED_SRC_DIR not in sys.path:
     sys.path.insert(0, SHARED_SRC_DIR)
 
-# Safe in-memory compatibility patch for filter_variants without mutating external shared files
-try:
-    import modules.disease_hpo as _dh
-    if not hasattr(_dh, "get_full_gene_curation_dataframe"):
-        _dh.get_full_gene_curation_dataframe = None
-    if not hasattr(_dh, "filter_by_custom_gene_list"):
-        _dh.filter_by_custom_gene_list = None
-except Exception:
-    pass
-
-try:
-    import engine as _eng
-except ModuleNotFoundError:
-    import types
-    _eng = types.ModuleType("engine")
-    _eng.convert_to_parquet = None
-    _eng.DuckDBVariantEngine = None
-    sys.modules["engine"] = _eng
-
 # 3. Executable & Binary Paths
 CONDA_ENVS_DIR = os.getenv("CONDA_ENVS_DIR", os.path.join(SHARED_UTILS_DIR, "conda_envs"))
 

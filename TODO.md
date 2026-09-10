@@ -29,7 +29,7 @@
   - [x] Implement 4-tab Clinical Prioritization Report (`generate_clinical_prioritization_report.py`)
 - [x] **Centralized Configuration & Shared Library Fallbacks**
   - [x] Implement `config/env.sh` and `src/python/config.py` path resolver
-  - [x] In-memory fallbacks for deprecated shared utilities (`get_full_gene_curation_dataframe`, `filter_by_custom_gene_list`) without editing external shared files
+  - [x] Removed dead `get_full_gene_curation_dataframe`/`filter_by_custom_gene_list`/`engine` imports from `filter_variants.py` (leftover references to functionality that migrated to `clinical_variant_prioritization`; the previously-checked "in-memory fallback" in `config.py` was never on the production import path and did not actually fix this — see [walkthrough/20260910_full_technical_methodological_audit.md](./walkthrough/20260910_full_technical_methodological_audit.md))
   - [x] ACMG calculation externalized to downstream app pipeline; lightweight annotations retained in-pipeline
 - [x] **Cardiomyopathy Domain & Cardiac Isoform / PSI Filter**
   - [x] Add cardiac ventricle Percent Spliced In (PSI > 85%) flag for `TTN` truncating variants (TTNtv in A-band)
