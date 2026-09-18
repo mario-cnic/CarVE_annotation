@@ -9,6 +9,15 @@ RUNS/
 test_data/
 _tmp/
 _log/
+
+# resources/ is for stable, curated reference data (gene/transcript maps,
+# column dictionaries, container defs) only. Per-run outputs belong under
+# RUNS/<RUN_NAME>/ (already ignored above), never here.
+resources/run_*
+
+# NFS "silly rename" artifacts left behind when a file is removed/moved
+# while still open by another process
+.nfs*
 *.vcf
 *.vcf.gz
 *.vcf.gz.tbi

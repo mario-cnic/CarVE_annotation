@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
-# Pulls real SGE accounting data (maxvmem, cpu, wallclock, slots) for every job ID
-# recorded in run_more_genes_20260817_1143_job_ids.tsv, joining it back to the
-# (gene, step) it came from. Run this on the HPC login node.
+# Pulls real SGE accounting data (maxvmem, cpu, wallclock, slots) for a list of
+# job IDs, joining it back to the (gene, step) each one came from. Run this on
+# the HPC login node.
 #
-# Usage: bash resources/pull_qacct_snapshot.sh
-# Takes a while (~2000 individual qacct calls) — safe to background:
-#   nohup bash resources/pull_qacct_snapshot.sh > resources/pull_qacct_snapshot.log 2>&1 &
+# Input: a TSV of <gene>\t<step>\t<jobnumber> rows (see
+#        src/tools/extract_run_job_ids.sh, or build one by hand).
+#
+# Usage: bash resources/pull_qacct_snapshot.sh <job_ids.tsv> <output.tsv>
+# Takes a while for a large job list (~2000 jobs took several minutes) — safe
+# to background:
+#   nohup bash resources/pull_qacct_snapshot.sh RUNS/<RUN>/job_ids.tsv RUNS/<RUN>/qacct.tsv \
+#       > RUNS/<RUN>/pull_qacct_snapshot.log 2>&1 &
+#
+# Output (and the input job-ID list) are run-specific data, not code — write
+# them under RUNS/<RUN_NAME>/, which is gitignored, not under resources/.
 
 set -u
-cd "$(dirname "$0")/.."
 
-in="resources/run_more_genes_20260817_1143_job_ids.tsv"
-out="resources/run_more_genes_20260817_1143_qacct.tsv"
+in="${1:?Usage: $0 <job_ids.tsv> <output.tsv>}"
+out="${2:?Usage: $0 <job_ids.tsv> <output.tsv>}"
 
 printf "gene\tstep\tjobnumber\tjobname\tslots\tmaxvmem\tcpu\tru_wallclock\texit_status\n" > "$out"
 

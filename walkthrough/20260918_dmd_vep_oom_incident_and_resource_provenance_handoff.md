@@ -8,7 +8,7 @@
 ## 1. Where things stand right now (read this first)
 
 - **DMD's VEP job is still running** as of session end. The original attempt (job `4975105`, `-l h_vmem=15G -pe smp 4`) was SIGKILLed after 2 days at `maxvmem=56.885G`; it was resubmitted unchanged (job `4979674`) and ran 19 days pinned at the same ceiling with zero output. The user manually killed/resubmitted it outside `main.sh` with a larger allocation (`h_vmem=40G -pe smp 4` = 160GB total, confirmed `h_vmem` is per-slot on this cluster). **Its current status was not re-checked at session end.**
-- **The user is going to run `resources/pull_qacct_snapshot.sh`** at some point after this session — do not re-derive job IDs or re-write this script; check whether `resources/run_more_genes_20260817_1143_qacct.tsv` already exists before doing anything else with real resource data.
+- **The user is going to run `resources/pull_qacct_snapshot.sh RUNS/run_more_genes_20260817_1143/job_ids.tsv RUNS/run_more_genes_20260817_1143/qacct.tsv`** at some point after this session — do not re-derive job IDs or re-write this script; check whether `RUNS/run_more_genes_20260817_1143/qacct.tsv` already exists before doing anything else with real resource data. (Note: `resources/` holds only the generic, reusable script — the job-ID list and its output are run-specific data and live under `RUNS/`, which is gitignored; this was fixed mid-session after the job-IDs file was initially, incorrectly, committed under `resources/`.)
 - **Nothing in `TODO.md`'s Priority 0 section has been implemented yet.** All three items there (provenance manifest, SpliceAI `-D` window change, per-predictor resource scaling) are documented only, by explicit user instruction ("track it, don't implement it").
 
 ## 2. Next steps, in order
@@ -25,7 +25,7 @@
    ```
    The raw-dir was **not recorded anywhere** for this run and had to be recovered forensically (matched `RUNS/predictors_050826/input/by_gene_more_genes/` to this run by gene-count (154) and then confirmed by exact row-count match on `DMD.pq`, 533,174 rows). This is now the confirmed value — don't re-derive it.
 
-3. **Once `resources/run_more_genes_20260817_1143_qacct.tsv` exists** (user-run, not yet done as of session end): analyze it to derive real, evidence-based `h_vmem`/thread tiers per predictor (VEP, SpliceAI, Pangolin, SPiP, Branchpointer), joined by gene against the real variant counts already available locally (`RUNS/predictors_050826/input/by_gene_more_genes/<GENE>.pq` row counts, or `_tmp/<GENE>.vcf.gz`). **Caveat carried over from the user**: the SpliceAI portion of this snapshot reflects the *current* `-D 10000` setting — if the `-D 4999` change (item below) has landed by the time you do this analysis, SpliceAI's tiers need a fresh snapshot; VEP/Pangolin/SPiP/Branchpointer tiers are unaffected by that change and remain valid from this snapshot.
+3. **Once `RUNS/run_more_genes_20260817_1143/qacct.tsv` exists** (user-run, not yet done as of session end): analyze it to derive real, evidence-based `h_vmem`/thread tiers per predictor (VEP, SpliceAI, Pangolin, SPiP, Branchpointer), joined by gene against the real variant counts already available locally (`RUNS/predictors_050826/input/by_gene_more_genes/<GENE>.pq` row counts, or `_tmp/<GENE>.vcf.gz`). **Caveat carried over from the user**: the SpliceAI portion of this snapshot reflects the *current* `-D 10000` setting — if the `-D 4999` change (item below) has landed by the time you do this analysis, SpliceAI's tiers need a fresh snapshot; VEP/Pangolin/SPiP/Branchpointer tiers are unaffected by that change and remain valid from this snapshot.
 
 4. **Then implement, in this order** (per `TODO.md` Priority 0 — do not skip ahead without checking with the user first, this session's pattern was strictly "propose → confirm → implement"):
    - Run provenance/reproducibility manifest (`run_manifest.json`/`.md` per `RUNS/<RUN_NAME>/`, capturing resolved CLI args, resolved `env.sh` binary paths, git commit hash, per-predictor tool/model/database versions).
@@ -50,7 +50,7 @@ Triggered by trying to answer "what parameters did a run from a month ago actual
 While looking for real historical memory data to calibrate resource tiers from (instead of guessing), found that `src/hpc/logger.sh`'s `/usr/bin/time -v` wrapper has **never once executed** in this pipeline's history: `main.sh` never exports `$LOG_DIR` (only a differently-named `$ERROR_LOG_DIR`), so the wrapper's activation check always fails. Confirmed by finding zero `.time` files and zero `pipeline_report.md` files anywhere under `RUNS/`. This is why the resource-tier research had to fall back to `qacct` (SGE's own independent accounting) instead of the pipeline's own (broken) instrumentation. One-line fix, not yet applied.
 
 ### 3f. `qacct` data-gathering detour
-`qacct -o <user>` (broad owner query, no job ID) returned nothing on this cluster — likely an implicit date-window default, not confirmed. `qacct -j <jobnumber>` works fine for a known ID. Worked around by extracting all 1,996 real job IDs for every (gene, step) in `run_more_genes_20260817_1143` from local `_log/*/*.out`/`*.err` files (they embed `active_jobs/<jobnumber>.1/...` paths) into `resources/run_more_genes_20260817_1143_job_ids.tsv`, and wrote `resources/pull_qacct_snapshot.sh` to loop `qacct -j` over that list. **User has not run this yet as of session end.**
+`qacct -o <user>` (broad owner query, no job ID) returned nothing on this cluster — likely an implicit date-window default, not confirmed. `qacct -j <jobnumber>` works fine for a known ID. Worked around by extracting all 1,996 real job IDs for every (gene, step) in `run_more_genes_20260817_1143` from local `_log/*/*.out`/`*.err` files (they embed `active_jobs/<jobnumber>.1/...` paths) into `RUNS/run_more_genes_20260817_1143/job_ids.tsv`, and wrote the generic `resources/pull_qacct_snapshot.sh <job_ids.tsv> <output.tsv>` to loop `qacct -j` over that list. **User has not run this yet as of session end.** (Job-ID list was initially, incorrectly, placed under `resources/`, which caught it in `resources/**/*.tsv`'s gitignore negation rule meant for stable curated data — moved to `RUNS/` and the script generalized to take paths as arguments once caught; see §5.)
 
 ### 3g. `C7` downgraded
 User confirmed compound-het/inheritance phasing now lives in `clinical_variant_prioritization`, not this pipeline — `C7` in `BUG_TRACKER.md` downgraded from Critical to Low (left open, not resolved-by-design, since the dead genotype-request code itself hasn't been removed).
@@ -58,11 +58,14 @@ User confirmed compound-het/inheritance phasing now lives in `clinical_variant_p
 ## 4. Files touched this session
 - `TODO.md` — new Priority 0 section (provenance manifest, SpliceAI `-D` window, per-predictor resource scaling with `qacct` progress notes); new Phase 5 (SAI-10k-calc).
 - `BUG_TRACKER.md` — `ORCH-10` (new, Critical), `ORCH-11` (new, High), `C7` (downgraded Critical → Low).
-- `resources/run_more_genes_20260817_1143_job_ids.tsv` — new, 1,996 rows (gene, step, jobnumber).
-- `resources/pull_qacct_snapshot.sh` — new, not yet run.
+- `RUNS/run_more_genes_20260817_1143/job_ids.tsv` — new, 1,996 rows (gene, step, jobnumber); gitignored (run-specific data), not committed.
+- `resources/pull_qacct_snapshot.sh` — new, generic (takes input/output paths as args), not yet run.
+- `.gitignore` — added `resources/run_*` (per-run data doesn't belong in `resources/`, only stable curated reference data does) and `.nfs*` (NFS silly-rename artifacts).
 - This file.
+- Also untracked (were committed before `test_data/` was added to `.gitignore`, unrelated to this session's work but caught while auditing what to commit): `test_data/test_run/reports/{MYBPC3_clinical_prioritization_report.html,MYBPC3_interactive_dashboard.html,audit_report_test_run.md}`.
 
 ## 5. Things NOT to redo
 - Don't re-derive DMD's `--raw-dir` — it's `RUNS/predictors_050826/input/by_gene_more_genes` (confirmed by exact row-count match, see §2.2).
-- Don't re-extract job IDs from logs — `resources/run_more_genes_20260817_1143_job_ids.tsv` already has all 1,996, cleaned of the `.1` PE-task-suffix parsing bug.
+- Don't re-extract job IDs from logs — `RUNS/run_more_genes_20260817_1143/job_ids.tsv` already has all 1,996, cleaned of the `.1` PE-task-suffix parsing bug. (Not in git — it's run-specific data; regenerate from the same `_log/` files if it's ever missing.)
+- Don't put per-run data back under `resources/` — that's what caused the git-tracking mistake this session had to unwind. Per-run output goes under `RUNS/<RUN_NAME>/`.
 - Don't implement any Priority 0 `TODO.md` item without checking with the user first — this session's explicit, repeated instruction was to track/scope, not implement, until they say go.
