@@ -229,6 +229,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-09-10: Full Technical & Methodological Audit (root-cause of broken filter_variants.py import, disconnected filtering module, inert QC, ACMG/scoring issues)](./walkthrough/20260910_full_technical_methodological_audit.md)
 - [2026-09-10: Predictor & Annotation Inventory + Audit (full list of every predictor actually running, incl. SpliceVarDB evidence silently inert, duplicate REVEL/SIFT/PolyPhen sources, dead MaxEntScan)](./walkthrough/20260910_predictor_inventory_and_audit.md)
 - [2026-09-10: ACMG Criteria & Priority Tier — Deprioritization Note (real classification now happens in the `clinical_variant_prioritization` web app; this pipeline's ACMG/tiering logic is not yet deprecated but is no longer the primary decision surface)](./walkthrough/20260910_acmg_tiering_deprioritization_note.md)
+- [2026-09-18: DMD VEP OOM Incident, Run-Provenance Gap, and Resource-Sizing Handoff (live incident root-caused to a fixed `h_vmem` not scaled to gene size — `ORCH-10`; dormant timing/memory logger found — `ORCH-11`; SpliceAI `-D` window literature review; session handoff with concrete next steps)](./walkthrough/20260918_dmd_vep_oom_incident_and_resource_provenance_handoff.md)
 
 ---
 
