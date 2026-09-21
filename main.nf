@@ -1,5 +1,5 @@
 #!/usr/bin/env nextflow
-// Phase 1 spike entry point — SpliceAI only, legacy per-gene adapter.
+// Phase 2: gene-restricted tier complete — SpliceAI + Pangolin + SPiP, legacy per-gene adapter.
 // Does NOT replace main.sh. See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md.
 //
 // Usage:
@@ -8,7 +8,7 @@
 // --input_vcf must already be tabix-indexed alongside it (<input_vcf>.tbi), matching today's
 // Step-1 (variant_converter) output shape — this spike starts downstream of that step.
 
-include { SPLICEAI_SPIKE } from './workflows/spliceai_spike.nf'
+include { GENE_RESTRICTED_SUBWORKFLOW } from './workflows/gene_restricted.nf'
 
 workflow {
     if (!params.input_vcf) {
@@ -35,7 +35,9 @@ workflow {
 
     meta_vcf_ch = Channel.of(tuple(meta, input_vcf_file, input_tbi_file))
 
-    SPLICEAI_SPIKE(meta_vcf_ch)
+    GENE_RESTRICTED_SUBWORKFLOW(meta_vcf_ch)
 
-    SPLICEAI_SPIKE.out.vcf.view { m, vcf, tbi -> "SPLICEAI_SPIKE done: ${m.partition_id} -> ${vcf}" }
+    GENE_RESTRICTED_SUBWORKFLOW.out.spliceai.view { m, vcf, tbi -> "SpliceAI done: ${m.partition_id} -> ${vcf}" }
+    GENE_RESTRICTED_SUBWORKFLOW.out.pangolin.view { m, vcf, tbi -> "Pangolin done: ${m.partition_id} -> ${vcf}" }
+    GENE_RESTRICTED_SUBWORKFLOW.out.spip.view    { m, vcf, tbi -> "SPiP done: ${m.partition_id} -> ${vcf}" }
 }
