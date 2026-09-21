@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
-// Phase 3: both tiers complete — SpliceAI + Pangolin + SPiP (gene-restricted) and VEP +
-// Branchpointer (broad), legacy per-gene adapter. Does NOT replace main.sh. See
-// /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md.
+// Phase 4: both tiers + merge — SpliceAI + Pangolin + SPiP (gene-restricted), VEP + Branchpointer
+// (broad), merged into one final annotated VCF per gene. Legacy per-gene adapter. Does NOT replace
+// main.sh. See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md.
 //
 // Usage:
 //   nextflow run main.nf --input_vcf <gene>.vcf.gz [-profile standard|local_dev] [-stub-run]
@@ -11,10 +11,19 @@
 
 include { GENE_RESTRICTED_SUBWORKFLOW } from './workflows/gene_restricted.nf'
 include { BROAD_PASS_SUBWORKFLOW } from './workflows/broad_pass.nf'
+include { MERGE_SUBWORKFLOW } from './workflows/merge_subworkflow.nf'
 
 workflow {
     if (!params.input_vcf) {
         error "Missing required --input_vcf <gene>.vcf.gz (must have a sibling .tbi index)"
+    }
+
+    // gene_restricted.nf and broad_pass.nf each gate SPIP_ANNOTATE behind an if/else that falls
+    // back to Channel.empty() for any params.spip_tier value other than their own tier name — so
+    // an invalid value silently emits from NEITHER, MERGE_SUBWORKFLOW's spip_ch never fires, and
+    // the pipeline exits 0 with no final VCF for the gene, no error. Caught here instead.
+    if (!(params.spip_tier in ['restricted', 'broad'])) {
+        error "params.spip_tier must be 'restricted' or 'broad', got: ${params.spip_tier}"
     }
 
     input_vcf_file = file(params.input_vcf)
@@ -46,4 +55,19 @@ workflow {
     BROAD_PASS_SUBWORKFLOW.out.vep.view          { m, vcf, tbi -> "VEP done: ${m.partition_id} -> ${vcf}" }
     BROAD_PASS_SUBWORKFLOW.out.branchpoint.view  { m, vcf, tbi -> "Branchpoint done: ${m.partition_id} -> ${vcf}" }
     BROAD_PASS_SUBWORKFLOW.out.spip.view         { m, vcf, tbi -> "SPiP (broad) done: ${m.partition_id} -> ${vcf}" }
+
+    // spip_tier picks exactly one of these two channels to actually emit (the other is
+    // Channel.empty(), see gene_restricted.nf/broad_pass.nf) — .mix() combines them into the one
+    // real stream MERGE_SUBWORKFLOW needs, without caring which tier was active.
+    spip_merged_ch = GENE_RESTRICTED_SUBWORKFLOW.out.spip.mix(BROAD_PASS_SUBWORKFLOW.out.spip)
+
+    MERGE_SUBWORKFLOW(
+        BROAD_PASS_SUBWORKFLOW.out.vep,
+        BROAD_PASS_SUBWORKFLOW.out.branchpoint,
+        GENE_RESTRICTED_SUBWORKFLOW.out.pangolin,
+        GENE_RESTRICTED_SUBWORKFLOW.out.spliceai,
+        spip_merged_ch
+    )
+
+    MERGE_SUBWORKFLOW.out.vcf.view { m, vcf, tbi -> "MERGE done: ${m.partition_id} -> ${vcf}" }
 }
