@@ -4,6 +4,10 @@
 // that script, kept verbatim as a non-goal (same treatment as SpliceAI's -d value).
 // Tier: gene-restricted by default (params.spip_tier == 'restricted') per the user's explicit
 // choice during plan approval — SPiP's broad-safety is unresolved, no profiling data exists yet.
+// OMP/MKL/OPENBLAS_NUM_THREADS=1 exports (added 2026-09-21, Phase 3 review) port
+// annotate_spip_vars.sh's own explicit `=1` pins (unconditional, unlike Pangolin's ${THREADS:-4}
+// — SPiP does its own internal parallelism via -t/--threads, so these are deliberately pinned to
+// 1 to prevent double-parallelizing) — a real gap in the original Phase 2 commit, caught late.
 // See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
 
 process SPIP_ANNOTATE {
@@ -24,6 +28,9 @@ process SPIP_ANNOTATE {
     def raw_out = "${meta.partition_id}.annSPiP.vcf"
     """
     zcat ${vcf} > raw_input.vcf
+    export OMP_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OPENBLAS_NUM_THREADS=1
     ${params.spip_rscript} ${params.spip_script} \\
         --input raw_input.vcf \\
         --output ${raw_out} \\

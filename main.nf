@@ -1,6 +1,7 @@
 #!/usr/bin/env nextflow
-// Phase 2: gene-restricted tier complete — SpliceAI + Pangolin + SPiP, legacy per-gene adapter.
-// Does NOT replace main.sh. See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md.
+// Phase 3: both tiers complete — SpliceAI + Pangolin + SPiP (gene-restricted) and VEP +
+// Branchpointer (broad), legacy per-gene adapter. Does NOT replace main.sh. See
+// /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md.
 //
 // Usage:
 //   nextflow run main.nf --input_vcf <gene>.vcf.gz [-profile standard|local_dev] [-stub-run]
@@ -9,6 +10,7 @@
 // Step-1 (variant_converter) output shape — this spike starts downstream of that step.
 
 include { GENE_RESTRICTED_SUBWORKFLOW } from './workflows/gene_restricted.nf'
+include { BROAD_PASS_SUBWORKFLOW } from './workflows/broad_pass.nf'
 
 workflow {
     if (!params.input_vcf) {
@@ -36,8 +38,12 @@ workflow {
     meta_vcf_ch = Channel.of(tuple(meta, input_vcf_file, input_tbi_file))
 
     GENE_RESTRICTED_SUBWORKFLOW(meta_vcf_ch)
+    BROAD_PASS_SUBWORKFLOW(meta_vcf_ch)
 
     GENE_RESTRICTED_SUBWORKFLOW.out.spliceai.view { m, vcf, tbi -> "SpliceAI done: ${m.partition_id} -> ${vcf}" }
     GENE_RESTRICTED_SUBWORKFLOW.out.pangolin.view { m, vcf, tbi -> "Pangolin done: ${m.partition_id} -> ${vcf}" }
-    GENE_RESTRICTED_SUBWORKFLOW.out.spip.view    { m, vcf, tbi -> "SPiP done: ${m.partition_id} -> ${vcf}" }
+    GENE_RESTRICTED_SUBWORKFLOW.out.spip.view    { m, vcf, tbi -> "SPiP (restricted) done: ${m.partition_id} -> ${vcf}" }
+    BROAD_PASS_SUBWORKFLOW.out.vep.view          { m, vcf, tbi -> "VEP done: ${m.partition_id} -> ${vcf}" }
+    BROAD_PASS_SUBWORKFLOW.out.branchpoint.view  { m, vcf, tbi -> "Branchpoint done: ${m.partition_id} -> ${vcf}" }
+    BROAD_PASS_SUBWORKFLOW.out.spip.view         { m, vcf, tbi -> "SPiP (broad) done: ${m.partition_id} -> ${vcf}" }
 }

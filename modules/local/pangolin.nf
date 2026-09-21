@@ -1,6 +1,10 @@
 // Phase 2: Pangolin splice predictor, ported from src/hpc/annotate_pangolin_vars.sh.
 // Unlike SpliceAI, main.sh runs Pangolin directly on the whole per-gene VCF.gz (main.sh:458-463)
 // — no chunking stage exists for it, so this is a single process, not a chunk/fan-out subworkflow.
+// OMP/MKL/OPENBLAS_NUM_THREADS exports (added 2026-09-21, Phase 3 review) port
+// annotate_pangolin_vars.sh's own `export ..._NUM_THREADS=${THREADS:-4}` — a real gap in the
+// original Phase 2 commit, caught late: without it, torch/numpy oversubscribe threads past the
+// SGE-allocated slot count on the cluster (unreproducible in this local sandbox).
 // See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
 
 process PANGOLIN_ANNOTATE {
@@ -20,6 +24,9 @@ process PANGOLIN_ANNOTATE {
     def raw_out = "${meta.partition_id}.annPangolin.vcf"
     """
     zcat ${vcf} > raw_input.vcf
+    export OMP_NUM_THREADS=${task.cpus}
+    export MKL_NUM_THREADS=${task.cpus}
+    export OPENBLAS_NUM_THREADS=${task.cpus}
     PYTHONPATH="${params.pangolin_repo}:\${PYTHONPATH:-}" \\
         ${params.pangolin_python} -m pangolin.pangolin \\
         raw_input.vcf ${params.fasta} ${params.pangolin_db} ${raw_out} \\
