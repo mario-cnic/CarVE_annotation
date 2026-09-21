@@ -40,6 +40,13 @@ trash/
 # Container binaries
 *.sif
 
+# Nextflow execution state and per-run outputs (Phase 1 spike, see
+# /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md) — same rationale as RUNS/ above.
+work/
+.nextflow/
+.nextflow.log*
+nf_work/
+
 # Temporary and editor files
 .DS_Store
 .idea/
