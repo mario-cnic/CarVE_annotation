@@ -292,3 +292,88 @@ new subworkflow reused Phase 1/2's established shape directly.
 Per the plan's migration sequencing: Phase 4 (merge/rejoin subworkflow, still the trivial 1:1
 single-gene case) is next. Real model-output parity for VEP, and Nextflow-orchestrated (not just
 standalone-script) parity for Branchpointer, still need to be checked on the actual cluster.
+
+## Phase 4 — merge/rejoin subworkflow
+
+**2026-09-21, same session**
+
+### What it does
+
+Combines all five predictors' output into one final annotated VCF per gene, ported from
+`src/hpc/merge_vep_spip.sh`. VEP is the authoritative record set; SPiP, Pangolin, SpliceAI, and
+Branchpointer are layered onto it in that order via `bcftools annotate -a <file> -c <tag>`, each
+transferring exactly the INFO tag(s) that predictor writes. Confirmed the exact tag names by
+reading the known-good reference headers under `test_data/test_run/annotation/`: SPiP writes one
+INFO tag literally named `SPiP`, Pangolin one named `Pangolin`, SpliceAI one named `SpliceAI`, and
+Branchpointer five explicit fields (`Branchpointer_prob`, `Branchpointer_U2_energy`,
+`Branchpoint_disrupted`, `LaBranchoR_score`, `LaBranchoR_acc_dist`) — all match the bash original's
+`-c` arguments exactly, and the final `MYBPC3.annotated.vcf.gz` reference header confirms this
+order (CSQ from VEP, then SPiP, then Pangolin, then SpliceAI, then the five Branchpoint fields).
+
+Still the trivial single-gene case (Phase 4 scope per the plan) — the plan's
+`AMBIGUOUS_GENE_SOURCE` overlapping-gene dedup logic isn't needed yet, since no cross-gene join can
+happen until Phase 7 introduces multi-gene "regions."
+
+### New files
+
+- `modules/local/merge.nf` — `MERGE_ANNOTATIONS`, the single process running the four sequential
+  `bcftools annotate` calls.
+- `workflows/merge_subworkflow.nf` — new `MERGE_SUBWORKFLOW`, joins the five predictor output
+  channels (`vep`, `branchpoint`, `pangolin`, `spliceai`, `spip`) by `meta` via `.join()` — same
+  operator Phase 1's `spliceai_spike.nf` already used for meta-keyed joins — into the single tuple
+  `MERGE_ANNOTATIONS` needs.
+- `main.nf` — wires it in. Since `spip_tier` gates SPiP into exactly one of
+  `GENE_RESTRICTED_SUBWORKFLOW.out.spip` / `BROAD_PASS_SUBWORKFLOW.out.spip` (the other emits
+  nothing, see Phase 2/3), `.mix()`es the two into one real stream before handing it to
+  `MERGE_SUBWORKFLOW` — the merge doesn't need to know which tier was active.
+
+### Two deliberate departures from the bash original (documented, not silent)
+
+1. **`large_sv_vcf` handling dropped entirely.** Confirmed dead code (`BUG_TRACKER.md` `SV-1`): no
+   script anywhere in this repo ever produces a `*.large_svs.vcf.gz` file (`grep -rn
+   "large_sv" src/` outside `merge_vep_spip.sh` itself returns nothing), so the bash branch that
+   concatenates it back in has always been a no-op in this pipeline as it stands today. Reviving
+   SV/CNV handling is `PLT-102` (future, separate) — not something to silently recreate as an
+   always-skipped branch here.
+2. **No per-predictor soft-continue**, unlike the bash original's `if bcftools annotate ...; then
+   ... else echo Warning ...; fi` around each step, which lets the merge "succeed" with a predictor
+   silently missing from the output. That, combined with `ORCH-3` (the bash script's
+   `CMD_EXIT_CODE=$?` is captured *after* its cleanup `rm` loop, not after the actual merge), means
+   a real merge failure today can go completely unnoticed downstream. This port drops the
+   soft-continue — any `bcftools annotate` failure fails the process. This is a channel/logic
+   decision, not a shell-flag one: confirmed by inspecting a real `.command.sh` in this sandbox
+   that Nextflow already runs every script under `#!/bin/bash -ue` by default, so a
+   missing/malformed predictor file failing the task is Nextflow's native behavior, nothing this
+   script opts into. `ORCH-3` is closed because exit status is now determined natively, not from a
+   manually captured `$?` after unrelated cleanup — the failure-propagation fix the plan names as a
+   byproduct of the migration (see plan Context, `ORCH-1`/`ORCH-2`).
+
+### Verification
+
+**Strongest verification in this migration so far.** Ran the exact `bcftools annotate` command
+sequence `MERGE_ANNOTATIONS` executes directly (outside Nextflow) against the five known-good
+`MYBPC3` reference predictor outputs already present under `test_data/test_run/annotation/`
+(`MYBPC3.annVEP.vcf.gz`, `.annSPiP`, `.annPangolin`, `.annSpliceAI`, `.annBranchpoint.vcf.gz`), and
+diffed the result against that same directory's `MYBPC3.annotated.vcf.gz`: **all 22 data records
+identical** (header lines not compared). This confirms the merge order, `-c` tag lists, and
+`bcftools` invocation are correct — not just that the channel wiring is right. Content-parity
+against known-good production output has now been confirmed for `SPLICEAI_CHUNK`/`SPLICEAI_CONCAT`
+(Phase 1, record-count parity), `BRANCHPOINT_ANNOTATE` (Phase 3, full content parity), and now
+`MERGE_ANNOTATIONS` — three of seven ported process types. `SPLICEAI_ANNOTATE`, `PANGOLIN_ANNOTATE`,
+`SPIP_ANNOTATE`, and `VEP_ANNOTATE` still need their real model-output parity checked on the
+cluster; those four are the ones with an actual model/cache dependency this sandbox can't run.
+
+`bcftools`/`tabix` for this check came from the local miniforge3 `genomics` env mirror (same
+binaries `local_dev`'s `params.bcftools`/`params.tabix` already point at) — no new local
+dependency needed.
+
+Full `nextflow run main.nf -profile local_dev -stub-run` (all three subworkflows together): exit 0,
+all five predictors plus `MERGE_ANNOTATIONS` completed `1 of 1 ✔`; the 5-way `.join()` correctly
+produced exactly one merge task per gene (no duplication, no hang) with the `spip_tier`-gated
+`.mix()` resolving cleanly. No new DAG/channel bugs surfaced.
+
+## What's next (not done in Phase 4)
+
+Per the plan's migration sequencing: Phase 5 (`VCF_TO_TABLE` + reports — mostly plumbing, already
+gene-agnostic Python/R) is next. Phase 6 (full 217-gene panel parity run vs. real `bash main.sh`
+output) is the gate before any WGS work (Phase 7) can start.
