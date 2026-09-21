@@ -189,3 +189,106 @@ next, still on the trivial single-gene-sized "region" case. Real model-output pa
 Phase 1 (SpliceAI) and Phase 2 (Pangolin, SPiP) still needs to be checked together the next time
 this runs on the actual cluster — there is no local way to validate any of the three predictors'
 actual scores, only their orchestration.
+
+## Phase 3 — VEP (containerized) + Branchpointer, broad tier
+
+**2026-09-21, same session**
+
+### Course correction before this phase: WGS split-by-gene walked back
+
+Between Phase 2 and Phase 3, revisited the plan's Phase 7 draft (`GENE_SUBSET_AND_SPLIT`), which
+had WGS/WES input split into one file **per gene** via `bcftools view -R` — at
+`Complete_gene_list_V5` scale (6,517 genes) that's 6,517 per-gene jobs, the same job-explosion
+problem this whole migration exists to move away from. Corrected in the plan: the default is now
+**one `bcftools view -R <gene-list BED>` subset**, producing a single filtered VCF, chunked by
+record count (reusing `SPLICEAI_CHUNK`'s existing mechanism) — not by gene identity. Per-gene
+splitting stays available only as an explicit opt-in for when a per-gene file set is genuinely the
+wanted deliverable, not the pipeline's default WGS/WES shape. Phase 7 itself isn't built yet;
+today's Phase 1-3 modules are unaffected either way since they just take whatever single VCF
+they're given.
+
+### What changed vs. Phase 1/2
+
+Like Pangolin and SPiP, `main.sh` runs VEP and Branchpointer directly on the whole per-gene VCF
+(`main.sh:437-446` for VEP, `main.sh:488-497` for Branchpointer) — no chunking. Two more
+single-process modules:
+
+- `modules/local/vep.nf` — `VEP_ANNOTATE`, ported from `src/hpc/annotate_vep_vars.sh`. **First
+  containerized process in this migration.** The bash version already ran VEP inside `vep.sif` via
+  a manual `singularity exec --bind ...` call; this process instead uses a native `container =
+  params.vep_sif` directive, so the `script:` block is a plain `vep --fork ...` invocation with no
+  singularity wrapper — Nextflow's own singularity integration injects it. Every plugin/custom-file
+  flag (CADD, dbNSFP, AlphaMissense, gnomAD, MaxEntScan, UTRAnnotator, SpliceVault, SpliceVarDB,
+  REVEL, Mastermind, LoFtool, pLI, VEP's own precomputed-lookup SpliceAI plugin, SpliceRegion) kept
+  verbatim — non-goal, this is broad-tier plumbing, not a re-tuning of VEP's annotation set. Note:
+  VEP's `--plugin SpliceAI` is a precomputed hg38 score lookup, unrelated to and not a duplicate of
+  this pipeline's own live `SPLICEAI_ANNOTATE` (gene-restricted tier) — `main.sh` already ran both
+  together. Two deliberate, documented behavior changes from the bash original, not verbatim ports:
+  `--fork ${task.cpus}` (main.sh submits `-pe smp 4` but never exports `$THREADS`, so the bash
+  version's `--fork ${THREADS:-1}` actually ran with `--fork 1` — a latent bug, not an intentional
+  throttle; this port uses real parallelism matching the allocated slots), and indexing with the
+  **container's own** `tabix` (htslib 1.9, confirmed present in `vep.sif` by running `singularity
+  exec vep.sif which tabix` in this sandbox) rather than the host conda `tabix` the bash script
+  calls after `singularity exec` returns — this script runs entirely *inside* the container, and a
+  host binary reached only via the bind mount isn't guaranteed to load correctly there.
+- `modules/local/branchpointer.nf` — `BRANCHPOINT_ANNOTATE`, ported from
+  `src/hpc/annotate_branchpointer_vars.sh`. Broad-safe by design (lookup against a precomputed
+  genome-wide BED, `labranchor_grch38_top.bed.gz`, not live model inference — established during
+  this migration's earlier research). Not containerized, matching the bash source's own choice
+  (plain `spliceai_env` python, no container).
+- `workflows/broad_pass.nf` — new `BROAD_PASS_SUBWORKFLOW`, runs `VEP_ANNOTATE` and
+  `BRANCHPOINT_ANNOTATE` in parallel off the same `meta_vcf_ch`, matching `main.sh`'s independent
+  qsub jobs. Mirrors `GENE_RESTRICTED_SUBWORKFLOW`'s `spip_tier` gate in reverse: `SPIP_ANNOTATE`
+  only fires here if `params.spip_tier == 'broad'` (not the default, so a no-op today).
+- `main.nf` — now calls both `GENE_RESTRICTED_SUBWORKFLOW` and `BROAD_PASS_SUBWORKFLOW`, all five
+  predictors running off one shared input channel.
+- `nextflow.config` — added `vep_sif`/`vep_dir`/`vep_plugins_dir`/`vep_cache_version`,
+  `branchpointer_python`/`branchpointer_script`/`labranchor_bed`, and — only inside the `standard`
+  (cluster) profile — `singularity.enabled`/`autoMounts`/`runOptions`. The bind-mount set mirrors
+  `annotate_vep_vars.sh:33`'s manual `singularity exec --bind ... -e` flags, including `--cleanenv`
+  (bash's `-e`) — without it, host `PERL5LIB`/`PYTHONPATH` leak into the container and can break
+  VEP plugin loading in confusing ways. `local_dev` leaves `singularity.enabled` at its default
+  `false`, so `VEP_ANNOTATE`'s `container` directive is simply ignored there and `-stub-run`
+  executes it directly on the host. Also renamed `outdir`'s default a second time
+  (`gene_restricted_out` → `annotation_out`, since it's now not even gene-tier-specific) — chose a
+  name that shouldn't need renaming again as more predictors land.
+- Retroactive fix to Phase 2's `pangolin.nf`/`spip.nf`: neither ported the bash originals'
+  `OMP_NUM_THREADS`/`MKL_NUM_THREADS`/`OPENBLAS_NUM_THREADS` exports (Pangolin: `${task.cpus}`,
+  matching the bash `${THREADS:-4}` pattern; SPiP: unconditional `1`, matching the bash script's
+  own pin — SPiP does its own internal parallelism via `-t`, so this prevents double-parallelizing,
+  not a mistake to "fix away"). Missing on a cluster job means numpy/torch can oversubscribe
+  threads past the SGE-allocated slot count — a real gap in the Phase 2 commit, not reproducible or
+  catchable in this local sandbox, caught on review before Phase 3 shipped.
+
+### Verification
+
+**VEP**: no local execution path at all — even beyond the missing container pull, the full VEP
+cache/plugin data tree under `/references` (many plugin files, not just the one FASTA SpliceAI
+needed) isn't mirrored locally. `-stub-run` only; real output must be checked on the cluster.
+
+**Branchpointer**: the one predictor ported so far with a genuine local real-run path — its only
+dependency is `pysam` against the LaBranchoR BED (checked by reading
+`src/python/annotate_branchpointer.py`), both present in the local sandbox. Ran the exact command
+`BRANCHPOINT_ANNOTATE` invokes directly (outside Nextflow, same script/args) against
+`test_data/test_run/_tmp/MYBPC3.vcf.gz` and diffed the result (`grep -v "^##"`, so VCF header lines
+were not compared, only the column header + 22 data records) against the known-good
+`test_data/test_run/annotation/MYBPC3.annBranchpoint.vcf.gz`: **all 22 records identical**. Of
+those, only 1/22 actually carried a Branchpointer/LaBranchoR annotation (the rest have no variant
+within range of a branchpoint) — real, but thin, evidence; a gene with more annotated hits would be
+a stronger check. This is the first real (non-orchestration-only) output-parity check in this
+migration, not just a stub/DAG check. Not re-run through Nextflow itself in this pass, since
+`-stub-run` is an all-or-nothing switch for the whole pipeline and the other four processes have no
+local real-run path — the standalone check validates the same script/argument construction the
+Nextflow process uses, which is what actually differs from the bash original.
+
+Full `nextflow run main.nf -profile local_dev -stub-run` (both subworkflows together): exit 0, all
+five predictors (`SPLICEAI_SPIKE`, `PANGOLIN_ANNOTATE`, `SPIP_ANNOTATE` (restricted), `VEP_ANNOTATE`,
+`BRANCHPOINT_ANNOTATE`) completed `1 of 1 ✔` in parallel; `SPiP (broad)` correctly emitted nothing
+(`spip_tier` still `'restricted'`). No new DAG/channel bugs surfaced — both new processes and the
+new subworkflow reused Phase 1/2's established shape directly.
+
+## What's next (not done in Phase 3)
+
+Per the plan's migration sequencing: Phase 4 (merge/rejoin subworkflow, still the trivial 1:1
+single-gene case) is next. Real model-output parity for VEP, and Nextflow-orchestrated (not just
+standalone-script) parity for Branchpointer, still need to be checked on the actual cluster.
