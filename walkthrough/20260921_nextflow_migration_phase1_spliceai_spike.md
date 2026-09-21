@@ -1,6 +1,7 @@
-# Nextflow migration — Phase 1 SpliceAI spike
+# Nextflow migration — Phase 1 (SpliceAI spike) + Phase 2 (Pangolin, SPiP)
 
-**2026-09-21**
+**2026-09-21** — filename kept from Phase 1 (same day, same migration); this file now covers both
+Phase 1 and Phase 2, see the "Phase 2" section below.
 
 ## Context
 
@@ -105,10 +106,86 @@ block (`-stub-run`) in place of the unavailable model/FASTA. Against
    a region split), dropped `-a` rather than adding indexing that serves no purpose for this data
    shape — plain `bcftools concat` doesn't require input indices.
 
-## What's next (not done here)
+## What's next (not done in Phase 1)
 
 Per the plan's migration sequencing: Phase 2 (Pangolin + SPiP at `restricted` tier default) is the
 next slice, still validated on the legacy per-gene adapter before any WGS-entry-point work starts
 (Phase 7). Real model-score parity for this Phase 1 slice should be checked the next time this
 runs on the actual cluster. `carve-platform`'s D-3 Verdict and a Module 3 decision-record note (per
 this repo's own CLAUDE.md rule) are flagged in the plan as follow-up, not done in this session.
+
+## Phase 2 — Pangolin + SPiP, gene-restricted tier complete
+
+**2026-09-21, same session**
+
+### What changed vs. Phase 1
+
+Unlike SpliceAI, `main.sh` runs Pangolin and SPiP directly on the whole per-gene VCF, with no
+chunking stage (`main.sh:420-429` for SPiP, `main.sh:458-463` for Pangolin — both take the same
+`$vcf_gz` that SpliceAI's chunker also starts from). So Phase 2 is two new single-process modules,
+not two more chunk/fan-out subworkflows:
+
+- `modules/local/pangolin.nf` — `PANGOLIN_ANNOTATE`, ported from
+  `src/hpc/annotate_pangolin_vars.sh`. Wraps `python3 -m pangolin.pangolin` against the vendored
+  `src/external/Pangolin-main` (via `PYTHONPATH`, matching the bash script's own approach) and the
+  ~1GB `pangolin_grch38.db` under `shared/utils/pangolin_db/`. `-d 10000` kept verbatim (non-goal,
+  same treatment as SpliceAI's `-D`).
+- `modules/local/spip.nf` — `SPIP_ANNOTATE`, ported from `src/hpc/annotate_spip_vars.sh`. Wraps
+  `Rscript SPiPv2.1_main.r` (an external script under `/data_lab_PGP/resources/annotation/SPiP/`,
+  not vendored inside this repo) and reproduces the bash script's post-processing step that strips
+  SPiP's non-standard `##SPiP output v2.1` header line before bgzip/tabix. `--maxLines 22000` kept
+  verbatim (non-goal — internal detail of the R script, not orchestration-level chunking).
+- `workflows/gene_restricted.nf` — new `GENE_RESTRICTED_SUBWORKFLOW`, replacing `main.nf`'s direct
+  call to `SPLICEAI_SPIKE`. Runs SpliceAI, Pangolin, and SPiP **in parallel off the same
+  `meta_vcf_ch`**, matching `main.sh` submitting all three as independent qsub jobs with no
+  dependency between them (not a pipeline chain). SPiP is gated behind
+  `params.spip_tier == 'restricted'` (the default) — a future `'broad'` placement would move
+  `SPIP_ANNOTATE` into `BROAD_PASS_SUBWORKFLOW` (Phase 3, not built yet) instead.
+- `nextflow.config` — added `pangolin_python`/`pangolin_repo`/`pangolin_db`/`pangolin_distance`,
+  `spip_rscript`/`spip_script`/`spip_max_lines`, and `spip_tier` (default `'restricted'`). All
+  cluster-absolute paths confirmed real on the NFS mount this session (`pangolin_grch38.db` is
+  961MB at `shared/utils/pangolin_db/`, `SPiPv2.1_main.r` is real at
+  `/data_lab_PGP/resources/annotation/SPiP/`). `outdir` default renamed
+  `spliceai_spike_out` → `gene_restricted_out` since it now holds all three predictors' output.
+
+### Verification
+
+Same constraint as Phase 1, one step further: **neither Pangolin nor SPiP has any local execution
+path at all**, not even a version-mismatched one — unlike SpliceAI's `spliceai_env`, this sandbox's
+local miniforge3 mirror has no `pangolin_env` or `spip_env` (confirmed by listing
+`/home/mruizp/apps/miniforge3/envs/`). Both processes are `-stub-run`-only in this sandbox; real
+model-output parity can only be checked on the cluster.
+
+Ran `nextflow run main.nf -profile local_dev -stub-run --input_vcf test_data/test_run/_tmp/MYBPC3.vcf.gz`
+twice (once before, once after the `outdir` rename). Both runs: exit 0, all three predictors
+(`SPLICEAI_SPIKE`, `PANGOLIN_ANNOTATE`, `SPIP_ANNOTATE`) completed `1 of 1 ✔` in parallel, and all
+three published outputs landed under `nf_work/gene_restricted_out/MYBPC3/`:
+`MYBPC3.annSpliceAI.vcf.gz(.tbi)`, `MYBPC3.annPangolin.vcf.gz(.tbi)`, `MYBPC3.annSPiP.vcf.gz(.tbi)`.
+This confirms the DAG/channel wiring (parallel fan-out from one shared input channel, `spip_tier`
+conditional gating, `publishDir` per-gene layout) — not model-score correctness, which remains
+cluster-only exactly as in Phase 1.
+
+The stub run verified DAG wiring, parallel fan-out from one shared input channel, `spip_tier`
+conditional gating, and per-gene `publishDir` layout — it did not execute either new `script:`
+block (both stubs are a plain `cp`), so it says nothing about whether those command lines actually
+run or write the filenames the `output:` blocks declare. Checked that separately by reading the
+two external tools directly (no execution needed):
+- `src/external/Pangolin-main/pangolin/pangolin.py:251` treats its 4th positional arg as an output
+  *prefix*, appending `.vcf` only if the given name doesn't already end in `.vcf`
+  (`annotate_pangolin_vars.sh`'s own `if [ -f "$RAW_OUT" ]` guard around bgzip is a tell that this
+  ambiguity bit someone before). `PANGOLIN_ANNOTATE`'s `raw_out` already ends in `.vcf`, so no
+  double-extension — confirmed by reading the source, not by running it.
+- `SPiPv2.1_main.r:318` opens `outputFile` (the literal `--output` argument) with `file(...)` and
+  writes straight to it — no derivation or extension-appending. `SPIP_ANNOTATE`'s `--output` arg
+  matches its declared `output:` path exactly.
+
+Neither real `script:` block has been executed anywhere yet, in this sandbox or elsewhere — that
+still has to happen on the cluster.
+
+## What's next (not done in Phase 2)
+
+Per the plan's migration sequencing: Phase 3 (broad tier — VEP containerized, Branchpointer) is
+next, still on the trivial single-gene-sized "region" case. Real model-output parity for both
+Phase 1 (SpliceAI) and Phase 2 (Pangolin, SPiP) still needs to be checked together the next time
+this runs on the actual cluster — there is no local way to validate any of the three predictors'
+actual scores, only their orchestration.
