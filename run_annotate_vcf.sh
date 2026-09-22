@@ -22,6 +22,19 @@ MANIFEST_PY="$REPO_ROOT/src/python/write_run_manifest.py"
 MAIN_NF="$REPO_ROOT/annotate_vcf.nf"
 CONFIG="$REPO_ROOT/nextflow.config"
 
+# `nextflow` is not guaranteed to be on PATH on this cluster (confirmed by hitting
+# "nextflow: command not found" on a real run) — it lives at /opt/nextflow/nextflow. Resolve once
+# here and use this everywhere a bare `nextflow` call would otherwise silently fail or (worse,
+# since this script has no `set -e`) silently produce empty provenance values instead of erroring.
+NEXTFLOW_BIN="$(command -v nextflow || true)"
+if [[ -z "$NEXTFLOW_BIN" && -x /opt/nextflow/nextflow ]]; then
+	NEXTFLOW_BIN=/opt/nextflow/nextflow
+fi
+if [[ -z "$NEXTFLOW_BIN" ]]; then
+	echo "error: nextflow not found on PATH or at /opt/nextflow/nextflow — set NEXTFLOW_BIN or add it to PATH" >&2
+	exit 2
+fi
+
 ARGS=("$@")
 INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0
 FORWARD_ARGS=()
@@ -67,7 +80,7 @@ FORWARD_ARGS+=(--run_id "$RUN_ID")
 # Resolve the same binary paths/config values this run will actually use, from the SAME
 # nextflow.config the real run reads — not re-derived or hardcoded here.
 resolve_param() {
-	nextflow config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null | \
+	"$NEXTFLOW_BIN" config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null | \
 		grep -E "^\s*$1\s*=" | head -1 | sed -E "s/^\s*$1\s*=\s*'?([^']*)'?\s*\$/\1/"
 }
 BCFTOOLS="$(resolve_param bcftools)"
@@ -84,8 +97,9 @@ RESUME_FLAG=()
 echo "[run_annotate_vcf.sh] writing launch manifest to $OUTDIR/RUN_MANIFEST.json"
 python3 "$MANIFEST_PY" launch \
 	--outdir "$OUTDIR" \
-	--command-line "nextflow run annotate_vcf.nf ${FORWARD_ARGS[*]}" \
+	--command-line "$NEXTFLOW_BIN run annotate_vcf.nf ${FORWARD_ARGS[*]}" \
 	--nextflow-main "$MAIN_NF" \
+	--nextflow-binary "$NEXTFLOW_BIN" \
 	--config "$CONFIG" \
 	--input "$INPUT" \
 	--run-id "$RUN_ID" \
@@ -102,8 +116,8 @@ python3 "$MANIFEST_PY" launch \
 	exit 1
 }
 
-echo "[run_annotate_vcf.sh] launching: nextflow run annotate_vcf.nf ${FORWARD_ARGS[*]}"
-cd "$REPO_ROOT" && nextflow run annotate_vcf.nf "${FORWARD_ARGS[@]}"
+echo "[run_annotate_vcf.sh] launching: $NEXTFLOW_BIN run annotate_vcf.nf ${FORWARD_ARGS[*]}"
+cd "$REPO_ROOT" && "$NEXTFLOW_BIN" run annotate_vcf.nf "${FORWARD_ARGS[@]}"
 EXIT_CODE=$?
 
 echo "[run_annotate_vcf.sh] nextflow exited $EXIT_CODE — writing completion manifest"

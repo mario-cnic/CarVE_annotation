@@ -7,9 +7,9 @@ library, just a same-schema sibling.
 
 Usage (called by run_annotate_vcf.sh, not normally invoked directly):
     write_run_manifest.py launch --outdir DIR --command-line "..." \
-        --nextflow-main PATH --config PATH --input PATH --run-id ID \
-        [--profile local_dev] [--spip-tier restricted] [--output-format pq] \
-        [--resume]
+        --nextflow-main PATH --nextflow-binary PATH --config PATH --input PATH \
+        --run-id ID [--profile local_dev] [--spip-tier restricted] \
+        [--output-format pq] [--resume]
     write_run_manifest.py completed --outdir DIR --exit-code N \
         --nextflow-log PATH
 
@@ -17,6 +17,11 @@ Usage (called by run_annotate_vcf.sh, not normally invoked directly):
 place (fails loudly if the launch record is missing, rather than silently
 creating a partial one).
 """
+from __future__ import annotations  # cluster's system python3 predates 3.10's `X | None`
+                                     # syntax (confirmed by hitting exactly that TypeError on a
+                                     # real cluster run) — this defers annotation evaluation
+                                     # entirely instead of rewriting every hint, safe on 3.7+.
+
 import argparse
 import hashlib
 import json
@@ -102,7 +107,11 @@ def cmd_launch(args):
             file=sys.stderr,
         )
 
-    nextflow_bin = shutil.which("nextflow")
+    # Resolved by run_annotate_vcf.sh, not re-derived here via shutil.which("nextflow") — this
+    # cluster's nextflow lives at /opt/nextflow/nextflow, not on PATH, so a bare `which` lookup
+    # from this script would silently record None even on a successful real run. Passing it
+    # through explicitly means the manifest reflects the binary that ACTUALLY ran, not a guess.
+    nextflow_bin = args.nextflow_binary or shutil.which("nextflow")
 
     manifest = {
         "schema_version": SCHEMA_VERSION,
@@ -130,7 +139,7 @@ def cmd_launch(args):
                 "v5_genes_loc_bed": sha256_of(REPO_ROOT / "resources" / "v5_genes_loc.bed"),
             },
             "annotation_pipeline_repo": git_state(REPO_ROOT),
-            "nextflow_version": sh(["nextflow", "-v"]),
+            "nextflow_version": sh([nextflow_bin, "-v"]) if nextflow_bin else None,
             # Best-effort tool versions, queried at run time rather than hardcoded — closes
             # TODO.md's Priority-0 complaint that no file anywhere records what actually ran.
             # None here means "not queryable from where this manifest was written" (this
@@ -192,6 +201,7 @@ if __name__ == "__main__":
     p_launch.add_argument("--outdir", required=True)
     p_launch.add_argument("--command-line", required=True)
     p_launch.add_argument("--nextflow-main", required=True)
+    p_launch.add_argument("--nextflow-binary")
     p_launch.add_argument("--config", required=True)
     p_launch.add_argument("--input", required=True)
     p_launch.add_argument("--run-id")
