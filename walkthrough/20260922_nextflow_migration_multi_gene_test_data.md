@@ -85,3 +85,32 @@ reassembly for all five predictors (not just SpliceAI, which Phase 1 already cov
 (`bash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/panel7_test.vcf.gz`)
 — the actual execution needs real SGE job submission, which this sandbox cannot do
 (`CLAUDE.md` bars `qsub`/`qstat`/`qdel` here); this is the user's own cluster session to run.
+
+## Two real-cluster-only bugs found on the first actual attempt
+
+Neither of these could have been caught in this sandbox — both are specific to the real cluster
+environment, which this local sandbox necessarily can't reproduce.
+
+1. **`nextflow` not on `PATH`.** `run_annotate_vcf.sh` called a bare `nextflow` throughout,
+   assuming it resolved via `PATH` — on the real cluster it's at `/opt/nextflow/nextflow` instead
+   (confirmed earlier this session: `[mruizp@nf ~]$ /opt/nextflow/nextflow -v`). First real run hit
+   `nextflow: command not found` (exit 127) immediately. Fixed: the script now resolves
+   `NEXTFLOW_BIN` once at the top (`PATH` first, `/opt/nextflow/nextflow` fallback, clear error if
+   neither exists) and uses it everywhere a bare `nextflow` call previously existed — including
+   inside `resolve_param()`, which would otherwise have silently resolved every config value to an
+   empty string rather than erroring (the script has no `set -e`, only `set -uo pipefail`).
+   `write_run_manifest.py` now takes `--nextflow-binary` explicitly rather than re-deriving it via
+   `shutil.which("nextflow")`, for the same reason: a bare `which` lookup on this cluster would
+   silently record `null` even on an otherwise-successful run.
+
+2. **`write_run_manifest.py` used Python 3.10+ syntax (`str | None`) the cluster's `python3`
+   doesn't support.** Second attempt (after fixing #1) failed with `TypeError: unsupported operand
+   type(s) for |: 'type' and 'NoneType'` on the very first function definition — this sandbox's own
+   Python (used for every local check all session) is new enough that this was never exercised
+   here. Fixed with `from __future__ import annotations` (defers all annotation evaluation instead
+   of rewriting every type hint individually; safe on Python 3.7+) rather than guessing at the
+   cluster's exact Python version.
+
+Both fixed and verified locally (syntax checks plus a full `-profile local_dev -stub-run` pass) —
+neither could be verified against the *real* cluster Python/`nextflow` install from this sandbox,
+only that the fixes are correct in principle and don't regress anything reproducible here.
