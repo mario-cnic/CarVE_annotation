@@ -377,3 +377,79 @@ produced exactly one merge task per gene (no duplication, no hang) with the `spi
 Per the plan's migration sequencing: Phase 5 (`VCF_TO_TABLE` + reports — mostly plumbing, already
 gene-agnostic Python/R) is next. Phase 6 (full 217-gene panel parity run vs. real `bash main.sh`
 output) is the gate before any WGS work (Phase 7) can start.
+
+## Phase 5 — VCF_TO_TABLE (reports deliberately out of scope)
+
+**2026-09-22, continuation of the same session**
+
+### Scope correction mid-phase
+
+The plan's Phase 5 description bundles `VCF_TO_TABLE` with "reports." Mid-phase, the user
+explicitly steered: "Do not focus too much on reports as this will be done by module 3." This
+matches existing memory (`project_acmg_tiering_deprioritized`: real classification now happens in
+`clinical_variant_prioritization`, not here). Scope narrowed to `VCF_TO_TABLE` only — the four
+downstream scripts (`filter_and_summarize.py`, `plot_annotation_results.R`,
+`generate_interactive_report.py`, `generate_clinical_prioritization_report.py`) are **not ported**
+this phase, deliberately, not forgotten.
+
+### What it does
+
+`modules/local/vcf_to_table.nf` — `VCF_TO_TABLE`, ported from `src/hpc/vcf2parsed.sh`. Two stages
+in one process (matches the bash original, which never persists its intermediate TSV):
+`vcf_parser_pysam.py` flattens the merged VCF's INFO/CSQ fields into a scratch TSV, filtered to one
+transcript (`--filter_by Feature --gene_set <ENST>`); `filter_variants.py` then applies status
+contracts/splicing metrics and writes the final table. This is the actual deliverable this module
+produces for Module 3 to consume.
+
+`meta.transcript` is now resolved for real in `main.nf` (previously always `null`, unused before
+this phase) — ported from `main.sh:378`'s exact lookup: whole-word match against
+`resources/gene_transcript_mapping.txt`'s `Gen,NM,ENST` columns, 3rd field. Deliberately the
+read-only lookup only, not `query_new_transcripts.py --auto-append`'s live write path (`ORCH-9` —
+unlocked file write, non-MANE API fallback — stays an explicit non-goal). One deliberate departure
+from a verbatim port, caught in review: `main.sh` defaults an unresolved gene to the literal string
+`'UNKNOWN'` and carries on; here, `'UNKNOWN'` reaching `VCF_TO_TABLE`'s `--gene_set` matches no VEP
+CSQ block, so every variant gets skipped and `filter_variants.py` writes an empty-but-valid table —
+exit 0, published, no warning. `main.nf` now fails the run instead when the lookup can't find a
+transcript, alongside the existing `spip_tier` guard.
+
+**Not ported**: the bash script's `/data_tmp` fast-scratch staging for its intermediate TSV
+(PID/timestamp-unique filename + trap-based cleanup). That existed to avoid writing a large
+intermediate file to *shared, multi-job-concurrent* scratch storage — a concern that doesn't apply
+inside a Nextflow task's own isolated work directory. Noted as a candidate for Nextflow's native
+`scratch` directive if cluster profiling ever shows it's needed, not silently dropped.
+
+### Verification
+
+Same pattern as Phase 3/4: can't run end-to-end through Nextflow in this sandbox (needs a genuinely
+VEP-annotated VCF; every upstream predictor here is `-stub-run`-only), but the exact command
+sequence was verified for real outside Nextflow. Ran `vcf_parser_pysam.py` + `filter_variants.py`
+(local `vcf_parser`/`datasci` env mirrors, both confirmed present) against the known-good
+`test_data/test_run/annotation/MYBPC3.annotated.vcf.gz`, using the real resolved transcript
+(`ENST00000545968`, from `resources/gene_transcript_mapping.txt`), and diffed the result against
+`test_data/test_run/results/MYBPC3.parsed.clean.pq`:
+
+- Row count: **17/17, exact match**.
+- Of 559 columns common to both outputs, **557 identical**. The only two that differed —
+  `PRIORITY_TIER` and `VARIANT_PRIORITY_SCORE` — are ACMG/scoring-tier columns, exactly the domain
+  already deprioritized to Module 3 (memory: `project_acmg_tiering_deprioritized`). Cause of the
+  difference not investigated further per the scope steer — could be scoring-logic drift since the
+  reference was generated, or a different original invocation; either way it's Module 3's surface,
+  not a finding about this port's correctness.
+- The new output also carries 17 columns the reference doesn't (`ACMG_CRITERIA`,
+  `DISEASE_PHENOTYPE_MATCH`, `HPO_MATCH`, `TIER_RATIONALE`, etc.) — same domain, not investigated
+  further per the user's scope steer.
+
+(First diff attempt used `x is not True` to check a numpy `.all()` result, which is always `True`
+in Python regardless of the boolean's actual value since numpy bools are never identity-equal to
+the `True` singleton — flagged all 559 columns as "differing" falsely. Caught and fixed before
+trusting the result; noting it since it's an easy mistake to repeat.)
+
+Full `nextflow run main.nf -profile local_dev -stub-run`: exit 0, all five predictors plus
+`MERGE_ANNOTATIONS` plus `VCF_TO_TABLE` completed `1 of 1 ✔`. No new DAG/channel bugs surfaced.
+
+## What's next (not done in Phase 5)
+
+Per the plan's migration sequencing: Phase 6 (full 217-gene panel parity run vs. real `bash
+main.sh` output) is the gate before any WGS work (Phase 7) can start. The four report/filter
+scripts skipped this phase remain unported — revisit only if Module 3 doesn't end up owning that
+surface after all.
