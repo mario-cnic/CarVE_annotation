@@ -25,11 +25,13 @@ include { SPIP_ANNOTATE } from '../modules/local/spip.nf'
 include { FAN_CHUNKS } from './chunk_fan_concat.nf'
 
 // Same inline collect-for-concat sequence as broad_pass_whole.nf — see that file's header
-// comment for why this isn't a shared subworkflow.
+// comment for why this isn't a shared subworkflow, and for why there's no sort-by-filename here
+// (removed per BUG_TRACKER.md MISC-8: it was a no-op for Pangolin/SPiP's identically-named
+// per-chunk output, and unnecessary anyway now that CONCAT_CHUNKS's own `bcftools sort` guarantees
+// correct final ordering regardless of input order).
 def collectForConcat(annotated_chunk_ch, orig_vcf_ch, suffix) {
     annotated_chunk_ch
         .groupTuple()
-        .map { meta, chunk_files -> tuple(meta, chunk_files.sort { it.name }) }
         .join(orig_vcf_ch)
         .map { meta, chunk_files, vcf, tbi -> tuple(meta, chunk_files, vcf, tbi, suffix) }
 }

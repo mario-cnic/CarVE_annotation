@@ -18,14 +18,17 @@ include { VEP_ANNOTATE } from '../modules/local/vep.nf'
 include { BRANCHPOINT_ANNOTATE } from '../modules/local/branchpointer.nf'
 include { SPIP_ANNOTATE } from '../modules/local/spip.nf'
 
-// Groups a tool's per-chunk output back by run, sorts for stable record order (groupTuple() does
-// not guarantee completion order), and pairs it with the pre-chunk input for CONCAT's parity
-// check — the same sequence Phase 1's spliceai_spike.nf established, inlined here per call site
-// since it wraps a process call (see header comment).
+// Groups a tool's per-chunk output back by run and pairs it with the pre-chunk input for
+// CONCAT_CHUNKS's parity check. No sort-by-filename here (an earlier version had one, following
+// Phase 1's spliceai_spike.nf pattern, on the theory that it fixed groupTuple()'s unspecified
+// element order) — removed after BUG_TRACKER.md MISC-8 showed it was a no-op for every predictor
+// except SpliceAI (whose per-chunk filename is uniquely named; VEP/Branchpointer/Pangolin/SPiP's
+// aren't) and, more to the point, unnecessary regardless: CONCAT_CHUNKS's own `bcftools sort`
+// (modules/local/chunk.nf) now guarantees correct final ordering no matter what order chunk_files
+// arrives in here.
 def collectForConcat(annotated_chunk_ch, orig_vcf_ch, suffix) {
     annotated_chunk_ch
         .groupTuple()
-        .map { meta, chunk_files -> tuple(meta, chunk_files.sort { it.name }) }
         .join(orig_vcf_ch)
         .map { meta, chunk_files, vcf, tbi -> tuple(meta, chunk_files, vcf, tbi, suffix) }
 }

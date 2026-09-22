@@ -62,6 +62,27 @@ process CONCAT_CHUNKS {
     // No stub: concat + parity check run for real regardless of -stub-run, same rationale as
     // SPLICEAI_CONCAT (chunk reassembly is genuinely verified even when the per-chunk ANNOTATE
     // step itself is stubbed).
+    //
+    // Real bug caught building a genuine multi-gene, multi-chromosome, multi-chunk test VCF (every
+    // earlier check used a single-chunk, single-chromosome input, which structurally could not
+    // surface this): `groupTuple()` does not guarantee element order, so the fix for that
+    // (`chunk_files.sort { it.name }` up in workflows/{broad_pass_whole,gene_restricted_whole}.nf's
+    // `collectForConcat`) only actually works for SPLICEAI_ANNOTATE, whose per-chunk output
+    // filename is unique per chunk (`${chunk.baseName}.annSpliceAI.vcf.gz`). VEP_ANNOTATE/
+    // BRANCHPOINT_ANNOTATE/PANGOLIN_ANNOTATE/SPIP_ANNOTATE all name their output
+    // `${meta.partition_id}.<suffix>.vcf.gz` — IDENTICAL across every chunk of a run (that's what
+    // the earlier `stageAs` fix above was already working around) — so sorting by that name sorts
+    // identical strings, a no-op, and chunks reassemble in whatever order `groupTuple()` happened
+    // to collect them (task completion order, not submission order). `bcftools concat` then hit a
+    // real chromosome interleaved across chunks and refused ("chromosome block ... is not
+    // contiguous") — even with `-a`/`--allow-overlaps`, which needs per-input indices to run at
+    // all (`bcftools concat -a` without them fails outright: "Could not retrieve index file",
+    // confirmed by testing directly). Fix, verified against the exact failure pattern: tabix-index
+    // each chunk individually first, THEN `concat -a` (now able to run), THEN `bcftools sort` on
+    // the result regardless — belt-and-suspenders, since `-a` tolerates the interleaving but the
+    // final `sort` is what actually guarantees a well-formed, correctly-ordered output no matter
+    // what order chunks physically arrived in. The parity check below still catches any real
+    // record loss; it no longer depends on chunk reassembly order being right in the first place.
     script:
     def final_vcf = "${meta.partition_id}.${suffix}.vcf.gz"
     // Same scalar-vs-List Path gotcha Phase 1 first caught (java.nio.file.Path implements
@@ -71,10 +92,12 @@ process CONCAT_CHUNKS {
     // deep (`chunk_01/<file>`), and `.join(' ')` on that bare Path split it into two bogus
     // arguments ("chunk_01" and the real filename) rather than one.
     def chunk_list = annotated_chunks instanceof List ? annotated_chunks : [annotated_chunks]
-    // No -a/--allow-overlaps: chunks are non-overlapping by construction (sequential
-    // record-count split), same rationale as SPLICEAI_CONCAT.
     """
-    ${params.bcftools} concat ${chunk_list.join(' ')} -Oz -o ${final_vcf}
+    for f in ${chunk_list.join(' ')}; do
+        ${params.tabix} -f -p vcf "\$f"
+    done
+    ${params.bcftools} concat -a ${chunk_list.join(' ')} -Oz -o unsorted.vcf.gz
+    ${params.bcftools} sort unsorted.vcf.gz -Oz -o ${final_vcf}
     ${params.tabix} -p vcf ${final_vcf}
 
     orig_count=\$(${params.bcftools} view -H ${orig_vcf} | wc -l)
