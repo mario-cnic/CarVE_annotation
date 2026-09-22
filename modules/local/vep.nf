@@ -6,12 +6,25 @@
 // Runs on the same un-chunked per-gene VCF as every other predictor (main.sh:437-446), no chunking
 // stage exists for VEP either. Broad-safe tier — every plugin here is one variant-level pass.
 // See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
+//
+// Whole-VCF redesign (plan item 7-8): this process is also reused per-CHUNK in the new whole-VCF
+// path (workflows/broad_pass_whole.nf), where every chunk of the same run shares one `meta`
+// (chunk identity lives only in the task's own work directory, not in the output filename) — so
+// `publishDir` below skips publishing for those chunk-level calls (`meta.partition_type ==
+// 'chunk'`) via `saveAs`, since only CONCAT_CHUNKS's reassembled whole-run file
+// (modules/local/chunk.nf) is a real deliverable; real per-gene calls publish as before. NOTE:
+// Nextflow's `publishDir enabled:` option does NOT support a per-task closure (confirmed by
+// testing directly — `enabled: { ... }` silently disables publishing unconditionally, even for a
+// closure that always returns `true`) — `saveAs` returning `null` to skip a file is the correct,
+// tested idiom for this. Without it, every chunk of the same run would try to publish to the
+// identical filename `${meta.partition_id}.annVEP.vcf.gz` and silently overwrite each other.
 
 process VEP_ANNOTATE {
     tag "${meta.partition_id}"
     label 'process_medium'
     container "${params.vep_sif}"
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
+        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)

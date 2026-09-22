@@ -25,11 +25,24 @@
 // isolated work directory. If cluster profiling later shows this process needs fast local scratch,
 // Nextflow's native `scratch` directive is the right mechanism, not a hand-rolled path — not
 // wired up here since it's unverified without real cluster timing data.
+//
+// Whole-VCF redesign (plan item 10): `meta.transcript` only exists in the legacy per-gene path's
+// meta shape (main.nf) — the whole-VCF path's meta (annotate_vcf.nf) has no such field by design
+// (transcript selection happens per-ROW, not per-partition, see the plan's "Transcript priority
+// tiering" section), so `--gene_set`/`--filter_by` below are only included when `meta.transcript`
+// is actually present; omitting them is exactly vcf_parser_pysam.py's already-existing unfiltered
+// behavior (confirmed by reading vcf_parser_pysam.py:385-386: no selected_genes means no filter,
+// no code change needed there). `publishDir` also only fires for the legacy path
+// (`meta.partition_type == 'gene'`) — in whole-VCF mode (`partition_type == 'chunk'`) this
+// process's output is an intermediate that TAG_TRANSCRIPT_PRIORITY
+// (modules/local/tag_transcript_priority.nf) consumes and re-publishes as the real final
+// deliverable under the identical filename; publishing both would race to the same path.
 
 process VCF_TO_TABLE {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
+        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)
@@ -38,6 +51,7 @@ process VCF_TO_TABLE {
     tuple val(meta), path("${meta.partition_id}.parsed.clean.${params.output_format}"), emit: table
 
     script:
+    def gene_set_flag = meta.transcript ? "--gene_set ${meta.transcript} --filter_by Feature" : ""
     """
     export OMP_NUM_THREADS=1
     export MKL_NUM_THREADS=1
@@ -51,8 +65,7 @@ process VCF_TO_TABLE {
         --vep_columns ${params.vep_cols_file} \\
         --add_info --add_vep --overwrite \\
         --logging_level INFO \\
-        --gene_set ${meta.transcript} \\
-        --filter_by Feature
+        ${gene_set_flag}
 
     ${params.datasci_python} ${params.filter_variants_script} \\
         --input scratch.tsv \\

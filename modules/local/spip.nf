@@ -9,11 +9,17 @@
 // — SPiP does its own internal parallelism via -t/--threads, so these are deliberately pinned to
 // 1 to prevent double-parallelizing) — a real gap in the original Phase 2 commit, caught late.
 // See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
+//
+// Whole-VCF redesign (plan item 7-8): also reused per-CHUNK in both whole-VCF tier subworkflows
+// (whichever one params.spip_tier selects) — publishDir skips chunk-level calls via `saveAs` (see
+// modules/local/vep.nf's comment for why `enabled:` doesn't work for this and `saveAs` does); only
+// CONCAT_CHUNKS's reassembled file (modules/local/chunk.nf) is a real deliverable there.
 
 process SPIP_ANNOTATE {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
+        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)
