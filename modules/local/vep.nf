@@ -50,11 +50,25 @@ process VEP_ANNOTATE {
     // returns; this script runs entirely inside the container, so a host conda tabix binary would
     // be visible via the bind mount but not guaranteed to load (built against host libs). Using
     // the container's own tabix avoids that mismatch entirely.
+    //
+    // NOT ported: annotate_vep_vars.sh's `export PERL5OPT=-X` (meant to silence Mastermind
+    // plugin warnings flooding stderr). Real bug found on the first live cluster run of this
+    // process: `-X`, while a legal `perl` command-line switch, is NOT on PERL5OPT's own allowed-
+    // switch list — Perl itself refuses it ("Illegal switch in PERL5OPT: -X."), which hard-failed
+    // every chunk. Root cause of why this was never caught in the bash pipeline: `annotate_vep_
+    // vars.sh` sets it as a plain host `export` before calling `singularity exec -e ...` (`-e`
+    // = `--cleanenv`), and `--cleanenv` does NOT pass plain host env vars into the container —
+    // only `SINGULARITYENV_`-prefixed ones are. So that `export` never actually reached Perl
+    // inside the container in production either; it was always a silent no-op. Nextflow's own
+    // singularity integration propagates script-exported env vars into the container more
+    // faithfully than a manual bash `singularity exec` call does, which is exactly why a
+    // dormant, always-broken setting only surfaces as a hard failure here. Not replaced with a
+    // working equivalent — the original problem was disk-I/O noise, not correctness, and
+    // reintroducing warning suppression is out of scope for this port.
     script:
     def vep_files = params.vep_dir
     def plugins   = params.vep_plugins_dir
     """
-    export PERL5OPT=-X
     vep --fork ${task.cpus} -species homo_sapiens \\
         --dir_plugins ${params.data_lab_pgp}/resources/annotation/VEP/VEP_plugins \\
         --offline --cache --cache_version ${params.vep_cache_version} --dir ${vep_files}/cache \\
