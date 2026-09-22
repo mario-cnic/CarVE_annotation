@@ -36,7 +36,16 @@ workflow {
     // pre-tagging intermediate (modules/local/vcf_to_table.nf). No `gene`/`transcript` fields —
     // transcript selection happens per-row in TAG_TRANSCRIPT_PRIORITY, not per-partition (see the
     // plan's "Transcript priority tiering" section).
-    run_id = workflow.sessionId.toString()
+    //
+    // run_id (closes BUG_TRACKER.md MISC-7): derived from the input filename by default, same
+    // .baseName.replaceAll(/\.vcf$/, '') pattern main.nf already uses for gene_name — NOT a
+    // Nextflow session UUID (workflow.sessionId), which is fresh and meaningless on every
+    // invocation regardless of input, so two runs of the same sample produced two unrelated,
+    // unfindable output directories. Deterministic naming also means a re-run of the same input
+    // lands in the same output directory (matching main.sh's own is_valid_file-checkpoint
+    // philosophy) rather than scattering a new one every time. --run_id overrides this when the
+    // filename itself isn't a meaningful identifier (e.g. a generic "input.vcf.gz").
+    run_id = params.run_id ?: input_vcf_file.baseName.replaceAll(/\.vcf$/, '')
     meta = [
         partition_type : 'chunk',
         partition_id   : run_id,

@@ -1,0 +1,124 @@
+#!/bin/bash
+# Provenance-wrapped launch for the Nextflow whole-VCF entry point (annotate_vcf.nf) — writes a
+# run-provenance manifest before/after the real `nextflow` invocation, closing TODO.md's
+# Priority-0 item and BUG_TRACKER.md's MISC-7 (no reliable way to reconstruct what a past run
+# actually used). Mirrors sarek_pipeline/run_sarek.sh's launch/run/completed pattern (PLT-012) —
+# same schema, own copy per DEC-0002 (repos stay separate, no shared import).
+#
+# This does not change what gets run — every argument is passed to `nextflow` unmodified, with one
+# deliberate exception: --run_id is always resolved here first (filename-derived if you don't pass
+# one) and forwarded explicitly, so this script's own $RUN_ID — which is what it uses to compute
+# RUN_MANIFEST.json's location — is guaranteed to be the same value Nextflow actually uses, rather
+# than two independent derivations (bash here, Groovy in annotate_vcf.nf) that could disagree on
+# an input filename shape neither was tested against.
+#
+# Usage (same arguments you'd already pass to `nextflow run annotate_vcf.nf` directly):
+#   ./run_annotate_vcf.sh -profile standard --input_vcf sample.vcf.gz [--run_id label] \
+#     [--spip_tier restricted] [--output_format pq] [-resume]
+set -uo pipefail
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+MANIFEST_PY="$REPO_ROOT/src/python/write_run_manifest.py"
+MAIN_NF="$REPO_ROOT/annotate_vcf.nf"
+CONFIG="$REPO_ROOT/nextflow.config"
+
+ARGS=("$@")
+INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0
+FORWARD_ARGS=()
+i=0
+while [[ $i -lt ${#ARGS[@]} ]]; do
+	case "${ARGS[$i]}" in
+	--input_vcf) INPUT="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	# --run_id is deliberately dropped from FORWARD_ARGS here, not forwarded as-typed: it's
+	# re-added once, below, from $RUN_ID — the one place this script computes it — so Nextflow
+	# never derives its own value in parallel (see the note below this loop for why that matters).
+	--run_id) RUN_ID="${ARGS[$((i + 1))]}"; i=$((i + 1)) ;;
+	-profile) PROFILE="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	--spip_tier) SPIP_TIER="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	--output_format) OUTPUT_FORMAT="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	-resume) RESUME=1; FORWARD_ARGS+=("${ARGS[$i]}") ;;
+	*) FORWARD_ARGS+=("${ARGS[$i]}") ;;
+	esac
+	i=$((i + 1))
+done
+
+if [[ -z "$INPUT" ]]; then
+	echo "error: --input_vcf is required (same as annotate_vcf.nf itself needs it)" >&2
+	exit 2
+fi
+
+# Same input-filename-derived default as annotate_vcf.nf's own run_id fallback (BUG_TRACKER.md
+# MISC-7). Computed in bash here (not left to annotate_vcf.nf's own Groovy fallback) because this
+# script needs the value up front, to know where to write RUN_MANIFEST.json — and re-implementing
+# the same rule in two languages is exactly the kind of thing that silently diverges on an input
+# filename shape neither rule was tested against (found in review: Groovy's `.baseName` strips
+# only the last extension, so e.g. "sample.vcf.bgz" resolves differently under each rule). Rather
+# than trust the two derivations to agree, this script's own $RUN_ID is made AUTHORITATIVE by
+# always passing --run_id explicitly to the real `nextflow run` call below — Nextflow's own
+# fallback logic in annotate_vcf.nf never actually fires for a wrapper-launched run; it only
+# matters for someone invoking `nextflow run annotate_vcf.nf` directly, without this wrapper.
+if [[ -z "$RUN_ID" ]]; then
+	RUN_ID="$(basename "$INPUT")"
+	RUN_ID="${RUN_ID%.gz}"
+	RUN_ID="${RUN_ID%.vcf}"
+fi
+FORWARD_ARGS+=(--run_id "$RUN_ID")
+
+# Resolve the same binary paths/config values this run will actually use, from the SAME
+# nextflow.config the real run reads — not re-derived or hardcoded here.
+resolve_param() {
+	nextflow config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null | \
+		grep -E "^\s*$1\s*=" | head -1 | sed -E "s/^\s*$1\s*=\s*'?([^']*)'?\s*\$/\1/"
+}
+BCFTOOLS="$(resolve_param bcftools)"
+VEP_SIF="$(resolve_param vep_sif)"
+VEP_CACHE_VERSION="$(resolve_param vep_cache_version)"
+SPLICEAI_DISTANCE="$(resolve_param spliceai_distance)"
+PANGOLIN_DISTANCE="$(resolve_param pangolin_distance)"
+
+OUTDIR="$REPO_ROOT/nf_work/annotation_out/$RUN_ID"
+
+RESUME_FLAG=()
+[[ $RESUME -eq 1 ]] && RESUME_FLAG=(-resume)
+
+echo "[run_annotate_vcf.sh] writing launch manifest to $OUTDIR/RUN_MANIFEST.json"
+python3 "$MANIFEST_PY" launch \
+	--outdir "$OUTDIR" \
+	--command-line "nextflow run annotate_vcf.nf ${FORWARD_ARGS[*]}" \
+	--nextflow-main "$MAIN_NF" \
+	--config "$CONFIG" \
+	--input "$INPUT" \
+	--run-id "$RUN_ID" \
+	--profile "$PROFILE" \
+	--spip-tier "$SPIP_TIER" \
+	--output-format "$OUTPUT_FORMAT" \
+	--bcftools "$BCFTOOLS" \
+	--vep-sif "$VEP_SIF" \
+	--vep-cache-version "$VEP_CACHE_VERSION" \
+	--spliceai-distance "$SPLICEAI_DISTANCE" \
+	--pangolin-distance "$PANGOLIN_DISTANCE" \
+	"${RESUME_FLAG[@]:+--resume}" || {
+	echo "error: failed to write launch manifest — aborting before launching nextflow" >&2
+	exit 1
+}
+
+echo "[run_annotate_vcf.sh] launching: nextflow run annotate_vcf.nf ${FORWARD_ARGS[*]}"
+cd "$REPO_ROOT" && nextflow run annotate_vcf.nf "${FORWARD_ARGS[@]}"
+EXIT_CODE=$?
+
+echo "[run_annotate_vcf.sh] nextflow exited $EXIT_CODE — writing completion manifest"
+python3 "$MANIFEST_PY" completed \
+	--outdir "$OUTDIR" \
+	--exit-code "$EXIT_CODE" \
+	--nextflow-log "$REPO_ROOT/.nextflow.log"
+
+# Rescue the manifest past nf_work/'s default-deny .gitignore. `git add -f` is used (not a
+# .gitignore negation rule) because git cannot re-include a file whose PARENT directory is itself
+# excluded — same rationale, same fix, as sarek_pipeline/run_sarek.sh's identical comment.
+echo "[run_annotate_vcf.sh] staging the manifest with 'git add -f' (not committing)"
+git -C "$REPO_ROOT" add -f "$OUTDIR/RUN_MANIFEST.json" 2>/dev/null
+
+echo "[run_annotate_vcf.sh] done. Review with 'git -C $REPO_ROOT status', then commit yourself:"
+echo "  git -C $REPO_ROOT status"
+
+exit $EXIT_CODE
