@@ -99,3 +99,42 @@
     - Wrap the published R implementation (https://github.com/adavi4/SAI-10k-calc) as a subprocess rather than reimplementing — the real decision logic is in a supplementary flowchart (Supplementary File S1) not available locally; porting it from the paper's summary text would mean guessing at the algorithm.
   - Source paper saved at `/home/mruizp/Downloads/btad179.pdf` (not yet copied into the repo).
 
+### Non-coding predictor gap vs. `Anotación de Variantes No Codificantes.docx` (added 2026-09-24)
+
+Gap check against the three predictor tables of the review doc (16 tools): **4 integrated** — SpliceAI (`modules/local/vep.nf:85` + local `spliceai.nf`), Pangolin (`pangolin.nf`), SpliceVault (`vep.nf:95`), UTRAnnotator (`vep.nf:84`) — **12 missing**, 0/6 in the cis-regulatory category. Known defects in the integrated four are tracked in `BUG_TRACKER.md` (`PRED-6` SpliceAI fillna, `PRED-7` SpliceVault strand, `PRED-13` UTRAnnotator; `PRED-1` is gene-vs-transcript-row scoping, not tissue scores — corrected here 2026-09-25, see below), not here.
+
+**Update 2026-09-25**: Pangolin's own tissue-of-origin is now surfaced — `pangolin.py` reports which
+of its 4 trained tissues (Heart/Liver/Brain/Testis) produced the winning gain/loss score (new
+`PangolinTissue` INFO field), rather than only the folded min/max across all 4. This does **not**
+close the gap the AbSplice bullet below describes: Pangolin's model has one generic "Heart" channel,
+not GTEx's Heart-Left-Ventricle/Heart-Atrial-Appendage subtissue split, so it still can't provide
+real cardiac-subtissue-specific evidence the way AbSplice would. Separately, found (not fixed —
+low priority, deferred) that `shared/utils`'s `Pangolin_heart_lv_score`/`Pangolin_heart_aa_score`
+columns already claim that subtissue specificity and don't actually have it — same generic
+max/min value duplicated under misleading names. Tracked as `carve-platform` `PLT-138`/`PRED-14`.
+
+Prioritization criterion (user, 2026-09-24): **priority = the tool's output is direct evidence for finding a pathogenic variant in Mendelian (cardiac) disease**; everything else is pending. Any new score enters informational-only (status contract `scored`/`not_covered`/`not_applicable`, no effect on `NEW_IMPACT`/`PRIORITY_TIER`) until a threshold is calibrated on cardiac data — same policy as MaxEntScan (`PRED-11`).
+
+#### Priority
+
+- [ ] **NCBoost v2** — trained specifically on Mendelian pathogenic non-coding SNVs (promoters, UTRs, deep intronic).
+  - Before integrating: confirm a GRCh38 genome-wide precomputed release and its license; if it exists, a VEP `--custom` lookup is enough (broad-safe tier).
+  - Caveat: training set includes HGMD/ClinVar pathogenic variants — any evaluation on ClinVar-derived truth is circular.
+- [ ] **ReMM** — Mendelian non-coding pathogenicity score, the engine behind Genomiser. Precomputed GRCh38 SNV scores exist (Exomiser data release) → VEP `--custom`, broad-safe.
+  - **Must not be used with a default threshold**: the review doc's own HKGP evidence shows default ReMM floods the candidate list and *lowered* diagnostic sensitivity vs. Exomiser. Threshold must be calibrated (take the HKGP value from the source paper, not from the doc — the number is lost in the docx export) before it touches ranking.
+- [ ] **SQUIRLS** — interpretable splice-variant classifier trained on Mendelian pathogenic non-canonical splice variants; complements SpliceAI outside the canonical ±1/2 dinucleotides (exactly where ClinGen SVI PP3/BP4 applies). Standalone Java on VCF; tier (broad vs. gene-restricted) to be decided from real cost, per `ORCH-10` policy.
+- [ ] **AbSplice (GTEx `Heart - Left Ventricle` / `Heart - Atrial Appendage`)** — the only tool on the list that provides *real* cardiac subtissue-specific splicing evidence. Still true after 2026-09-25's Pangolin tissue-of-origin patch (see above) — Pangolin's model only has one generic "Heart" channel, not GTEx's LV/AA split.
+  - Decide v1 vs. AbSplice2: AbSplice2's added value is developmental splicing, reported mainly for brain/neurodevelopment — verify it adds anything for adult cardiac disease before paying for it.
+  - Check for a GRCh38 precomputed release first; live inference needs SpliceAI + MMSplice inputs (MMSplice then comes in as a dependency, not as its own item).
+
+#### Pending
+
+- [ ] **APARENT2** (3'UTR polyadenylation) — plausible mechanism, little Mendelian clinical validation; live deep-learning inference.
+- [ ] **MORFEE** (uAUG creation, SNV-only) — largely redundant with UTRAnnotator already in VEP.
+- [ ] **TargetScan / miRanda** (miRNA seed gain/loss) — weak evidence for Mendelian pathogenicity, high false-positive load.
+- [ ] **SpliceTransformer** — overlaps SpliceAI/Pangolin; GPU-heavy.
+- [ ] **MMSplice / MTSplice** — only if AbSplice is not adopted (otherwise subsumed).
+- [ ] **regBase-PAT** — meta-score over 23 tools (several already present or planned above); check which genome build its release uses.
+- [ ] **RegVar** — expression-impact + target gene; functional, not pathogenicity.
+- [ ] **Sei / Enformer** — predict chromatin/expression activity, not pathogenicity; heavy compute; would need their own calibration before carrying any evidential weight.
+
