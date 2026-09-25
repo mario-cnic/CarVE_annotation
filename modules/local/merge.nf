@@ -50,7 +50,7 @@ process MERGE_ANNOTATIONS {
     ${params.bcftools} annotate -a ${spip_vcf} -c SPiP ${vep_vcf} -Oz -o tmp_spip.vcf.gz
     ${params.tabix} -f tmp_spip.vcf.gz
 
-    ${params.bcftools} annotate -a ${pango_vcf} -c Pangolin tmp_spip.vcf.gz -Oz -o tmp_pangolin.vcf.gz
+    ${params.bcftools} annotate -a ${pango_vcf} -c Pangolin,PangolinTissue tmp_spip.vcf.gz -Oz -o tmp_pangolin.vcf.gz
     ${params.tabix} -f tmp_pangolin.vcf.gz
 
     ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.vcf.gz -Oz -o tmp_spliceai.vcf.gz

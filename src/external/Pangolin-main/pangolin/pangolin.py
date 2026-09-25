@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import gzip
 import pysam
@@ -19,10 +20,28 @@ IN_MAP = np.asarray([[0, 0, 0, 0],
                      [0, 0, 1, 0],
                      [0, 0, 0, 1]])
 
+# Tissue order matches the model-loading loop below (`for i in [0,2,4,6]`) and the channel
+# indices [1,4,7,10] used per j in compute_score() -- confirmed against this vendored repo's own
+# scripts/custom_usage.py header comment ("0 = Heart", "2 = Liver", "4 = Brain", "6 = Testis").
+# Not configurable: this is the full set of tissues Pangolin's bundled models were trained on
+# (GTEx), there is no separate left-ventricle/atrial-appendage split available anywhere in this
+# model (see annotation_pipeline_new BUG_TRACKER / carve-platform PLT-138 for the downstream
+# code that incorrectly implies otherwise).
+TISSUES = ["Heart", "Liver", "Brain", "Testis"]
+
 
 def one_hot_encode(seq, strand):
     seq = seq.upper().replace('A', '1').replace('C', '2')
-    seq = seq.replace('G', '3').replace('T', '4').replace('N', '0')
+    seq = seq.replace('G', '3').replace('T', '4')
+    # Any character other than A/C/G/T (N, or a rarer IUPAC ambiguity code such as R/Y/S/W/K/M/
+    # B/D/H/V) maps to '0' -- the same all-zero "no information" row IN_MAP already uses for N.
+    # Previously only literal 'N' got this treatment; anything else (e.g. 'R') reached int() and
+    # crashed. This is a real, confirmed case, not a hypothetical: chr16:88366825 is 'R' in this
+    # GRCh38 GATK-bundle FASTA (verified independently via `samtools faidx`), ~6.2kb from a real
+    # WGS variant (chr16:88373021 C>T, ZNF469) -- Pangolin fetches a ~10kb reference window
+    # around every variant, so an ambiguity code anywhere in that window reaches this function
+    # even when the variant's own alleles are completely unambiguous.
+    seq = re.sub(r'[^1234]', '0', seq)
     if strand == '+':
         seq = np.asarray(list(map(int, list(seq))))
     elif strand == '-':
@@ -61,9 +80,11 @@ def compute_score(ref_seq, alt_seq, strand, d, models):
         pangolin.append(np.mean(score, axis=0))
     
     pangolin = np.array(pangolin)
-    loss = pangolin[np.argmin(pangolin, axis=0), np.arange(pangolin.shape[1])]
-    gain = pangolin[np.argmax(pangolin, axis=0), np.arange(pangolin.shape[1])]
-    return loss, gain
+    loss_tissue = np.argmin(pangolin, axis=0)
+    gain_tissue = np.argmax(pangolin, axis=0)
+    loss = pangolin[loss_tissue, np.arange(pangolin.shape[1])]
+    gain = pangolin[gain_tissue, np.arange(pangolin.shape[1])]
+    return loss, gain, loss_tissue, gain_tissue
 
 
 def get_genes(chr, pos, gtf):
@@ -136,16 +157,18 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
         return -1
 
     # get splice scores
-    loss_pos, gain_pos = None, None
+    loss_pos, gain_pos, loss_tissue_pos, gain_tissue_pos = None, None, None, None
     if len(genes_pos) > 0:
-        loss_pos, gain_pos = compute_score(ref_seq, alt_seq, '+', d, models)
-    loss_neg, gain_neg = None, None
+        loss_pos, gain_pos, loss_tissue_pos, gain_tissue_pos = compute_score(ref_seq, alt_seq, '+', d, models)
+    loss_neg, gain_neg, loss_tissue_neg, gain_tissue_neg = None, None, None, None
     if len(genes_neg) > 0:
-        loss_neg, gain_neg = compute_score(ref_seq, alt_seq, '-', d, models)
+        loss_neg, gain_neg, loss_tissue_neg, gain_tissue_neg = compute_score(ref_seq, alt_seq, '-', d, models)
 
     scores_list = []
-    for (genes, loss, gain) in (
-        (genes_pos,loss_pos,gain_pos),(genes_neg,loss_neg,gain_neg)
+    tissue_list = []
+    for (genes, loss, gain, loss_tissue, gain_tissue) in (
+        (genes_pos,loss_pos,gain_pos,loss_tissue_pos,gain_tissue_pos),
+        (genes_neg,loss_neg,gain_neg,loss_tissue_neg,gain_tissue_neg)
     ):
         # Emit a bundle of scores/warnings per gene; join them all later
         for gene, positions in genes.items():
@@ -200,11 +223,22 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
                 gain_str = f"{g-d}:{round(gain[g],2)}"
                 loss_str = f"{l-d}:{round(loss[l],2)}"
                 per_gene_scores += [gain_str, loss_str]
+                # Real tissue-of-origin, added alongside the existing gain/loss score rather than
+                # folded into it: the existing `Pangolin=` field's `pos:score` shape is consumed
+                # by shared/utils's parse_pangolin (expects exactly 2 ':'-parts per entry), so
+                # this is reported as a separate INFO field (PangolinTissue) instead of a 3rd
+                # ':'-delimited component, to not silently break that parser.
+                tissue_list.append('|'.join([gene, TISSUES[gain_tissue[g]], TISSUES[loss_tissue[l]]]))
 
+            # NOTE: the --score_exons and -s/--score_cutoff branches above don't populate
+            # tissue_list -- this pipeline never passes either flag (see modules/local/pangolin.nf),
+            # so tissue_list intentionally only stays aligned with scores_list for the branch
+            # actually used in production. A caller combining --score_exons/-s with tissue
+            # reporting would need to extend those branches the same way first.
             per_gene_scores.append(warnings)
             scores_list.append('|'.join(per_gene_scores))
 
-    return ','.join(scores_list)
+    return ','.join(scores_list), ','.join(tissue_list)
 
 def main():
     parser = argparse.ArgumentParser()
@@ -252,12 +286,18 @@ def main():
         
         v_in = pysam.VariantFile(variants_path)
         v_in.header.info.add("Pangolin", ".", "String", "Pangolin splice score predictions")
+        v_in.header.info.add("PangolinTissue", ".", "String",
+            "Which of Pangolin's 4 trained GTEx tissues (Heart, Liver, Brain, Testis) produced "
+            "the reported gain/loss score in the Pangolin field, per gene: gene|gain_tissue|loss_tissue")
         v_out = pysam.VariantFile(out_path, "w", header=v_in.header)
 
         for i, variant in enumerate(v_in):
-            scores = process_variant(i+1, str(variant.chrom), int(variant.pos), variant.ref, str(variant.alts[0]), gtf, models, args)
-            if scores != -1:
+            result = process_variant(i+1, str(variant.chrom), int(variant.pos), variant.ref, str(variant.alts[0]), gtf, models, args)
+            if result != -1:
+                scores, tissues = result
                 variant.info["Pangolin"] = str(scores)
+                if tissues:
+                    variant.info["PangolinTissue"] = str(tissues)
             v_out.write(variant)
 
         v_in.close()
@@ -267,17 +307,18 @@ def main():
         col_ids = args.column_ids.split(',')
         variants = pd.read_csv(variants, header=0)
         fout = open(args.output_file+".csv", 'w')
-        fout.write(','.join(variants.columns)+',Pangolin\n')
+        fout.write(','.join(variants.columns)+',Pangolin,PangolinTissue\n')
         fout.flush()
 
         for lnum, variant in variants.iterrows():
             chr, pos, ref, alt = variant[col_ids]
             ref, alt = ref.upper(), alt.upper()
-            scores = process_variant(lnum+1, str(chr), int(pos), ref, alt, gtf, models, args)
-            if scores == -1:
-                fout.write(','.join(variant.to_csv(header=False, index=False).split('\n'))+'\n')
+            result = process_variant(lnum+1, str(chr), int(pos), ref, alt, gtf, models, args)
+            if result == -1:
+                fout.write(','.join(variant.to_csv(header=False, index=False).split('\n'))+',,\n')
             else:
-                fout.write(','.join(variant.to_csv(header=False, index=False).split('\n'))+scores+'\n')
+                scores, tissues = result
+                fout.write(','.join(variant.to_csv(header=False, index=False).split('\n'))+scores+','+tissues+'\n')
             fout.flush()
 
         fout.close()
