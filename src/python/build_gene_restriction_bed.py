@@ -111,19 +111,25 @@ def main():
     # Sort by (chrom, start) for a well-formed BED; chrom sort is lexicographic (matches
     # this repo's existing cardio_genes_loc.bed, which is not karyotype-sorted either).
     #
-    # Strip the MANE GTF's "chr" prefix: confirmed by inspecting real pipeline VCFs (both a
-    # pre-annotation test file and production's own MYBPC3.annVEP.vcf.gz) that CHROM values
-    # flowing through this pipeline are bare ("11"), not "chr"-prefixed, even though the
-    # reference FASTA itself uses "chr"-prefixed contigs (VEP bridges that gap internally via
-    # --synonyms chr_synonyms.txt; bcftools view -R, which this BED is actually used with, does
-    # not — an exact string match is required, so this BED must match the VCF's own convention).
+    # Emit BOTH contig-naming conventions per region (bare "11" AND "chr11"). Originally this
+    # stripped the MANE GTF's "chr" prefix unconditionally, based on inspecting the legacy bash
+    # pipeline's own per-gene VCFs (bare-contig convention). That assumption broke on the first
+    # real WGS input from `sarek_pipeline` (Module 1): its calls use "chr"-prefixed GRCh38
+    # contigs, so `bcftools view -R` against a bare-only BED matched ~0 records genome-wide
+    # (GENE_SUBSET silently produced 2 records instead of tens of thousands, confirmed on a real
+    # cluster run 2026-09-24). VEP bridges this same ambiguity internally via
+    # --synonyms chr_synonyms.txt; bcftools view -R has no equivalent synonym-file support, so
+    # both conventions are baked into the BED itself instead — harmless for whichever convention
+    # doesn't match the input (those rows just never overlap anything), correct for both.
     rows = []
     for gene in matched:
         chrom, start, end, strand = mane_coords[gene]
-        chrom = chrom[3:] if chrom.startswith("chr") else chrom
         bed_start = max(0, (start - 1) - args.margin)
         bed_end = end + args.margin
-        rows.append((chrom, bed_start, bed_end, gene, ".", strand))
+        bare_chrom = chrom[3:] if chrom.startswith("chr") else chrom
+        chr_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
+        for c in {bare_chrom, chr_chrom}:
+            rows.append((c, bed_start, bed_end, gene, ".", strand))
     rows.sort(key=lambda r: (r[0], r[1]))
 
     with open(args.output, "w", newline="") as f:
