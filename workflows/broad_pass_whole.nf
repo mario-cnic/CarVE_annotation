@@ -38,7 +38,7 @@ workflow BROAD_PASS_WHOLE_SUBWORKFLOW {
     meta_vcf_ch   // tuple(meta, vcf, tbi) — the FULL, unfiltered whole-run input
 
     main:
-    CHUNK_VCF(meta_vcf_ch)
+    CHUNK_VCF(meta_vcf_ch, params.chunk_size)
 
     // Fan out directly off CHUNK_VCF.out.chunks, same as Phase 1's spliceai_spike.nf — NOT
     // wrapped in a shared FAN_CHUNKS subworkflow (an earlier version of this file did; dropped

@@ -26,7 +26,10 @@ process SPLICEAI_CHUNK {
 
 process SPLICEAI_ANNOTATE {
     tag "${meta.partition_id}/${chunk.baseName}"
-    label 'process_medium'
+    // process_long, not process_medium: real WGS-scale wall-clock kill found 2026-09-25
+    // (BUG_TRACKER.md MISC-11) -- see nextflow.config's process_long comment for the qacct
+    // evidence (time problem, not memory).
+    label 'process_long'
 
     input:
     tuple val(meta), path(chunk)

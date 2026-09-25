@@ -41,10 +41,10 @@ workflow GENE_RESTRICTED_WHOLE_SUBWORKFLOW {
     meta_vcf_ch   // tuple(meta, vcf, tbi) — the FULL, unfiltered whole-run input
 
     main:
-    GENE_SUBSET(meta_vcf_ch)
+    GENE_SUBSET(meta_vcf_ch, file(params.gene_restriction_bed))
     subset_ch = GENE_SUBSET.out.vcf   // tuple(meta, subset.vcf.gz, subset.vcf.gz.tbi)
 
-    CHUNK_VCF(subset_ch)
+    CHUNK_VCF(subset_ch, params.gene_restricted_chunk_size)
     chunk_ch = FAN_CHUNKS(CHUNK_VCF.out.chunks)
 
     // SPLICEAI_ANNOTATE takes/emits tuple(meta, chunk) — 2 elements, no tbi at all — unlike the

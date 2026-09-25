@@ -17,19 +17,35 @@ process CHUNK_VCF {
     // path, with no changes needed to those processes themselves.
     input:
     tuple val(meta), path(vcf), path(tbi)
+    val(chunk_size)
 
     output:
     tuple val(meta), path("chunks/chunk_*.vcf.gz"), path("chunks/chunk_*.vcf.gz.tbi"), emit: chunks
 
     // No stub: chunking needs no FASTA/model and runs for real even under -stub-run (same
     // rationale as SPLICEAI_CHUNK, which this process supersedes for the whole-VCF path).
+    //
+    // chunk_size is a call-site argument, not a bare params.chunk_size interpolation: the broad
+    // tier (VEP/Branchpointer) and gene-restricted tier (SpliceAI/Pangolin/SPiP) need different
+    // chunk sizes (BUG_TRACKER.md MISC-11 -- see workflows/broad_pass_whole.nf and
+    // workflows/gene_restricted_whole.nf's own CHUNK_VCF call sites for which param each passes).
+    //
+    // A short-lived attempt (2026-09-25) tried to preserve `-resume`-ability for the broad tier by
+    // splitting this into two processes (CHUNK_VCF + a gene-restricted-only CHUNK_VCF_RESTRICTED
+    // twin), reasoning that adding this same `val(chunk_size)` input directly to a single shared
+    // CHUNK_VCF would change its task hash even for the broad-tier call site, whose actual value
+    // (20000) never changed. That reasoning was correct, but the fix didn't survive contact with
+    // reality: it didn't restore the cache-hit in practice, so reverted back to this single shared
+    // process -- Mario's call, given no `-resume` cost matters for this run. Net effect: every
+    // relaunch fully reprocesses both tiers regardless of whether either tier's own settings
+    // actually changed. Accepted, not fixed.
     script:
     """
     mkdir -p chunks
     ${params.python_spliceai} ${params.split_vcf_chunks_script} \\
         --input ${vcf} \\
         --output-dir chunks \\
-        --chunk-size ${params.chunk_size}
+        --chunk-size ${chunk_size}
     """
 }
 
