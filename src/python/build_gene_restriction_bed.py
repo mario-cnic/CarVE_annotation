@@ -111,16 +111,10 @@ def main():
     # Sort by (chrom, start) for a well-formed BED; chrom sort is lexicographic (matches
     # this repo's existing cardio_genes_loc.bed, which is not karyotype-sorted either).
     #
-    # Emit BOTH contig-naming conventions per region (bare "11" AND "chr11"). Originally this
-    # stripped the MANE GTF's "chr" prefix unconditionally, based on inspecting the legacy bash
-    # pipeline's own per-gene VCFs (bare-contig convention). That assumption broke on the first
-    # real WGS input from `sarek_pipeline` (Module 1): its calls use "chr"-prefixed GRCh38
-    # contigs, so `bcftools view -R` against a bare-only BED matched ~0 records genome-wide
-    # (GENE_SUBSET silently produced 2 records instead of tens of thousands, confirmed on a real
-    # cluster run 2026-09-24). VEP bridges this same ambiguity internally via
-    # --synonyms chr_synonyms.txt; bcftools view -R has no equivalent synonym-file support, so
-    # both conventions are baked into the BED itself instead — harmless for whichever convention
-    # doesn't match the input (those rows just never overlap anything), correct for both.
+    # Emit BOTH contig-naming conventions per region (bare "11" AND "chr11"): different VCF
+    # sources use different conventions, and `bcftools view -R` needs an exact string match with
+    # no synonym-file support (unlike VEP's --synonyms). Harmless for whichever convention doesn't
+    # match a given input — those rows just never overlap anything.
     rows = []
     for gene in matched:
         chrom, start, end, strand = mane_coords[gene]

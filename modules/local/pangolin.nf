@@ -1,23 +1,13 @@
-// Phase 2: Pangolin splice predictor, ported from src/hpc/annotate_pangolin_vars.sh.
-// Unlike SpliceAI, main.sh runs Pangolin directly on the whole per-gene VCF.gz (main.sh:458-463)
-// — no chunking stage exists for it, so this is a single process, not a chunk/fan-out subworkflow.
-// OMP/MKL/OPENBLAS_NUM_THREADS exports (added 2026-09-21, Phase 3 review) port
-// annotate_pangolin_vars.sh's own `export ..._NUM_THREADS=${THREADS:-4}` — a real gap in the
-// original Phase 2 commit, caught late: without it, torch/numpy oversubscribe threads past the
-// SGE-allocated slot count on the cluster (unreproducible in this local sandbox).
-// See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
-//
-// Whole-VCF redesign (plan item 7-8): also reused per-CHUNK in workflows/gene_restricted_whole.nf —
-// publishDir skips chunk-level calls via `saveAs` (see modules/local/vep.nf's comment for why
-// `enabled:` doesn't work for this and `saveAs` does); only CONCAT_CHUNKS's reassembled file
-// (modules/local/chunk.nf) is a real deliverable there.
+// Pangolin splice predictor. Runs per-chunk in the gene-restricted tier (chunk boundaries don't
+// affect correctness — each variant is scored independently against the FASTA).
 
 process PANGOLIN_ANNOTATE {
-    tag "${meta.partition_id}"
-    // process_long, not process_medium: real WGS-scale wall-clock kill found 2026-09-25
-    // (BUG_TRACKER.md MISC-11) -- see nextflow.config's process_long comment for the qacct
-    // evidence (time problem, not memory).
+    // Includes the chunk filename so Nextflow's progress display distinguishes concurrent chunks.
+    tag "${meta.partition_id}/${vcf.baseName}"
+    // Wall-clock, not memory-bound: per-chunk runtime is highly variable (minutes to many hours),
+    // so this needs a much larger time ceiling than the other predictors' process_medium.
     label 'process_long'
+    // Chunk-level runs are unpublished intermediates; only CONCAT_CHUNKS's reassembled output is.
     publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
         saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
@@ -27,12 +17,12 @@ process PANGOLIN_ANNOTATE {
     output:
     tuple val(meta), path("${meta.partition_id}.annPangolin.vcf.gz"), path("${meta.partition_id}.annPangolin.vcf.gz.tbi"), emit: vcf
 
-    // Real inference needs the GRCh38 FASTA + the ~1GB pangolin_grch38.db, unavailable in this
-    // sandbox (mirrors SPLICEAI_ANNOTATE's stub rationale). Stub proves the DAG wiring only.
+    // Needs the GRCh38 FASTA + the model DB; stub proves DAG wiring only.
     script:
     def raw_out = "${meta.partition_id}.annPangolin.vcf"
     """
     zcat ${vcf} > raw_input.vcf
+    // Without these, torch/numpy oversubscribe threads past the SGE-allocated slot count.
     export OMP_NUM_THREADS=${task.cpus}
     export MKL_NUM_THREADS=${task.cpus}
     export OPENBLAS_NUM_THREADS=${task.cpus}

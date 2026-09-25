@@ -22,23 +22,12 @@ process CHUNK_VCF {
     output:
     tuple val(meta), path("chunks/chunk_*.vcf.gz"), path("chunks/chunk_*.vcf.gz.tbi"), emit: chunks
 
-    // No stub: chunking needs no FASTA/model and runs for real even under -stub-run (same
-    // rationale as SPLICEAI_CHUNK, which this process supersedes for the whole-VCF path).
+    // No stub: chunking needs no FASTA/model and runs for real even under -stub-run.
     //
-    // chunk_size is a call-site argument, not a bare params.chunk_size interpolation: the broad
-    // tier (VEP/Branchpointer) and gene-restricted tier (SpliceAI/Pangolin/SPiP) need different
-    // chunk sizes (BUG_TRACKER.md MISC-11 -- see workflows/broad_pass_whole.nf and
-    // workflows/gene_restricted_whole.nf's own CHUNK_VCF call sites for which param each passes).
-    //
-    // A short-lived attempt (2026-09-25) tried to preserve `-resume`-ability for the broad tier by
-    // splitting this into two processes (CHUNK_VCF + a gene-restricted-only CHUNK_VCF_RESTRICTED
-    // twin), reasoning that adding this same `val(chunk_size)` input directly to a single shared
-    // CHUNK_VCF would change its task hash even for the broad-tier call site, whose actual value
-    // (20000) never changed. That reasoning was correct, but the fix didn't survive contact with
-    // reality: it didn't restore the cache-hit in practice, so reverted back to this single shared
-    // process -- Mario's call, given no `-resume` cost matters for this run. Net effect: every
-    // relaunch fully reprocesses both tiers regardless of whether either tier's own settings
-    // actually changed. Accepted, not fixed.
+    // chunk_size is a call-site argument since the broad and gene-restricted tiers need different
+    // values (see their respective workflow files for which param each passes). Note: since this
+    // process is shared between both tiers, any change to it invalidates `-resume` for both,
+    // including tasks whose own settings didn't change.
     script:
     """
     mkdir -p chunks

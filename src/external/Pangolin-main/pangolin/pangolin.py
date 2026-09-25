@@ -21,26 +21,16 @@ IN_MAP = np.asarray([[0, 0, 0, 0],
                      [0, 0, 0, 1]])
 
 # Tissue order matches the model-loading loop below (`for i in [0,2,4,6]`) and the channel
-# indices [1,4,7,10] used per j in compute_score() -- confirmed against this vendored repo's own
-# scripts/custom_usage.py header comment ("0 = Heart", "2 = Liver", "4 = Brain", "6 = Testis").
-# Not configurable: this is the full set of tissues Pangolin's bundled models were trained on
-# (GTEx), there is no separate left-ventricle/atrial-appendage split available anywhere in this
-# model (see annotation_pipeline_new BUG_TRACKER / carve-platform PLT-138 for the downstream
-# code that incorrectly implies otherwise).
+# indices [1,4,7,10] used per j in compute_score(). This is the full set of tissues Pangolin's
+# bundled models were trained on (GTEx) -- no left-ventricle/atrial-appendage split exists here.
 TISSUES = ["Heart", "Liver", "Brain", "Testis"]
 
 
 def one_hot_encode(seq, strand):
     seq = seq.upper().replace('A', '1').replace('C', '2')
     seq = seq.replace('G', '3').replace('T', '4')
-    # Any character other than A/C/G/T (N, or a rarer IUPAC ambiguity code such as R/Y/S/W/K/M/
-    # B/D/H/V) maps to '0' -- the same all-zero "no information" row IN_MAP already uses for N.
-    # Previously only literal 'N' got this treatment; anything else (e.g. 'R') reached int() and
-    # crashed. This is a real, confirmed case, not a hypothetical: chr16:88366825 is 'R' in this
-    # GRCh38 GATK-bundle FASTA (verified independently via `samtools faidx`), ~6.2kb from a real
-    # WGS variant (chr16:88373021 C>T, ZNF469) -- Pangolin fetches a ~10kb reference window
-    # around every variant, so an ambiguity code anywhere in that window reaches this function
-    # even when the variant's own alleles are completely unambiguous.
+    # Any character other than A/C/G/T (N, or an IUPAC ambiguity code like R/Y/S/W/K/M/B/D/H/V)
+    # maps to '0', the same all-zero "no information" row IN_MAP uses for N.
     seq = re.sub(r'[^1234]', '0', seq)
     if strand == '+':
         seq = np.asarray(list(map(int, list(seq))))
@@ -223,18 +213,12 @@ def process_variant(lnum, chr, pos, ref, alt, gtf, models, args):
                 gain_str = f"{g-d}:{round(gain[g],2)}"
                 loss_str = f"{l-d}:{round(loss[l],2)}"
                 per_gene_scores += [gain_str, loss_str]
-                # Real tissue-of-origin, added alongside the existing gain/loss score rather than
-                # folded into it: the existing `Pangolin=` field's `pos:score` shape is consumed
-                # by shared/utils's parse_pangolin (expects exactly 2 ':'-parts per entry), so
-                # this is reported as a separate INFO field (PangolinTissue) instead of a 3rd
-                # ':'-delimited component, to not silently break that parser.
+                # Reported as a separate field (PangolinTissue) rather than a 3rd ':'-delimited
+                # component in the existing Pangolin field, whose consumers expect exactly 2 parts.
                 tissue_list.append('|'.join([gene, TISSUES[gain_tissue[g]], TISSUES[loss_tissue[l]]]))
 
-            # NOTE: the --score_exons and -s/--score_cutoff branches above don't populate
-            # tissue_list -- this pipeline never passes either flag (see modules/local/pangolin.nf),
-            # so tissue_list intentionally only stays aligned with scores_list for the branch
-            # actually used in production. A caller combining --score_exons/-s with tissue
-            # reporting would need to extend those branches the same way first.
+            # tissue_list is only populated in the branch above; --score_exons/-s callers would
+            # need to extend those branches the same way to get tissue info too.
             per_gene_scores.append(warnings)
             scores_list.append('|'.join(per_gene_scores))
 
