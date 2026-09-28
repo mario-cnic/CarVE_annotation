@@ -34,6 +34,11 @@
   - Fix scope (not yet designed): size `h_vmem` (and/or thread/fork count) per tool from the gene's input variant count at submission time, using real tiers derived from the `qacct` snapshot above rather than a fitted formula from too few points — or maintain a hardcoded override list for known outlier genes (DMD, RYR2, CACNA1C, LAMA2, NEBL, NF1, PRDM16, PCCA — all 5–20x the panel median).
   - **Blocked on the run-provenance manifest above** — a resource-sizing change like this is exactly the kind of per-run parameter that must be recorded going forward, or this incident repeats invisibly.
 
+- [ ] **Nextflow whole-VCF pipeline: optimize `process_long` resource sizing and time-to-completion** (Mario, 2026-09-28, after the real `S223` WGS run finishes)
+  - Real evidence from `S223`, not yet analyzed in depth: `maxvmem` for `PANGOLIN_ANNOTATE`/`SPLICEAI_ANNOTATE` tasks is consistently under 2GB, far below the `process_long` label's `12GB * task.attempt` request — memory is not the constraint at all.
+  - Per-chunk wall-clock is highly variable (12 minutes to 46+ hours on the same `chunk_size`) and does **not** correlate with raw variant count (always exactly the configured chunk size) or gene density (a 9-gene chunk was as slow as a 56-gene one). The one real correlation found so far: all 3 outlier-slow chunks on `S223` landed on the *same* SGE compute node (`c0053-cn1`) while a fast chunk landed elsewhere — points toward CPU contention from multiple `-pe smp 8` jobs co-located on one node, not variant/gene content, but not yet confirmed with real profiling.
+  - Scope (not yet designed): profile real per-chunk CPU/wall-clock/node-placement across a full run, right-size `-pe smp`/`memory`/`time` from that data (not a guess, same caution `ORCH-10`'s item above already gives every other resource number in this pipeline), and investigate whether SGE job-placement/consumable-resource constraints are needed to stop multiple slot-8 jobs stacking on one node.
+
 ---
 
 ## 🚀 Phase 1: High-Performance Compute & Orchestration (Inference & Checkpointing)
