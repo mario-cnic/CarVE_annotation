@@ -81,3 +81,20 @@ looks like separate, concurrent work (a non-coding-predictor gap analysis, unrel
 this session) that had already claimed `PRED-13` for an unrelated UTRAnnotator finding. Not touched
 — left exactly as found. The Pangolin tissue finding was renumbered to `PRED-14` before it was
 committed anywhere.
+
+## Follow-up (2026-09-28): the `maxRetries=2` assumption was wrong, fixed live
+
+Three of 118 `SPLICEAI_ANNOTATE` chunks on the real `S223` run ran past 46 hours on attempt 2
+(confirmed via `qstat -j`: `h_rt=172800`, i.e. `24h * task.attempt(2)`), with `maxRetries=2`
+meaning no further retry if killed at the 48h ceiling — despite each chunk actively producing real
+inference output the whole time (`.command.log` updating live), not stuck. Removed the
+`maxRetries: 2` override in `nextflow.config` (falls back to the global default of 5) for future
+relaunches. For the three already-running jobs, `qalter` rescued them live without losing progress
+— SGE requires the *entire* resource list restated, not just the field being changed:
+
+```bash
+qalter -l h_rss=24576M,h_rt=259200,h_vmem=34G,mem_free=24576M 5012705 5012707 5012712
+```
+
+(`h_rt=259200` = 72h). Confirmed applied via a second `qstat -j`, job still accumulating real CPU
+time afterward. No progress lost, no relaunch needed.
