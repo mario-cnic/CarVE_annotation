@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "module": "2 (annotation_pipeline_new)",
+  "launch": {
+    "generated_at": "2026-09-25T08:37:33.473640+00:00",
+    "command_line": "/opt/nextflow/nextflow run annotate_vcf.nf -profile standard --input_vcf /data_lab_PGP/pipelines/sarek_pipeline/hic_genex_families/dani/S223_out/variant_calling/normalized/S223/S223.haplotypecaller.filtered.norm.sorted.vcf.gz -resume --run_id S223",
+    "cli_flags": {
+      "run_id": "S223",
+      "profile": "standard",
+      "spip_tier": "",
+      "output_format": "",
+      "resume": true
+    },
+    "resolved_paths": {
+      "nextflow_binary": "/opt/nextflow/nextflow",
+      "nextflow_main": "/data_lab_PGP/pipelines/annotation_pipeline_new/annotate_vcf.nf",
+      "config": "/data_lab_PGP/pipelines/annotation_pipeline_new/nextflow.config",
+      "input": "/data_lab_PGP/pipelines/sarek_pipeline/hic_genex_families/dani/S223_out/variant_calling/normalized/S223/S223.haplotypecaller.filtered.norm.sorted.vcf.gz",
+      "outdir": "/data_lab_PGP/pipelines/annotation_pipeline_new/nf_work/annotation_out/S223"
+    },
+    "file_hashes_sha256": {
+      "input": "4d9df372e7240d6c819fb85cfdfb44be95693961a783a357233a79acb828668a",
+      "gene_transcript_mapping": "8ddfdf6039002a82627d2d4e478c9bedf021629d6adabd6dabefe7aa7756a49a",
+      "v5_genes_loc_bed": "095d18df373b0dc39872a90dcb612aa2f7af4cf7a9c19eb1c59f764fbae3cf59"
+    },
+    "annotation_pipeline_repo": {
+      "commit": "eb5f13f3cdfafccd5a46d41e85d8f45591216da1",
+      "dirty": true,
+      "dirty_files": [
+        "BUG_TRACKER.md",
+        "TODO.md",
+        "modules/local/chunk.nf",
+        "modules/local/gene_subset.nf",
+        "modules/local/merge.nf",
+        "modules/local/pangolin.nf",
+        "modules/local/spliceai.nf",
+        "nextflow.config",
+        "resources/v5_genes_loc.bed",
+        "src/external/Pangolin-main/pangolin/pangolin.py",
+        "src/python/build_gene_restriction_bed.py",
+        "workflows/broad_pass_whole.nf",
+        "workflows/gene_restricted_whole.nf",
+        "walkthrough/20260925_pangolin_tissue_of_origin.md",
+        "walkthrough/20260925_resume_cache_invalidation_and_fix.md",
+        "walkthrough/20260925_wallclock_kill_and_chunk_sizing.md"
+      ]
+    },
+    "nextflow_version": "nextflow version 25.10.2.10555",
+    "tool_versions": {
+      "bcftools": "bcftools 1.21",
+      "vep_cache_version": "111",
+      "vep_sif_sha256": "4273d3123c623e32c5cfca01afd079d4191ab29206723e9d0d7017e443efe533"
+    },
+    "spliceai_distance": "10000",
+    "pangolin_distance": "10000",
+    "launched_by": "mruizp",
+    "host": "nf.cnic.es",
+    "launch_cwd": "/data_lab_PGP/pipelines/annotation_pipeline_new"
+  },
+  "completed": {
+    "generated_at": "2026-09-29T06:30:30.951741+00:00",
+    "exit_code": 0,
+    "workflow_stats": "WorkflowStats[succeededCount=24; failedCount=0; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=0; abortedCount=0; succeedDuration=5s; failedDuration=0ms; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=5; peakCpus=16; peakMemory=48 GB; ]"
+  }
+}
