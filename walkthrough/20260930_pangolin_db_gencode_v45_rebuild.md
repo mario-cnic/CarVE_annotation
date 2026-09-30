@@ -92,8 +92,8 @@ The full record is in `~/pangolin_db_build/BUILD_MANIFEST.txt`, next to the env 
 
 ## Not done here
 
-- **Deployment.** The file is not copied to `shared/utils` (user's manual step; commands are in
-  the session handover). `pangolin_grch38.db` stays untouched.
+- **Deployment.** The file is not copied to `shared/utils` (user's manual step; commands below).
+  `pangolin_grch38.db` stays untouched.
 - **Repointed consumers.** `nextflow.config`'s `pangolin_db` and `src/hpc/annotate_pangolin_vars.sh`
   now name `gencode.v45.ensembl_canonical.grch38.db`. Both pipelines fail to find the db until it
   is deployed; they don't silently fall back to the mouse file.
@@ -103,3 +103,42 @@ The full record is in `~/pangolin_db_build/BUILD_MANIFEST.txt`, next to the env 
   run, stays invalid and needs re-running.
 - **Other repos.** Git-tracked files of the sibling repos under `pipelines/` and `shared/utils`
   mention the old path only in documentation. Untracked consumers were not searched.
+
+## Pending manual steps (user)
+
+**1. Deploy** (adds a new file; the old db is not touched):
+
+```bash
+D=/home/mruizp/data_lab_PGP/shared/utils/pangolin_db
+cp ~/pangolin_db_build/gencode.v45.annotation.db  $D/gencode.v45.ensembl_canonical.grch38.db
+cp ~/pangolin_db_build/BUILD_MANIFEST.txt         $D/gencode.v45.ensembl_canonical.grch38.BUILD_MANIFEST.txt
+sha256sum $D/gencode.v45.ensembl_canonical.grch38.db   # expect 55831b7679132a7dd868f8aa65a5ae6cdfa298993a29460c846f276b3d5eeb8c
+chmod a-w $D/gencode.v45.ensembl_canonical.grch38.db
+```
+
+**2. Pangolin-only re-test** (on a cluster compute node):
+
+```bash
+cd /data_lab_PGP/pipelines/annotation_pipeline_new && mkdir -p RUNS/pangolin_v45_retest
+zcat test_data/raw_vcfs/panel7_test.vcf.gz > RUNS/pangolin_v45_retest/panel7.vcf
+PYTHONPATH=src/external/Pangolin-main /data_lab_PGP/shared/utils/conda_envs/pangolin_env/bin/python3 -m pangolin.pangolin \
+  RUNS/pangolin_v45_retest/panel7.vcf \
+  /references/genomes/Homo_sapiens/GATK_bundle/v0/Homo_sapiens_assembly38.fasta \
+  /data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db \
+  RUNS/pangolin_v45_retest/panel7.annPangolin.vcf -d 10000
+grep -v '^#' RUNS/pangolin_v45_retest/panel7.annPangolin.vcf | grep -o 'ENS[A-Z]*G' | sort | uniq -c   # expect ENSG only
+```
+
+The old baseline was 22/72 records annotated, all `ENSMUSG`. Expect `ENSG` IDs on most records.
+
+**3. Full pipeline re-test** (about 4 h). This also exercises the MISC-14 pre-flight check:
+
+```bash
+bash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/panel7_test.vcf.gz --run_id panel7_v45_retest
+# then: nf_work/annotation_out/panel7_v45_retest/panel7_v45_retest.assembly_check.tsv should say PASS
+```
+
+**4. Afterwards:**
+- Re-run Pangolin for every earlier result (incl. `S223`).
+- Update `carve-platform` `STATUS.md` / `PLT-139`.
+- Set MISC-12 to 🟢 once the re-test passes.
