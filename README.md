@@ -2,6 +2,11 @@
 
 This repository contains a production-ready, modular HPC bash and Python pipeline ([main.sh](./main.sh)) for parsing, annotating, filtering, and visualizing human genomic variants. It accepts diverse input formats (cDNA ENST/NM notation, hg19 or GRCh38 genomic coordinates, direct VCFs, Excel, TSV, CSV, or Parquet), standardizes all variants to **GRCh38**, runs state-of-the-art functional and splicing predictor ensembles (**Ensembl VEP 111, CADD v1.6, REVEL, AlphaMissense, SPiPv2.1, Pangolin, Local SpliceAI at `-D 10000`, Branchpointer, LaBranchoR, and SpliceVault empirical RNA evidence**), applies customizable variant filtering strategies, and generates both publication-grade static plots (PDF/PNG) and interactive HTML dashboards.
 
+A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annotate_vcf.nf)), annotates one arbitrary-size GRCh38 VCF (panel, WES or WGS) in a single run. See [Nextflow Whole-VCF Pipeline](#-nextflow-whole-vcf-pipeline) below. It does not replace `main.sh`, which is unchanged.
+
+> [!WARNING]
+> **Pangolin scores are currently invalid in both pipelines.** The shared reference database `shared/utils/pangolin_db/pangolin_grch38.db` is a mouse annotation, not human GRCh38 (`BUG_TRACKER.md` `MISC-12`, `carve-platform` `PLT-139`). It controls both gene assignment and exon masking, so every Pangolin score produced so far is affected. Do not use Pangolin output for interpretation until the database is rebuilt.
+
 ---
 
 ## 🚀 Key Features & Integrated Predictors
@@ -15,7 +20,7 @@ This repository contains a production-ready, modular HPC bash and Python pipelin
 2. **State-of-the-Art Splicing & Functional Annotation Matrix**:
    - **Ensembl VEP 111 (GRCh38)**: CADD (v1.6), REVEL, AlphaMissense, UTRAnnotator, MaxEntScan, and gnomAD v4.1 population frequencies (`AF_joint`).
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
-   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss in a 20kb window (`-d 10000`) with cardiac left ventricle (`heart_lv`) and atrial appendage (`heart_aa`) score deltas.
+   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss in a 20kb window (`-d 10000`). **Currently invalid**: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 10000`**: Deep residual neural network predicting max delta scores across a 20kb intronic window.
    - **Branch Point Predictor Pair**:
      - **LaBranchoR**: Bidirectional LSTM predicting top human catalytic branch points across GRCh38 (206,249 branch points).
@@ -134,6 +139,75 @@ bash main.sh \
 | `--min-cadd <FLOAT>` | Float | Minimum CADD phred score |
 | `--consequences <LIST>` | String | Comma-separated list of target VEP consequences |
 | `--overwrite-all` | Flag | Overwrite intermediate files and re-run all steps |
+
+---
+
+## 🧬 Nextflow Whole-VCF Pipeline
+
+[annotate_vcf.nf](./annotate_vcf.nf) takes one GRCh38 VCF of any size, runs every predictor across it, merges the results, and writes one final table. It is intended for Module 1 (`sarek_pipeline`) output.
+
+**Validation so far:**
+- **7-gene panel (`panel7_test.vcf.gz`):** 72/72 records match `main.sh`. The only remaining difference is SPiP float formatting (`PLT-045`, [walkthrough](./walkthrough/20260924_nextflow_migration_item11_parity_verdict.md)).
+- **First real WGS run (`S223`):** completed on 2026-09-29 with exit code 0. Every predictor's reassembled output matches its input record count (5,085,977 broad-tier, 936,412 gene-restricted).
+
+This doesn't establish that the scores are correct; see [Known limitations](#known-limitations).
+
+### Running it
+
+Launch through the wrapper, which writes a provenance manifest before and after the run and passes every argument to `nextflow run annotate_vcf.nf` unchanged:
+
+```bash
+bash run_annotate_vcf.sh -profile standard \
+  --input_vcf /data_lab_PGP/.../<sample>.vcf.gz \
+  [--run_id <label>] [--spip_tier restricted|broad] [--output_format pq|tsv] [-resume]
+```
+
+- **Where to launch:** from a host that can submit SGE jobs. The `nextflow` head process stays alive for the entire run; `S223` (WGS) took about 4 days (2026-09-25 → 2026-09-29), so use a session that survives disconnection.
+- **Finding Nextflow:** the wrapper uses `nextflow` from `PATH`, falling back to `/opt/nextflow/nextflow`.
+
+| Argument | Default | Description |
+| --- | --- | --- |
+| `--input_vcf <FILE>` | required | bgzipped VCF with a sibling `.tbi` index. **Must be GRCh38**, called against the GATK-bundle `Homo_sapiens_assembly38.fasta` that the predictors use. The pipeline does not verify the assembly (`MISC-14`). Both `chr1` and `1` contig names are accepted |
+| `--run_id <LABEL>` | input filename without `.vcf.gz` | Output folder name and prefix for every published file |
+| `--spip_tier` | `restricted` | Which tier SPiP runs in (see below) |
+| `--output_format` | `pq` | Final table format: `pq` or `tsv` only |
+| `-profile` | `standard` | `standard` = SGE + Singularity (production). `local_dev` = local miniforge environments, for `-stub-run` testing only |
+| `-resume` | off | Reuse cached tasks from Nextflow's `work/` directory |
+
+### Two predictor tiers
+
+| Tier | Records | Tools |
+| --- | --- | --- |
+| Broad | every record in the input | VEP 111 (with its plugins), Branchpointer/LaBranchoR |
+| Gene-restricted | only records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 10000`), Pangolin (`-d 10000`), SPiP (unless `--spip_tier broad`) |
+
+Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A missing score there means the tool was not run, not that the variant is predicted benign.
+
+### Outputs
+
+Everything is published to `nf_work/annotation_out/<run_id>/`:
+
+| File | Content |
+| --- | --- |
+| `RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
+| `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
+| `<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
+| `<run_id>.parsed.clean.pq` | **Final table.** One row per variant × VEP transcript. Every transcript is kept and tagged with `TRANSCRIPT_PRIORITY_TIER`: 1 = curated 217-panel transcript, 2 = MANE Select, 3 = other |
+
+For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
+
+The wrapper stages `RUN_MANIFEST.json` with `git add -f` but does not commit it. The manifest stays inside the run folder, so it moves with the run if the folder is relocated.
+
+### Known limitations
+
+- **Pangolin output is invalid:** the reference database is a mouse annotation (`MISC-12` / `PLT-139`).
+- **Genes missing from the gene BED:** 144 curated genes, including panel gene `TAZ`, get no gene-restricted predictors (`MISC-4`).
+- **No cross-predictor record-count checks:** counts aren't compared between predictors or against the merge output (`MISC-6`).
+- **Incomplete provenance for dirty launches:** a launch from a dirty working tree records only the names of changed files, so the exact code can't be reconstructed (`MISC-13`). Launch from a clean, committed tree.
+- **Input assembly is not verified:** a VEP run on a non-GRCh38 VCF would complete without errors and produce wrong annotations (`MISC-14`).
+- **Unprofiled resource requests:** CPU/memory/time are not yet sized from profiling data. Per-chunk wall-clock varied from minutes to more than 46 h on `S223` (`TODO.md`, Priority 0).
+
+`main.nf` is the older per-gene Nextflow adapter. It is kept working but is no longer developed.
 
 ---
 
