@@ -27,8 +27,10 @@ import hashlib
 import json
 import re
 import shutil
+import os
 import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -76,6 +78,62 @@ def git_state(repo_root: Path) -> dict:
     }
 
 
+# Untracked files under these pathspecs are code/config a run can execute or read, so their
+# content goes into the dirty-tree patch; anything else untracked is listed by name only.
+UNTRACKED_CAPTURE_PATHSPECS = ["*.nf", "*.config", "*.sh", "modules", "workflows", "src", "config", "resources"]
+UNTRACKED_MAX_BYTES = 5 * 1024 * 1024
+
+
+def _git(args: list[str], repo_root: Path, env: dict | None = None) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        ["git", *args], cwd=repo_root, capture_output=True, check=True, timeout=300,
+        env={**os.environ, **(env or {})},
+    )
+
+
+def capture_dirty_tree(repo_root: Path, outdir: Path, stamp: str) -> dict:
+    """Writes <outdir>/RUN_DIRTY.<stamp>.patch, a binary diff from HEAD to the launch-time tree.
+
+    Covers every tracked change (including deletions) plus untracked, non-ignored files under
+    UNTRACKED_CAPTURE_PATHSPECS up to UNTRACKED_MAX_BYTES each. Reconstruct with
+    `git checkout <commit> && git apply <patch>`. Staging happens in a temporary GIT_INDEX_FILE,
+    so the repository's real index is untouched (blobs are written to the object store).
+    """
+    split = lambda b: [p for p in b.decode().split("\0") if p]
+    in_scope = split(_git(["ls-files", "--others", "--exclude-standard", "-z", "--",
+                           *UNTRACKED_CAPTURE_PATHSPECS], repo_root).stdout)
+    all_untracked = split(_git(["ls-files", "--others", "--exclude-standard", "-z"], repo_root).stdout)
+
+    included, skipped = [], []
+    for rel in in_scope:
+        size = (repo_root / rel).stat().st_size
+        if size <= UNTRACKED_MAX_BYTES:
+            included.append(rel)
+        else:
+            skipped.append({"path": rel, "reason": f"larger than {UNTRACKED_MAX_BYTES} bytes",
+                            "sha256": sha256_of(repo_root / rel)})
+    skipped += [{"path": rel, "reason": "outside capture pathspecs", "sha256": None}
+                for rel in all_untracked if rel not in set(in_scope)]
+
+    patch_path = outdir / f"RUN_DIRTY.{stamp}.patch"
+    with tempfile.TemporaryDirectory() as tmp:
+        env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
+        _git(["read-tree", "HEAD"], repo_root, env)
+        _git(["add", "-u", "--", "."], repo_root, env)
+        if included:
+            _git(["add", "--", *included], repo_root, env)
+        patch = _git(["diff", "--cached", "--binary", "HEAD"], repo_root, env).stdout
+    patch_path.write_bytes(patch)
+    return {
+        "path": patch_path.name,
+        "sha256": sha256_of(patch_path),
+        "bytes": len(patch),
+        "untracked_included": included,
+        "untracked_not_captured": skipped,
+        "apply_with": "git checkout <commit> && git apply <path>",
+    }
+
+
 def resolve(path_str: str | None) -> str | None:
     if not path_str:
         return None
@@ -113,11 +171,24 @@ def cmd_launch(args):
     # through explicitly means the manifest reflects the binary that ACTUALLY ran, not a guess.
     nextflow_bin = args.nextflow_binary or shutil.which("nextflow")
 
+    launched_at = datetime.now(timezone.utc)
+    repo_state = git_state(REPO_ROOT)
+    repo_state["dirty_patch"] = None
+    if repo_state["dirty"]:
+        try:
+            repo_state["dirty_patch"] = capture_dirty_tree(
+                REPO_ROOT, outdir, launched_at.strftime("%Y%m%dT%H%M%SZ"))
+            print(f"warning: dirty working tree; launch-time changes saved to "
+                  f"{outdir / repo_state['dirty_patch']['path']}", file=sys.stderr)
+        except Exception as e:
+            sys.exit(f"error: working tree is dirty and the dirty-tree patch could not be written ({e}); "
+                     "commit or stash first so the run's code can be reconstructed")
+
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "module": "2 (annotation_pipeline_new)",
         "launch": {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "generated_at": launched_at.isoformat(),
             "command_line": args.command_line,
             "cli_flags": {
                 "run_id": args.run_id,
@@ -138,7 +209,7 @@ def cmd_launch(args):
                 "gene_transcript_mapping": sha256_of(REPO_ROOT / "resources" / "gene_transcript_mapping.txt"),
                 "v5_genes_loc_bed": sha256_of(REPO_ROOT / "resources" / "v5_genes_loc.bed"),
             },
-            "annotation_pipeline_repo": git_state(REPO_ROOT),
+            "annotation_pipeline_repo": repo_state,
             "nextflow_version": sh([nextflow_bin, "-v"]) if nextflow_bin else None,
             # Best-effort tool versions, queried at run time rather than hardcoded — closes
             # TODO.md's Priority-0 complaint that no file anywhere records what actually ran.
