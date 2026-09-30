@@ -15,9 +15,9 @@ if [ ! -f "$FASTA" ]; then
     FASTA=/references/genomes/Homo_sapiens/GATK_bundle/v0/Homo_sapiens_assembly38.fasta
 fi
 
-DB=/data_lab_PGP/shared/utils/pangolin_db/pangolin_grch38.db
+DB=/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db
 if [ ! -f "$DB" ]; then
-    DB=/home/mruizp/data_lab_PGP/shared/utils/pangolin_db/pangolin_grch38.db
+    DB=/home/mruizp/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db
 fi
 
 PANGOLIN_ENV=""

@@ -21,7 +21,7 @@ def run_audit():
     
     # 1. Reference Databases
     refs = [
-        ("/home/mruizp/data_lab_PGP/shared/utils/pangolin_db/pangolin_grch38.db", "Pangolin GRCh38 Database"),
+        ("/home/mruizp/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db", "Pangolin GRCh38 Database (GENCODE 45)"),
         ("/home/mruizp/data_lab_PGP/resources/annotation/labranchor/labranchor_grch38_top.bed.gz", "LaBranchoR GRCh38 Top BP Database"),
         ("/home/mruizp/data_lab_PGP/resources/annotation/labranchor/labranchor_grch38_top.bed.gz.tbi", "LaBranchoR Top BP Index"),
         ("/home/mruizp/data_lab_PGP/resources/annotation/labranchor/labranchor_grch38_ism.tsv.gz", "LaBranchoR GRCh38 ISM Database"),
