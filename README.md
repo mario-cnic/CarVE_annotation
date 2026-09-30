@@ -191,20 +191,21 @@ Everything is published to `nf_work/annotation_out/<run_id>/`:
 | --- | --- |
 | `<run_id>.assembly_check.tsv` | Pre-flight assembly check result: contig-length and REF-allele comparison against `params.fasta`, plus any warnings |
 | `RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
+| `RUN_DIRTY.<timestamp>.patch` | Only for a launch from a dirty tree: the uncommitted changes. Rebuild the launch-time code with `git checkout <commit> && git apply <patch>` |
 | `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
 | `<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
 | `<run_id>.parsed.clean.pq` | **Final table.** One row per variant × VEP transcript. Every transcript is kept and tagged with `TRANSCRIPT_PRIORITY_TIER`: 1 = curated 217-panel transcript, 2 = MANE Select, 3 = other |
 
 For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
 
-The wrapper stages `RUN_MANIFEST.json` with `git add -f` but does not commit it. The manifest stays inside the run folder, so it moves with the run if the folder is relocated.
+The wrapper stages `RUN_MANIFEST.json` (and any dirty-tree patch) with `git add -f` but does not commit it. The manifest stays inside the run folder, so it moves with the run if the folder is relocated.
 
 ### Known limitations
 
 - **Pangolin output before 2026-09-30 is invalid:** the old reference database was a mouse annotation (`MISC-12` / `PLT-139`). The GENCODE 45 rebuild must be deployed to `shared/utils/pangolin_db/` before the Pangolin step can run, and it is not yet validated on the cluster.
 - **Genes missing from the gene BED:** 144 curated genes, including panel gene `TAZ`, get no gene-restricted predictors (`MISC-4`).
 - **No cross-predictor record-count checks:** counts aren't compared between predictors or against the merge output (`MISC-6`).
-- **Incomplete provenance for dirty launches:** a launch from a dirty working tree records only the names of changed files, so the exact code can't be reconstructed (`MISC-13`). Launch from a clean, committed tree.
+- **Dirty-launch provenance has limits:** a launch from a dirty tree saves `RUN_DIRTY.<timestamp>.patch` next to the manifest (`MISC-13`). Untracked files larger than 5 MB, or outside the code paths (`*.nf`, `*.config`, `*.sh`, `modules/`, `workflows/`, `src/`, `config/`, `resources/`), are listed but not captured. Launching from a clean, committed tree is still preferred.
 - **Assembly check samples, it doesn't exhaustively verify:** the pre-flight check compares header contig lengths and only the first 1000 REF alleles (`MISC-14`). VEP runs without `--check_ref`, so per-record REF disagreements beyond that sample are not detected.
 - **Unprofiled resource requests:** CPU/memory/time are not yet sized from profiling data. Per-chunk wall-clock varied from minutes to more than 46 h on `S223` (`TODO.md`, Priority 0).
 
