@@ -10,6 +10,7 @@
 //
 // --input_vcf must already be tabix-indexed alongside it (<input_vcf>.tbi).
 
+include { CHECK_INPUT_ASSEMBLY } from './modules/local/check_assembly.nf'
 include { BROAD_PASS_WHOLE_SUBWORKFLOW } from './workflows/broad_pass_whole.nf'
 include { GENE_RESTRICTED_WHOLE_SUBWORKFLOW } from './workflows/gene_restricted_whole.nf'
 include { MERGE_SUBWORKFLOW } from './workflows/merge_subworkflow.nf'
@@ -53,7 +54,10 @@ workflow {
         run_id          : run_id
     ]
 
-    meta_vcf_ch = Channel.of(tuple(meta, input_vcf_file, input_tbi_file))
+    // Every predictor consumes CHECK_INPUT_ASSEMBLY's output, so nothing is scheduled until the
+    // input's contig lengths and REF alleles are confirmed against params.fasta (MISC-14).
+    CHECK_INPUT_ASSEMBLY(Channel.of(tuple(meta, input_vcf_file, input_tbi_file)))
+    meta_vcf_ch = CHECK_INPUT_ASSEMBLY.out.vcf
 
     BROAD_PASS_WHOLE_SUBWORKFLOW(meta_vcf_ch)
     GENE_RESTRICTED_WHOLE_SUBWORKFLOW(meta_vcf_ch)
