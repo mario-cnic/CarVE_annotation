@@ -40,6 +40,9 @@ trash/
 # Container binaries
 *.sif
 
+# setuptools build output from installing the vendored Pangolin package
+src/external/Pangolin-main/build/
+
 # Nextflow execution state and per-run outputs (Phase 1 spike, see
 # /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md) — same rationale as RUNS/ above.
 work/
