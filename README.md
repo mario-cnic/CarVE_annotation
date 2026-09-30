@@ -167,7 +167,7 @@ bash run_annotate_vcf.sh -profile standard \
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--input_vcf <FILE>` | required | bgzipped VCF with a sibling `.tbi` index. **Must be GRCh38**, called against the GATK-bundle `Homo_sapiens_assembly38.fasta` that the predictors use. The pipeline does not verify the assembly (`MISC-14`). Both `chr1` and `1` contig names are accepted |
+| `--input_vcf <FILE>` | required | bgzipped VCF with a sibling `.tbi` index. **Must be GRCh38**, called against the GATK-bundle `Homo_sapiens_assembly38.fasta` that the predictors use. A pre-flight check fails the run before any predictor starts if the `##contig` lengths or the first 1000 REF alleles disagree with that FASTA. Without `##contig` lines it continues with a warning only if ≥20 REF alleles match (`MISC-14`). Both `chr1` and `1` contig names are accepted |
 | `--run_id <LABEL>` | input filename without `.vcf.gz` | Output folder name and prefix for every published file |
 | `--spip_tier` | `restricted` | Which tier SPiP runs in (see below) |
 | `--output_format` | `pq` | Final table format: `pq` or `tsv` only |
@@ -189,6 +189,7 @@ Everything is published to `nf_work/annotation_out/<run_id>/`:
 
 | File | Content |
 | --- | --- |
+| `<run_id>.assembly_check.tsv` | Pre-flight assembly check result: contig-length and REF-allele comparison against `params.fasta`, plus any warnings |
 | `RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
 | `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
 | `<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
@@ -204,7 +205,7 @@ The wrapper stages `RUN_MANIFEST.json` with `git add -f` but does not commit it.
 - **Genes missing from the gene BED:** 144 curated genes, including panel gene `TAZ`, get no gene-restricted predictors (`MISC-4`).
 - **No cross-predictor record-count checks:** counts aren't compared between predictors or against the merge output (`MISC-6`).
 - **Incomplete provenance for dirty launches:** a launch from a dirty working tree records only the names of changed files, so the exact code can't be reconstructed (`MISC-13`). Launch from a clean, committed tree.
-- **Input assembly is not verified:** a VEP run on a non-GRCh38 VCF would complete without errors and produce wrong annotations (`MISC-14`).
+- **Assembly check samples, it doesn't exhaustively verify:** the pre-flight check compares header contig lengths and only the first 1000 REF alleles (`MISC-14`). VEP runs without `--check_ref`, so per-record REF disagreements beyond that sample are not detected.
 - **Unprofiled resource requests:** CPU/memory/time are not yet sized from profiling data. Per-chunk wall-clock varied from minutes to more than 46 h on `S223` (`TODO.md`, Priority 0).
 
 `main.nf` is the older per-gene Nextflow adapter. It is kept working but is no longer developed.
