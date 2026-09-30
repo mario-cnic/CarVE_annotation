@@ -5,7 +5,7 @@ This repository contains a production-ready, modular HPC bash and Python pipelin
 A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annotate_vcf.nf)), annotates one arbitrary-size GRCh38 VCF (panel, WES or WGS) in a single run. See [Nextflow Whole-VCF Pipeline](#-nextflow-whole-vcf-pipeline) below. It does not replace `main.sh`, which is unchanged.
 
 > [!WARNING]
-> **Pangolin scores are currently invalid in both pipelines.** The shared reference database `shared/utils/pangolin_db/pangolin_grch38.db` is a mouse annotation, not human GRCh38 (`BUG_TRACKER.md` `MISC-12`, `carve-platform` `PLT-139`). It controls both gene assignment and exon masking, so every Pangolin score produced so far is affected. Do not use Pangolin output for interpretation until the database is rebuilt.
+> **Every Pangolin score produced before 2026-09-30 is invalid.** The old shared database `shared/utils/pangolin_db/pangolin_grch38.db` is a mouse annotation (GENCODE M23), not human GRCh38 (`BUG_TRACKER.md` `MISC-12`, `carve-platform` `PLT-139`). It controls both gene assignment and exon masking. Both pipelines now expect a GENCODE 45 rebuild, `shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db`, and fail at the Pangolin step until it is deployed. Re-run Pangolin on earlier results before using them ([walkthrough](./walkthrough/20260930_pangolin_db_gencode_v45_rebuild.md)).
 
 ---
 
@@ -20,7 +20,7 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
 2. **State-of-the-Art Splicing & Functional Annotation Matrix**:
    - **Ensembl VEP 111 (GRCh38)**: CADD (v1.6), REVEL, AlphaMissense, UTRAnnotator, MaxEntScan, and gnomAD v4.1 population frequencies (`AF_joint`).
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
-   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss in a 20kb window (`-d 10000`). **Currently invalid**: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
+   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss in a 20kb window (`-d 10000`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 10000`**: Deep residual neural network predicting max delta scores across a 20kb intronic window.
    - **Branch Point Predictor Pair**:
      - **LaBranchoR**: Bidirectional LSTM predicting top human catalytic branch points across GRCh38 (206,249 branch points).
@@ -200,7 +200,7 @@ The wrapper stages `RUN_MANIFEST.json` with `git add -f` but does not commit it.
 
 ### Known limitations
 
-- **Pangolin output is invalid:** the reference database is a mouse annotation (`MISC-12` / `PLT-139`).
+- **Pangolin output before 2026-09-30 is invalid:** the old reference database was a mouse annotation (`MISC-12` / `PLT-139`). The GENCODE 45 rebuild must be deployed to `shared/utils/pangolin_db/` before the Pangolin step can run, and it is not yet validated on the cluster.
 - **Genes missing from the gene BED:** 144 curated genes, including panel gene `TAZ`, get no gene-restricted predictors (`MISC-4`).
 - **No cross-predictor record-count checks:** counts aren't compared between predictors or against the merge output (`MISC-6`).
 - **Incomplete provenance for dirty launches:** a launch from a dirty working tree records only the names of changed files, so the exact code can't be reconstructed (`MISC-13`). Launch from a clean, committed tree.
@@ -304,6 +304,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-09-10: Predictor & Annotation Inventory + Audit (full list of every predictor actually running, incl. SpliceVarDB evidence silently inert, duplicate REVEL/SIFT/PolyPhen sources, dead MaxEntScan)](./walkthrough/20260910_predictor_inventory_and_audit.md)
 - [2026-09-10: ACMG Criteria & Priority Tier — Deprioritization Note (real classification now happens in the `clinical_variant_prioritization` web app; this pipeline's ACMG/tiering logic is not yet deprecated but is no longer the primary decision surface)](./walkthrough/20260910_acmg_tiering_deprioritization_note.md)
 - [2026-09-18: DMD VEP OOM Incident, Run-Provenance Gap, and Resource-Sizing Handoff (live incident root-caused to a fixed `h_vmem` not scaled to gene size — `ORCH-10`; dormant timing/memory logger found — `ORCH-11`; SpliceAI `-D` window literature review; session handoff with concrete next steps)](./walkthrough/20260918_dmd_vep_oom_incident_and_resource_provenance_handoff.md)
+- [2026-09-30: Pangolin annotation db rebuilt from GENCODE 45 (`MISC-12`)](./walkthrough/20260930_pangolin_db_gencode_v45_rebuild.md)
 
 ---
 
