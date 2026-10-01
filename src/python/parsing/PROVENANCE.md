@@ -41,3 +41,18 @@ daf6044d4fc9510898dc76e7a0de501ac58edeb5bda425eeb232190e06ddf811  modules/diseas
 - **Legacy bash path not repointed:** `config/env.sh` (`VCF_PARSER_SCRIPT`, `FILTER_VARIANTS_SCRIPT`) and
   `src/tools/backfill_variant_prioritization.py` still point at `shared/utils/src`. Only the Nextflow
   config uses this copy.
+
+## Local modifications since the verbatim copy (2026-10-01, this repo only)
+
+The files above were first committed byte-identical to `shared/utils@19925ed` (`d5a915c`); the sha256 table
+describes that state. Since then, gene/transcript attribution was added (plan:
+`walkthrough/20261001_predictor_gene_transcript_attribution_audit.md`):
+
+- new `modules/gene_identity.py` (symbol/accession -> Ensembl gene resolution, per-row match statuses);
+- `modules/splicing.py`: `parse_spliceai_custom`, `parse_spip`, `parse_pangolin` now attach only the entry of the row's
+  own gene/transcript and add `*_match` and `*_anygene_*` columns; `_extract_spliceai_details` uses VEP's
+  per-transcript SpliceAI score only when the custom score is absent (a genuine 0.00 custom score is kept);
+- `filter_variants.py`: new `--hgnc-table`, `--spliceai-symbol-map`, `--gene-transcript-mapping`; refuses to run
+  with SpliceAI/SPiP columns present but no identity resources (no silent fallback).
+
+`git diff d5a915c -- src/python/parsing` shows the exact delta. The shared and Module 3 copies are unchanged.

@@ -1,0 +1,20 @@
+{
+  "built": "2026-10-01T13:07:29+02:00",
+  "spliceai_annotation": "/data_lab_PGP/shared/utils/conda_envs/spliceai_env/lib/python3.10/site-packages/spliceai/annotations/grch38.txt",
+  "spliceai_annotation_sha256": "565c0ea83f66b2210182364c3d626fef526229e3d02f444bab247329b6695f2c",
+  "gencode_db": "/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db",
+  "gencode_db_sha256": "55831b7679132a7dd868f8aa65a5ae6cdfa298993a29460c846f276b3d5eeb8c",
+  "symbols_in_spliceai_annotation": 19305,
+  "symbols_not_placed_by_coordinates": 24,
+  "output": "resources/spliceai_symbol_to_ensg.grch38.gencode45.tsv",
+  "output_sha256": "5bbf6e62a8cea04d4a9b616ba22cca1fab9e4346c8a518133a89d014c7b2076e",
+  "argv": [
+    "src/python/build_gene_identity_tables.py",
+    "--spliceai-annotation",
+    "/data_lab_PGP/shared/utils/conda_envs/spliceai_env/lib/python3.10/site-packages/spliceai/annotations/grch38.txt",
+    "--gencode-db",
+    "/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db",
+    "--out-tsv",
+    "resources/spliceai_symbol_to_ensg.grch38.gencode45.tsv"
+  ]
+}

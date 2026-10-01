@@ -6,6 +6,11 @@ import numpy as np
 import pandas as pd
 from . import logger
 from .io_qc import _safe_numeric_series
+from .gene_identity import (
+    GeneIdentity, pick_gene_entry, split_entries, strip_version, is_missing, alt_from_locus,
+    MATCHED, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, AMBIGUOUS, UNRESOLVED,
+    NO_PREDICTION, PREDICTOR_ERROR,
+)
 
 SPLICING_COLUMNS = [
     "spliceai_custom_DS_AL",
@@ -61,89 +66,100 @@ NEW_MAXENTSCAN_COLUMNS = {
 MAXENTSCAN_DISRUPTION_THRESHOLD = 0.15  # >=15% relative decrease from ref to alt
 
 
-def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP"):
+def _spip_fields(matched_fields):
+    """Unpack one SPiP entry into the NEW_SPIP_COLUMNS order (unchanged extraction logic)."""
+    interpretation = matched_fields[2] if len(matched_fields) > 2 else np.nan
+    ci = matched_fields[3] if len(matched_fields) > 3 else np.nan
+
+    def _num(i):
+        try:
+            return float(matched_fields[i]) if len(matched_fields) > i and matched_fields[i].strip() != "." else np.nan
+        except ValueError:
+            return np.nan
+
+    prediction = _num(4)
+    score, confidence = prediction, ci
+    mut_in_pb = matched_fields[20] if len(matched_fields) > 20 else np.nan
+    delta_esr = _num(21)
+    proba_crypt = _num(24)
+    class_crypt = matched_fields[25] if len(matched_fields) > 25 else ""
+
+    mechanism = "none"
+    if not pd.isna(proba_crypt) and proba_crypt >= 0.20 or class_crypt in ("Cryptic", "High Risk", "Medium Risk"):
+        mechanism = "cryptic_site"
+    elif str(mut_in_pb).lower() in ("1", "true", "yes"):
+        mechanism = "bp_disruption"
+    elif not pd.isna(delta_esr) and abs(delta_esr) > 0.05:
+        mechanism = "esr_alteration"
+    elif not pd.isna(prediction) and prediction >= 0.20:
+        mechanism = "complex_splicing"
+
+    status = "scored" if not pd.isna(prediction) else "not_covered"
+    return [interpretation, ci, prediction, confidence, score, mechanism, mut_in_pb, delta_esr, proba_crypt, status]
+
+
+_SPIP_EMPTY = [np.nan, np.nan, np.nan, np.nan, np.nan, "none", np.nan, np.nan, np.nan, "not_covered"]
+
+
+def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentity = None):
+    """Attach SPiP results to each row by RefSeq transcript.
+
+    SPiP is transcript-level: every entry is keyed by an `NM_` accession. A row (variant x Ensembl
+    transcript) receives the entry whose NM equals the row's own RefSeq transcript (MANE Select /
+    MANE Plus Clinical / curated clinical transcript). Rows with no RefSeq equivalent get
+    `not_applicable_transcript`; no other transcript's or gene's entry is ever used.
+    Adds `SPiP_match` and `SPiP_anygene_max_prediction` (variant-level maximum, any transcript).
     """
-    For each row, extract SPiP annotations matching the target SYMBOL or transcript.
-    """
-    def extract_spip_fields(row):
-        spip_raw = str(row.get(spip_col, "."))
-        if pd.isna(spip_raw) or spip_raw in (".", "nan", "N/A", ""):
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan, "none", np.nan, np.nan, np.nan, "not_covered"])
-        
-        if "caused an error in SPiP execution" in spip_raw:
-            return pd.Series(["Error", np.nan, np.nan, np.nan, np.nan, "error", np.nan, np.nan, np.nan, "error"])
-
-        target_symbol = str(row.get("SYMBOL", ""))
-        spip_entries = re.split(r'[,&]', spip_raw)
-        matched_fields = None
-
-        for entry in spip_entries:
-            fields = entry.split("|")
-            if len(fields) > 12 and (not target_symbol or fields[12] == target_symbol):
-                matched_fields = fields
-                break
-        
-        if matched_fields is None and len(spip_entries) > 0:
-            matched_fields = spip_entries[0].split("|")
-
-        if not matched_fields or len(matched_fields) < 5:
-            return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan, "none", np.nan, np.nan, np.nan, "not_covered"])
-
-        interpretation = matched_fields[2] if len(matched_fields) > 2 else np.nan
-        ci = matched_fields[3] if len(matched_fields) > 3 else np.nan
-        
-        try:
-            prediction = float(matched_fields[4]) if len(matched_fields) > 4 and matched_fields[4] != "." else np.nan
-        except ValueError:
-            prediction = np.nan
-
-        score = prediction
-        confidence = ci
-        mut_in_pb = matched_fields[20] if len(matched_fields) > 20 else np.nan
-        
-        try:
-            delta_esr = float(matched_fields[21]) if len(matched_fields) > 21 and matched_fields[21] != "." else np.nan
-        except ValueError:
-            delta_esr = np.nan
-
-        try:
-            proba_crypt = float(matched_fields[24]) if len(matched_fields) > 24 and matched_fields[24] != "." else np.nan
-        except ValueError:
-            proba_crypt = np.nan
-
-        class_crypt = matched_fields[25] if len(matched_fields) > 25 else ""
-
-        mechanism = "none"
-        if not pd.isna(proba_crypt) and proba_crypt >= 0.20 or class_crypt in ("Cryptic", "High Risk", "Medium Risk"):
-            mechanism = "cryptic_site"
-        elif str(mut_in_pb).lower() in ("1", "true", "yes"):
-            mechanism = "bp_disruption"
-        elif not pd.isna(delta_esr) and abs(delta_esr) > 0.05:
-            mechanism = "esr_alteration"
-        elif not pd.isna(prediction) and prediction >= 0.20:
-            mechanism = "complex_splicing"
-
-        status = "scored" if not pd.isna(prediction) else "not_covered"
-        return pd.Series([interpretation, ci, prediction, confidence, score, mechanism, mut_in_pb, delta_esr, proba_crypt, status])
-
-    logger.info("Building expanded SPiP columns with mechanism classification")
+    if identity is None:
+        raise ValueError("parse_spip requires a GeneIdentity (no silent fallback to unmatched scores)")
+    logger.info("Building expanded SPiP columns with mechanism classification (transcript-matched)")
     if spip_col not in data.columns:
         logger.warning(f"Column {spip_col} not found in data")
         return data
 
-    try:
-        spip_extracted = data.apply(extract_spip_fields, axis=1)
-        spip_extracted.columns = list(NEW_SPIP_COLUMNS.values())
-        for col_name in spip_extracted.columns:
-            data[col_name] = spip_extracted[col_name]
-    except Exception as e:
-        logger.error(f"Error extracting SPiP fields: {e}")
-        if data.shape[0] == 0:
-            logger.error("Dataframe is empty, cannot extract SPiP fields")
-            raise ValueError("Dataframe is empty, cannot extract SPiP fields")
-        else:
-            raise e
+    def col(name):
+        return data[name].tolist() if name in data.columns else [None] * len(data)
 
+    parsed_cache, row_cache = {}, {}
+    out, matches, anymax = [], [], []
+    for raw, feature, mane, mane_pc, locus in zip(col(spip_col), col("Feature"), col("MANE_SELECT"),
+                                                  col("MANE_PLUS_CLINICAL"), col("Locus")):
+        key = (raw, feature, mane, mane_pc, locus)
+        if key in row_cache:
+            res = row_cache[key]
+        else:
+            res = None
+            if is_missing(raw):
+                res = (_SPIP_EMPTY, NO_PREDICTION, np.nan)
+            elif "caused an error in SPiP execution" in str(raw):
+                res = (["Error", np.nan, np.nan, np.nan, np.nan, "error", np.nan, np.nan, np.nan, "error"],
+                       PREDICTOR_ERROR, np.nan)
+            else:
+                if raw not in parsed_cache:
+                    parsed_cache[raw] = [e.split("|") for e in split_entries(raw)]
+                alt = alt_from_locus(locus)
+                entries = [f for f in parsed_cache[raw] if len(f) > 12 and (alt is None or f[0].strip() == alt)]
+                preds = []
+                for f in entries:
+                    try:
+                        preds.append(float(f[4]))
+                    except ValueError:
+                        pass
+                any_max = max(preds) if preds else np.nan
+                row_nms = identity.row_refseq_transcripts(feature, mane, mane_pc)
+                if not row_nms:
+                    res = (_SPIP_EMPTY, NOT_APPLICABLE_TRANSCRIPT, any_max)
+                else:
+                    hit = next((f for f in entries if strip_version(f[11]) in row_nms), None)
+                    res = (_spip_fields(hit), MATCHED, any_max) if hit else (_SPIP_EMPTY, NO_ENTRY, any_max)
+            row_cache[key] = res
+        out.append(res[0]); matches.append(res[1]); anymax.append(res[2])
+
+    frame = pd.DataFrame(out, index=data.index, columns=list(NEW_SPIP_COLUMNS.values()))
+    for c in frame.columns:
+        data[c] = frame[c]
+    data["SPiP_match"] = matches
+    data["SPiP_anygene_max_prediction"] = anymax
     logger.info("SPiP columns extracted, categorized, and status contract applied")
     return data
 
@@ -260,54 +276,80 @@ def parse_splicevault(data: pd.DataFrame):
     return data
 
 
+def _pangolin_entries(raw):
+    """[(ensg_unversioned, max_abs_score | nan)] per gene block of a Pangolin value."""
+    out = []
+    for block in split_entries(raw):
+        parts = block.split("|")
+        scores = []
+        for p in parts[1:]:
+            if ":" in p:
+                sub = p.split(":")
+                if len(sub) == 2:
+                    try:
+                        val = abs(float(sub[1]))
+                    except ValueError:
+                        continue
+                    if 0.0 <= val <= 1.0:
+                        scores.append(val)
+        out.append((strip_version(parts[0]), max(scores) if scores else np.nan))
+    return out
+
+
 def parse_pangolin(data: pd.DataFrame, pangolin_col: str = "Pangolin"):
-    """Parses Pangolin splicing scores."""
+    """Parses Pangolin splicing scores, gene-matched.
+
+    Pangolin entries are keyed by Ensembl gene ID (GENCODE 45 = VEP 111 gene models), so a row takes
+    the entry whose gene equals the row's own `Gene`; no other gene's score is used. Adds
+    `Pangolin_match` and `Pangolin_anygene_max` (variant-level maximum over all genes).
+    """
     if pangolin_col not in data.columns and "Pangolin_max_score" not in data.columns:
         logger.info("Pangolin column not found in data, skipping Pangolin parsing")
         return data
 
-    logger.info("Parsing Pangolin predictions and status contract...")
+    logger.info("Parsing Pangolin predictions (gene-matched) and status contract...")
 
-    def process_row(row):
-        pang_raw = str(row.get(pangolin_col, "."))
-        if pd.isna(pang_raw) or pang_raw in (".", "nan", "N/A", ""):
-            max_s = row.get("Pangolin_max_score")
-            if not pd.isna(max_s) and str(max_s) not in (".", "nan"):
-                try:
-                    val = float(max_s)
-                    return pd.Series([val, float(row.get("Pangolin_heart_lv_score", val)), float(row.get("Pangolin_heart_aa_score", val)), "scored"])
-                except ValueError:
-                    pass
-            return pd.Series([np.nan, np.nan, np.nan, "not_covered"])
+    def col(name):
+        return data[name].tolist() if name in data.columns else [None] * len(data)
 
-        parts = pang_raw.split("|")
-        scores = []
-        for p in parts:
-            if ":" in p:
-                sub_parts = p.split(":")
-                if len(sub_parts) == 2:
+    cache, parsed = {}, {}
+    maxs, statuses, matches, anymax = [], [], [], []
+    for raw, gene, pre in zip(col(pangolin_col), col("Gene"), col("Pangolin_max_score")):
+        key = (raw, gene)
+        if key not in cache:
+            if is_missing(raw):
+                if not is_missing(pre):          # already-parsed table with no raw string
                     try:
-                        val = abs(float(sub_parts[1]))
-                        if 0.0 <= val <= 1.0:
-                            scores.append(val)
+                        cache[key] = (float(pre), "scored", "preparsed", float(pre))
                     except ValueError:
-                        pass
+                        cache[key] = (np.nan, "not_covered", NO_PREDICTION, np.nan)
+                else:
+                    cache[key] = (np.nan, "not_covered", NO_PREDICTION, np.nan)
+            else:
+                if raw not in parsed:
+                    parsed[raw] = _pangolin_entries(raw)
+                entries = parsed[raw]
+                scores = [sc for _, sc in entries if not pd.isna(sc)]
+                any_max = max(scores) if scores else np.nan
+                hit, st = pick_gene_entry(entries, gene, None, None, entry_gene_id=lambda e: e[0])
+                if hit is not None and not pd.isna(hit[1]):
+                    cache[key] = (hit[1], "scored", st, any_max)
+                else:
+                    cache[key] = (np.nan, "not_covered", st, any_max)
+        v = cache[key]
+        maxs.append(v[0]); statuses.append(v[1]); matches.append(v[2]); anymax.append(v[3])
 
-        if not scores:
-            return pd.Series([np.nan, np.nan, np.nan, "not_covered"])
-
-        max_score = max(scores)
-        return pd.Series([max_score, max_score, max_score, "scored"])
-
-    try:
-        res = data.apply(process_row, axis=1)
-        res.columns = list(NEW_PANGOLIN_COLUMNS.values())
-        for col_name in res.columns:
-            data[col_name] = res[col_name]
-        logger.info("Pangolin columns parsed and status contract applied successfully")
-    except Exception as e:
-        logger.error(f"Error parsing Pangolin: {e}")
-
+    res = pd.DataFrame({
+        NEW_PANGOLIN_COLUMNS["max_score"]: maxs,
+        NEW_PANGOLIN_COLUMNS["heart_lv"]: maxs,
+        NEW_PANGOLIN_COLUMNS["heart_aa"]: maxs,
+        NEW_PANGOLIN_COLUMNS["status"]: statuses,
+    }, index=data.index)
+    for c in res.columns:
+        data[c] = res[c]
+    data["Pangolin_match"] = matches
+    data["Pangolin_anygene_max"] = anymax
+    logger.info("Pangolin columns parsed and status contract applied successfully")
     return data
 
 
@@ -459,58 +501,81 @@ def build_signed_intron_offset(data: pd.DataFrame):
     return data
 
 
-def parse_spliceai_custom(data: pd.DataFrame) -> pd.DataFrame:
-    """Unpack custom SpliceAI (-D 10000 / 20kb window) prediction string into dedicated columns."""
+_SPLICEAI_CUSTOM_COLS = [
+    "spliceai_custom_SYMBOL", "spliceai_custom_DS_AG", "spliceai_custom_DS_AL", "spliceai_custom_DS_DG",
+    "spliceai_custom_DS_DL", "spliceai_custom_DP_AG", "spliceai_custom_DP_AL", "spliceai_custom_DP_DG",
+    "spliceai_custom_DP_DL", "spliceai_custom_MAX",
+]
+
+
+def _spliceai_entries(raw):
+    """[(allele, symbol, ds_ag, ds_al, ds_dg, ds_dl, dp_ag, dp_al, dp_dg, dp_dl, max_ds)] per gene entry."""
+    out = []
+    for e in split_entries(raw):
+        p = e.split("|")
+        if len(p) < 10:
+            continue
+
+        def num(x):
+            try:
+                return float(x) if x != "." else np.nan
+            except ValueError:
+                return np.nan
+
+        ds = [num(p[2]), num(p[3]), num(p[4]), num(p[5])]
+        valid = [x for x in ds if not np.isnan(x)]
+        out.append((p[0], p[1], *ds, num(p[6]), num(p[7]), num(p[8]), num(p[9]), max(valid) if valid else np.nan))
+    return out
+
+
+def parse_spliceai_custom(data: pd.DataFrame, identity: GeneIdentity = None) -> pd.DataFrame:
+    """Unpack custom SpliceAI (-D 10000 / 20kb window) predictions, gene-matched and allele-matched.
+
+    The value holds one entry per gene the variant touches (joined by '&' in the table). A row takes
+    the entry for its own gene -- resolved from SpliceAI's symbol to an Ensembl gene ID by coordinates
+    AND HGNC (see gene_identity.GeneIdentity) -- for the row's ALT allele. No other gene's score is
+    used. Adds `spliceai_custom_match` and `spliceai_custom_anygene_MAX`.
+    """
     col = "SpliceAI"
     if col not in data.columns:
         logger.info(f"Column `{col}` not found in data, skipping custom SpliceAI unpacking")
         return data
+    if identity is None:
+        raise ValueError("parse_spliceai_custom requires a GeneIdentity (no silent fallback to unmatched scores)")
 
-    logger.info("Unpacking custom SpliceAI (-D 10000) predictions into dedicated `spliceai_custom_*` columns...")
+    logger.info("Unpacking custom SpliceAI (-D 10000) predictions (gene-matched) into `spliceai_custom_*` columns...")
 
-    def extract_fields(val):
-        if pd.isna(val) or val is None or str(val).strip() in ("", ".", "nan", "None", "-"):
-            return [np.nan] * 10
-        first_entry = str(val).split(",")[0].strip()
-        parts = first_entry.split("|")
-        if len(parts) >= 10:
-            try:
-                symbol = parts[1] if parts[1] != "." else np.nan
-                ds_ag = float(parts[2]) if parts[2] != "." else np.nan
-                ds_al = float(parts[3]) if parts[3] != "." else np.nan
-                ds_dg = float(parts[4]) if parts[4] != "." else np.nan
-                ds_dl = float(parts[5]) if parts[5] != "." else np.nan
-                dp_ag = float(parts[6]) if parts[6] != "." else np.nan
-                dp_al = float(parts[7]) if parts[7] != "." else np.nan
-                dp_dg = float(parts[8]) if parts[8] != "." else np.nan
-                dp_dl = float(parts[9]) if parts[9] != "." else np.nan
-                scores = [x for x in [ds_ag, ds_al, ds_dg, ds_dl] if not np.isnan(x)]
-                max_score = max(scores) if scores else np.nan
-                return [symbol, ds_ag, ds_al, ds_dg, ds_dl, dp_ag, dp_al, dp_dg, dp_dl, max_score]
-            except Exception:
-                return [np.nan] * 10
-        return [np.nan] * 10
+    def column(name):
+        return data[name].tolist() if name in data.columns else [None] * len(data)
 
-    extracted = pd.DataFrame(
-        data[col].apply(extract_fields).tolist(),
-        index=data.index,
-        columns=[
-            "spliceai_custom_SYMBOL",
-            "spliceai_custom_DS_AG",
-            "spliceai_custom_DS_AL",
-            "spliceai_custom_DS_DG",
-            "spliceai_custom_DS_DL",
-            "spliceai_custom_DP_AG",
-            "spliceai_custom_DP_AL",
-            "spliceai_custom_DP_DG",
-            "spliceai_custom_DP_DL",
-            "spliceai_custom_MAX",
-        ],
-    )
+    nan10 = [np.nan] * 10
+    parsed, cache = {}, {}
+    rows, matches, anymax = [], [], []
+    for raw, gene, symbol, locus in zip(column(col), column("Gene"), column("SYMBOL"), column("Locus")):
+        key = (raw, gene, symbol, locus)
+        if key not in cache:
+            if is_missing(raw):
+                cache[key] = (nan10, NO_PREDICTION, np.nan)
+            else:
+                if raw not in parsed:
+                    parsed[raw] = _spliceai_entries(raw)
+                alt = alt_from_locus(locus)
+                entries = [e for e in parsed[raw] if alt is None or e[0] == alt]
+                vals = [e[10] for e in entries if not np.isnan(e[10])]
+                any_max = max(vals) if vals else np.nan
+                hit, st = pick_gene_entry(entries, gene, symbol, identity, entry_symbol=lambda e: e[1])
+                if hit is None:
+                    cache[key] = (nan10, st, any_max)
+                else:
+                    cache[key] = ([hit[1], *hit[2:6], *hit[6:10], hit[10]], st, any_max)
+        v = cache[key]
+        rows.append(v[0]); matches.append(v[1]); anymax.append(v[2])
 
+    extracted = pd.DataFrame(rows, index=data.index, columns=_SPLICEAI_CUSTOM_COLS)
     for c in extracted.columns:
         data[c] = extracted[c]
-
+    data["spliceai_custom_match"] = matches
+    data["spliceai_custom_anygene_MAX"] = anymax
     logger.info("Custom SpliceAI unpacking completed successfully")
     return data
 
@@ -543,9 +608,16 @@ def build_spliceMAX(
 
 
 def _extract_spliceai_details(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
+    # _safe_numeric_series fills missing values with 0, which would make "custom score absent" look like
+    # a real 0.00. Presence is decided on the raw column: custom (incl. a genuine 0.00) wins; VEP's
+    # per-transcript plugin score (gene-matched by construction) is used only when custom is absent.
+    if "spliceai_custom_MAX" in df.columns:
+        custom_present = pd.to_numeric(df["spliceai_custom_MAX"], errors="coerce").notna()
+    else:
+        custom_present = pd.Series(False, index=df.index)
     splice_custom = _safe_numeric_series(df, "spliceai_custom_MAX")
     splice_vep = _safe_numeric_series(df, "spliceAI_MAX")
-    final_scores = np.where(splice_custom > 0, splice_custom, splice_vep)
+    final_scores = np.where(custom_present, splice_custom, splice_vep)
     
     methods = []
     has_custom = "spliceai_custom_MAX" in df.columns
@@ -554,7 +626,7 @@ def _extract_spliceai_details(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
     for idx in range(len(df)):
         c_s = splice_custom.iloc[idx]
         v_s = splice_vep.iloc[idx]
-        if c_s > 0:
+        if custom_present.iloc[idx]:
             methods.append("Custom Window (-D 10000 / 20kb)")
         elif v_s > 0 or has_vep:
             methods.append("VEP Standard (~50bp)")

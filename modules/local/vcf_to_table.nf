@@ -71,6 +71,9 @@ process VCF_TO_TABLE {
         --input scratch.tsv \\
         --output ${meta.partition_id}.parsed.clean.${params.output_format} \\
         --logging_level INFO \\
+        --hgnc-table ${params.hgnc_table} \\
+        --spliceai-symbol-map ${params.spliceai_symbol_map} \\
+        --gene-transcript-mapping ${params.gene_transcript_mapping} \\
         --skip_quality_filter
     """
 

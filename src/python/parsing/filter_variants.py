@@ -7,6 +7,7 @@ import argparse
 import pandas as pd
 
 try:
+    from .modules.gene_identity import GeneIdentity
     from .modules.io_qc import (
         logger, LOGGING_MAP, GENOTYPE_QUAL_COLUMNS, GENE_PRIO_CHOICES, file_logging,
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
@@ -42,6 +43,7 @@ try:
         filter_freq, classification_dominant,
     )
 except ImportError:
+    from modules.gene_identity import GeneIdentity
     from modules.io_qc import (
         logger, LOGGING_MAP, GENOTYPE_QUAL_COLUMNS, GENE_PRIO_CHOICES, file_logging,
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
@@ -157,6 +159,24 @@ def argparsing() -> argparse.ArgumentParser:
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Log level to show [DEBUG,INFO,WARNING,ERROR]",
         default="INFO",
+    )
+    parser.add_argument(
+        "--hgnc-table",
+        type=str,
+        default=None,
+        help="HGNC complete set TSV (symbol history -> Ensembl gene ID); required with --spliceai-symbol-map",
+    )
+    parser.add_argument(
+        "--spliceai-symbol-map",
+        type=str,
+        default=None,
+        help="resources/spliceai_symbol_to_ensg.*.tsv (SpliceAI symbol -> Ensembl gene ID by coordinates)",
+    )
+    parser.add_argument(
+        "--gene-transcript-mapping",
+        type=str,
+        default=None,
+        help="Gen,NM,ENST curated transcript table (adds ENST->NM for SPiP transcript matching)",
     )
     parser.add_argument(
         "--skip_quality_filter",
@@ -336,10 +356,20 @@ def main(args: list[str] | None):
         if args.gene_priority:
             data = filter_by_gene_priority(data, args.gene_priority)
 
-    data = parse_spliceai_custom(data)
+    needs_identity = any(c in data.columns for c in ("SpliceAI", "SPiP"))
+    identity = None
+    if needs_identity:
+        if not (args.hgnc_table and args.spliceai_symbol_map):
+            raise ValueError(
+                "SpliceAI/SPiP columns are present: --hgnc-table and --spliceai-symbol-map are required so "
+                "scores are attached to the row's own gene/transcript. Refusing to fall back to unmatched scores."
+            )
+        identity = GeneIdentity(args.spliceai_symbol_map, args.hgnc_table, args.gene_transcript_mapping)
+
+    data = parse_spliceai_custom(data, identity=identity)
     data = build_spliceMAX(data, SPLICING_COLUMNS)
 
-    data = parse_spip(data)
+    data = parse_spip(data, identity=identity)
     data = parse_dbnsfp(data, transcript=None, dbnsfp_cols=args.dbnsfp_cols)
     data = parse_missense(data, MISSENSE_COLUMNS)
     data = parse_splicevault(data)
