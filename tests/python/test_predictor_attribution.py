@@ -269,3 +269,20 @@ def test_dbnsfp_misaligned_list_is_not_used():
     df = pd.DataFrame([dbn("ENST00000000001", AlphaMissense_score="0.9&0.5")])           # 2 items for 3 transcripts
     out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
     assert pd.isna(out["AlphaMissense_score"].iloc[0]) and out["dbNSFP_match"].iloc[0] == pr.DBNSFP_MISALIGNED
+
+
+def test_dbnsfp_single_transcript_list_not_matching_the_row_is_not_copied_to_it():
+    """A one-transcript dbNSFP list must not leak onto rows of other transcripts (the COL6A5-style case)."""
+    one_tx = {"Ensembl_transcriptid": "ENST00000265379", "SIFT_score": "0.0", "AlphaMissense_score": "0.8363",
+              "MetaRNN_score": "0.9"}
+    df = pd.DataFrame([{"Feature": "ENST00000312481", **one_tx}, {"Feature": "ENST00000265379", **one_tx}])
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert out["dbNSFP_match"].iloc[0] == pr.DBNSFP_NO_ENTRY
+    assert out[["Ensembl_transcriptid", "SIFT_score", "AlphaMissense_score", "MetaRNN_score"]].iloc[0].isna().all()
+    assert out["AlphaMissense_score"].iloc[1] == "0.8363" and out["Ensembl_transcriptid"].iloc[1] == "ENST00000265379"
+
+
+def test_dbnsfp_single_value_for_multi_transcript_list_is_kept_for_matched_rows_only():
+    df = pd.DataFrame([dbn("ENST00000000002", SIFT_score="0.05"), dbn("ENST00000999999", SIFT_score="0.05")])
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert out["SIFT_score"].iloc[0] == "0.05" and pd.isna(out["SIFT_score"].iloc[1])

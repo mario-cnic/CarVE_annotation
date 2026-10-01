@@ -141,6 +141,7 @@ def parse_dbnsfp_by_row_transcript(data: pd.DataFrame, aligned_columns: list[str
     new = {c: [np.nan] * len(work) for c in cols}
     anymax = {c: [np.nan] * len(work) for c in cols if c in MISSENSE_COLUMNS}
     status = []
+    collapsed = {c: 0 for c in cols}
     for i, (feat, tl) in enumerate(zip(feats, tlists)):
         if feat is None or (isinstance(feat, float) and np.isnan(feat)):
             status.append(DBNSFP_NO_ROW_TRANSCRIPT)
@@ -162,11 +163,15 @@ def parse_dbnsfp_by_row_transcript(data: pd.DataFrame, aligned_columns: list[str
                     except ValueError:
                         pass
                 anymax[c][i] = max(nums) if nums else np.nan
-            if len(items) == 1:
-                new[c][i] = v if v != "." else np.nan        # single value: not a per-transcript list
-            elif len(items) == n:
-                if pos is not None and items[pos] != ".":
+            if pos is None:
+                continue                      # the row's transcript is not in dbNSFP's list: nothing here is its own
+            if len(items) == n:
+                if items[pos] != ".":
                     new[c][i] = items[pos]
+            elif len(items) == 1:
+                # one value for a multi-transcript list: variant-level (or collapsed upstream); kept, and counted
+                new[c][i] = v if v != "." else np.nan
+                collapsed[c] += 1
             else:
                 st = DBNSFP_MISALIGNED if st == DBNSFP_MATCHED else st
         status.append(st)
@@ -178,6 +183,9 @@ def parse_dbnsfp_by_row_transcript(data: pd.DataFrame, aligned_columns: list[str
         data.loc[work, f"{c}_anytranscript_max"] = vals
     data.loc[work, "dbNSFP_match"] = status
     logger.info(f"dbNSFP per-transcript selection: {pd.Series(status).value_counts().to_dict()}")
+    single = {c: n for c, n in collapsed.items() if n}
+    if single:
+        logger.info(f"dbNSFP aligned columns holding ONE value for a multi-transcript list (kept as-is): {single}")
     return data
 
 
