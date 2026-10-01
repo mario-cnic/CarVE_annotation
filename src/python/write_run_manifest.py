@@ -153,6 +153,105 @@ def tool_version(binary: str | None, version_flag: str = "--version") -> str | N
     return out.splitlines()[0] if out else None
 
 
+# External inputs (databases, models, reference FASTA) are hashed in full up to this size; above it
+# only stat() facts plus any sidecar index/checksum are recorded, so a launch never re-reads a
+# multi-GB mounted file (the 3 GB FASTA). The Pangolin db (~0.4 GB) is under the limit.
+RESOURCE_HASH_MAX_BYTES = 1 << 30
+# Packages read from an env's conda-meta (no execution) and reported by name; the fingerprint
+# covers the whole env, this list is only for human-readable versions.
+KEY_ENV_PACKAGES = ("spliceai", "pangolin", "torch", "pytorch", "tensorflow", "keras", "pysam",
+                    "bcftools", "htslib", "samtools", "pandas", "pyarrow", "numpy", "r-base",
+                    "gffutils", "pyfaidx", "python")
+
+
+def split_named(spec: str) -> tuple[str, str]:
+    name, sep, value = spec.partition("=")
+    if not sep or not name or not value:
+        raise argparse.ArgumentTypeError(f"expected NAME=PATH, got {spec!r}")
+    return name, value
+
+
+def resource_identity(path_str: str) -> dict:
+    """Identity of an external file/dir. Never guesses: a field that cannot be determined is None."""
+    p = Path(path_str)
+    out = {"path": str(p), "exists": p.exists(), "is_dir": p.is_dir(), "size_bytes": None,
+           "mtime_utc": None, "sha256": None, "hash_skipped": None, "sidecars": {}}
+    if not p.exists():
+        return out
+    st = p.stat()
+    out["mtime_utc"] = datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()
+    if p.is_dir():
+        return out
+    out["size_bytes"] = st.st_size
+    if st.st_size <= RESOURCE_HASH_MAX_BYTES:
+        out["sha256"] = sha256_of(p)
+    else:
+        out["hash_skipped"] = f"size > {RESOURCE_HASH_MAX_BYTES} bytes; sidecars recorded instead"
+    for suffix in (".fai", ".md5", ".sha256"):
+        side = Path(str(p) + suffix)
+        if side.is_file():
+            out["sidecars"][suffix] = {
+                "sha256": sha256_of(side),
+                "content": side.read_text(errors="replace").strip()[:200] if suffix != ".fai" else None,
+            }
+    return out
+
+
+def code_repo_state(path_str: str) -> dict:
+    """Commit + tracked-file modifications of a code repo outside this one (e.g. shared/utils).
+    `--untracked-files=no` on purpose: that repo also contains the conda envs, and scanning them
+    for untracked files would make every launch slow. Untracked code there is therefore NOT seen."""
+    root = Path(path_str)
+    out = {"path": str(root), "commit": None, "dirty_tracked": None, "dirty_files": [],
+           "untracked_not_checked": True}
+    top = sh(["git", "rev-parse", "--show-toplevel"], cwd=root) if root.is_dir() else None
+    if not top:
+        return out
+    out["git_toplevel"] = top
+    out["commit"] = sh(["git", "rev-parse", "HEAD"], cwd=root)
+    try:
+        raw = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"], cwd=root,
+                             capture_output=True, text=True, check=True, timeout=60).stdout.rstrip("\n")
+    except Exception:
+        return out
+    files = [l[3:] for l in raw.split("\n") if l]
+    out["dirty_tracked"] = bool(files)
+    out["dirty_files"] = files[:50]
+    out["dirty_files_total"] = len(files)
+    return out
+
+
+def env_identity(bin_path: str) -> dict:
+    """Fingerprint of the conda env behind a binary, read from conda-meta without running anything.
+    The fingerprint is the sha256 of the sorted package-build file names, so ANY package change
+    (add/remove/upgrade/rebuild) alters it. None when the env is not readable from here."""
+    out = {"binary": bin_path, "env_dir": None, "n_packages": None, "fingerprint_sha256": None,
+           "key_packages": {}}
+    b = Path(bin_path)
+    env_dir = b.parent.parent
+    meta = env_dir / "conda-meta"
+    if b.parent.name != "bin" or not meta.is_dir():
+        return out
+    names = sorted(f.name[:-5] for f in meta.glob("*.json"))
+    # pip-installed packages (e.g. torch, pangolin, spliceai) are invisible to conda-meta; their
+    # *.dist-info directories are the record. Prefixed so they cannot collide with conda names.
+    pip_names = sorted("pip:" + d.name[:-len(".dist-info")]
+                       for d in env_dir.glob("lib/python*/site-packages/*.dist-info"))
+    out["env_dir"] = str(env_dir)
+    out["n_packages"] = len(names)
+    out["n_pip_packages"] = len(pip_names)
+    out["fingerprint_sha256"] = hashlib.sha256("\n".join(names + pip_names).encode()).hexdigest()
+    for n in names:
+        pkg = n.rsplit("-", 2)[0] if n.count("-") >= 2 else n
+        if pkg in KEY_ENV_PACKAGES:
+            out["key_packages"][pkg] = n
+    for n in pip_names:
+        pkg = n[len("pip:"):].split("-", 1)[0].lower().replace("_", "-")
+        if pkg in KEY_ENV_PACKAGES:
+            out["key_packages"].setdefault(pkg, n)
+    return out
+
+
 def cmd_launch(args):
     outdir = Path(args.outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -210,6 +309,13 @@ def cmd_launch(args):
                 "v5_genes_loc_bed": sha256_of(REPO_ROOT / "resources" / "v5_genes_loc.bed"),
             },
             "annotation_pipeline_repo": repo_state,
+            # Everything outside this repo that changes the output without changing this repo's
+            # commit (TODO.md "Nextflow pipeline: make the run reproducible from the repo commit").
+            "external_provenance": {
+                "resources": {n: resource_identity(v) for n, v in (getattr(args, "resource", None) or [])},
+                "code_repos": {n: code_repo_state(v) for n, v in (getattr(args, "code_repo", None) or [])},
+                "envs": {n: env_identity(v) for n, v in (getattr(args, "env", None) or [])},
+            },
             "nextflow_version": sh([nextflow_bin, "-v"]) if nextflow_bin else None,
             # Best-effort tool versions, queried at run time rather than hardcoded — closes
             # TODO.md's Priority-0 complaint that no file anywhere records what actually ran.
@@ -285,6 +391,12 @@ if __name__ == "__main__":
     p_launch.add_argument("--spliceai-distance")
     p_launch.add_argument("--pangolin-distance")
     p_launch.add_argument("--resume", action="store_true")
+    p_launch.add_argument("--resource", action="append", type=split_named, metavar="NAME=PATH",
+                          help="external file/dir to identify (size, mtime, sha256 if small, sidecars)")
+    p_launch.add_argument("--code-repo", action="append", type=split_named, metavar="NAME=PATH",
+                          help="git repo outside this one whose code the run executes")
+    p_launch.add_argument("--env", action="append", type=split_named, metavar="NAME=BINARY",
+                          help="binary inside a conda env; the env is fingerprinted from conda-meta")
     p_launch.set_defaults(func=cmd_launch)
 
     p_completed = sub.add_parser("completed")

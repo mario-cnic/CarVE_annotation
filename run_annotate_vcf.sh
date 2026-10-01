@@ -79,8 +79,10 @@ FORWARD_ARGS+=(--run_id "$RUN_ID")
 
 # Resolve the same binary paths/config values this run will actually use, from the SAME
 # nextflow.config the real run reads — not re-derived or hardcoded here.
+# The config is dumped once (each `nextflow config` call is a JVM start) and queried from memory.
+CONFIG_DUMP="$("$NEXTFLOW_BIN" config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null)"
 resolve_param() {
-	"$NEXTFLOW_BIN" config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null | \
+	printf '%s\n' "$CONFIG_DUMP" | \
 		grep -E "^\s*$1\s*=" | head -1 | sed -E "s/^\s*$1\s*=\s*'?([^']*)'?\s*\$/\1/"
 }
 BCFTOOLS="$(resolve_param bcftools)"
@@ -88,6 +90,23 @@ VEP_SIF="$(resolve_param vep_sif)"
 VEP_CACHE_VERSION="$(resolve_param vep_cache_version)"
 SPLICEAI_DISTANCE="$(resolve_param spliceai_distance)"
 PANGOLIN_DISTANCE="$(resolve_param pangolin_distance)"
+
+# Identity of everything outside this repo that shapes the output (reference FASTA, Pangolin db,
+# SPiP script, LaBranchoR BED, VEP cache dir; the shared/utils code repo; each predictor's conda
+# env). Names come from nextflow.config params, so the manifest records what THIS run resolved.
+# A param that resolves to nothing is omitted, not recorded as an empty path.
+EXTERNAL_ARGS=()
+add_external() { # kind (--resource|--code-repo|--env) label param
+	local v; v="$(resolve_param "$3")"
+	[[ -n "$v" ]] && EXTERNAL_ARGS+=("$1" "$2=$v")
+}
+for p in fasta pangolin_db spip_script labranchor_bed vep_dir gene_restriction_bed; do
+	add_external --resource "$p" "$p"
+done
+add_external --code-repo shared_utils shared_utils
+for p in python_spliceai pangolin_python spip_rscript bcftools vcf_parser_python datasci_python; do
+	add_external --env "$p" "$p"
+done
 
 OUTDIR="$REPO_ROOT/nf_work/annotation_out/$RUN_ID"
 
@@ -111,6 +130,7 @@ python3 "$MANIFEST_PY" launch \
 	--vep-cache-version "$VEP_CACHE_VERSION" \
 	--spliceai-distance "$SPLICEAI_DISTANCE" \
 	--pangolin-distance "$PANGOLIN_DISTANCE" \
+	${EXTERNAL_ARGS[@]+"${EXTERNAL_ARGS[@]}"} \
 	"${RESUME_FLAG[@]:+--resume}" || {
 	echo "error: failed to write launch manifest — aborting before launching nextflow" >&2
 	exit 1
