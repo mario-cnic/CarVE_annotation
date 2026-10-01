@@ -1,0 +1,257 @@
+{
+  "schema_version": 1,
+  "module": "2 (annotation_pipeline_new)",
+  "launch": {
+    "generated_at": "2026-10-01T15:44:22.006251+00:00",
+    "command_line": "/opt/nextflow/nextflow run annotate_vcf.nf -profile standard --input_vcf test_data/raw_vcfs/panel7_refcorrected.vcf.gz --run_id panel7_v45_retest2",
+    "cli_flags": {
+      "run_id": "panel7_v45_retest2",
+      "profile": "standard",
+      "spip_tier": "",
+      "output_format": "",
+      "resume": false
+    },
+    "resolved_paths": {
+      "nextflow_binary": "/opt/nextflow/nextflow",
+      "nextflow_main": "/data_lab_PGP/pipelines/annotation_pipeline_new/annotate_vcf.nf",
+      "config": "/data_lab_PGP/pipelines/annotation_pipeline_new/nextflow.config",
+      "input": "/data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel7_refcorrected.vcf.gz",
+      "outdir": "/data_lab_PGP/pipelines/annotation_pipeline_new/nf_work/annotation_out/panel7_v45_retest2"
+    },
+    "file_hashes_sha256": {
+      "input": "0606195560439f2c7630f5f32c6640ad1ef5c51ecfe0dc30eeec4a07a285bd59",
+      "gene_transcript_mapping": "6bee9910e7cd7b0ce696e8cbba4fc306d9ec5c9496cde5c75fd64401d65aa953",
+      "v5_genes_loc_bed": "095d18df373b0dc39872a90dcb612aa2f7af4cf7a9c19eb1c59f764fbae3cf59"
+    },
+    "annotation_pipeline_repo": {
+      "commit": "77f2124d691a679d53fb02cc01e8b1acd5a4a8ef",
+      "dirty": false,
+      "dirty_files": [],
+      "dirty_patch": null
+    },
+    "external_provenance": {
+      "resources": {
+        "fasta": {
+          "path": "/references/genomes/Homo_sapiens/GATK_bundle/v0/Homo_sapiens_assembly38.fasta",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 3249912778,
+          "mtime_utc": "2024-09-02T12:35:54.388654+00:00",
+          "sha256": null,
+          "hash_skipped": "size > 1073741824 bytes; sidecars recorded instead",
+          "sidecars": {
+            ".fai": {
+              "sha256": "edefd93c489dc1baefad312f40388089f8db5cf6dcc3ba0955669ead274e8b6b",
+              "content": null
+            }
+          }
+        },
+        "pangolin_db": {
+          "path": "/data_lab_PGP/shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 392273920,
+          "mtime_utc": "2026-10-01T09:22:52.914455+00:00",
+          "sha256": "55831b7679132a7dd868f8aa65a5ae6cdfa298993a29460c846f276b3d5eeb8c",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "spip_script": {
+          "path": "/data_lab_PGP/resources/annotation/SPiP/SPiPv2.1_main.r",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 24305,
+          "mtime_utc": "2025-01-22T14:49:03.343638+00:00",
+          "sha256": "bb97782d6914544193b96f5c41d044df7e7534459090b471a6b7909588069059",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "labranchor_bed": {
+          "path": "/data_lab_PGP/resources/annotation/labranchor/labranchor_grch38_top.bed.gz",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 2607613,
+          "mtime_utc": "2026-08-12T11:39:20.990771+00:00",
+          "sha256": "c0841088f8df49708009772ca0d4e5b9db213823be3c5c5450c1cc9287233274",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "vep_dir": {
+          "path": "/references/genomes/Homo_sapiens/annotations/VEP/GRCh38",
+          "exists": true,
+          "is_dir": true,
+          "size_bytes": null,
+          "mtime_utc": "2024-09-02T14:35:36.166356+00:00",
+          "sha256": null,
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "gene_restriction_bed": {
+          "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/resources/v5_genes_loc.bed",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 385376,
+          "mtime_utc": "2026-09-24T14:16:22.327941+00:00",
+          "sha256": "095d18df373b0dc39872a90dcb612aa2f7af4cf7a9c19eb1c59f764fbae3cf59",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "hgnc_table": {
+          "path": "/data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 16953545,
+          "mtime_utc": "2026-10-01T12:01:59.503718+00:00",
+          "sha256": "91d0ad20c34f26fb12c8cce3f80a65a6fc694f3a508040b19f6bfa29ae0d889e",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "spliceai_symbol_map": {
+          "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/resources/spliceai_symbol_to_ensg.grch38.gencode45.tsv",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 629968,
+          "mtime_utc": "2026-10-01T11:07:29.108231+00:00",
+          "sha256": "5bbf6e62a8cea04d4a9b616ba22cca1fab9e4346c8a518133a89d014c7b2076e",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "enst_spip_map": {
+          "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/resources/enst_to_spip_nm.grch38.gencode45.tsv",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 5223005,
+          "mtime_utc": "2026-10-01T14:39:27.410254+00:00",
+          "sha256": "d726b3eb44473e9acf94fb473f8f1ddeac70f481e9e575146a9afd905d4438fb",
+          "hash_skipped": null,
+          "sidecars": {}
+        },
+        "dbnsfp_aligned_columns": {
+          "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/resources/dbnsfp_transcript_aligned_columns.txt",
+          "exists": true,
+          "is_dir": false,
+          "size_bytes": 961,
+          "mtime_utc": "2026-10-01T14:24:55.791493+00:00",
+          "sha256": "ca87e9c8aa53390fe4ab8ca749359d820202255f31b4c966f0821986e37b7eab",
+          "hash_skipped": null,
+          "sidecars": {}
+        }
+      },
+      "code_repos": {
+        "shared_utils": {
+          "path": "/data_lab_PGP/shared/utils",
+          "commit": "19925ed2edad8298e0d84c4384f1fc7454e0074e",
+          "dirty_tracked": false,
+          "dirty_files": [],
+          "untracked_not_checked": true,
+          "git_toplevel": "/data_lab_PGP/shared/utils",
+          "dirty_files_total": 0
+        }
+      },
+      "envs": {
+        "python_spliceai": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/spliceai_env/bin/python3",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/spliceai_env",
+          "n_packages": 39,
+          "fingerprint_sha256": "ef99aebc1a43d135a6003245769305e72b08b18075befa06642cea295ab08cc7",
+          "key_packages": {
+            "htslib": "htslib-1.24-ha79157c_0",
+            "python": "python-3.10.20-h267e890_1_cpython",
+            "keras": "pip:keras-2.15.0",
+            "numpy": "pip:numpy-1.26.4",
+            "pandas": "pip:pandas-2.3.3",
+            "pyfaidx": "pip:pyfaidx-0.9.0.4",
+            "pysam": "pip:pysam-0.24.0",
+            "spliceai": "pip:spliceai-1.3.1",
+            "tensorflow": "pip:tensorflow-2.15.1"
+          },
+          "n_pip_packages": 100
+        },
+        "pangolin_python": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/pangolin_env/bin/python3",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/pangolin_env",
+          "n_packages": 47,
+          "fingerprint_sha256": "0788cb81f22405bfe0d01b30af1d9b2f2d0bbd2ab46d29cede45a09e3ce66777",
+          "key_packages": {
+            "htslib": "htslib-1.24-ha79157c_0",
+            "numpy": "numpy-2.5.2-py312h33ff503_0",
+            "python": "python-3.12.13-hd63d673_0_cpython",
+            "gffutils": "pip:gffutils-0.14",
+            "pandas": "pip:pandas-3.0.5",
+            "pangolin": "pip:pangolin-1.0.2",
+            "pyfaidx": "pip:pyfaidx-0.9.0.4",
+            "pysam": "pip:pysam-0.24.0",
+            "torch": "pip:torch-2.13.0"
+          },
+          "n_pip_packages": 94
+        },
+        "spip_rscript": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/spip_env/bin/Rscript",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/spip_env",
+          "n_packages": 87,
+          "fingerprint_sha256": "0f597162671d4ad6dbfb9ca15a0ec0c8ac4dd9b104cace765122f114858280b6",
+          "key_packages": {
+            "r-base": "r-base-4.4.2-hc737e89_2"
+          },
+          "n_pip_packages": 0
+        },
+        "bcftools": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/genomics",
+          "n_packages": 87,
+          "fingerprint_sha256": "4fa6203b5f0a6f05740dd6f3bb0fffc8575acab083457cfdf3067b22aca84d86",
+          "key_packages": {
+            "bcftools": "bcftools-1.21-h8b25389_0",
+            "htslib": "htslib-1.21-h5efdd21_0",
+            "numpy": "numpy-2.4.2-py313hf6604e3_1",
+            "pandas": "pandas-3.0.1-py313hbfd7664_0",
+            "pyfaidx": "pyfaidx-0.9.0.3-pyhdfd78af_0",
+            "python": "python-3.13.12-hb7b561f_100_cp313",
+            "samtools": "samtools-1.20-h50ea8bc_1"
+          },
+          "n_pip_packages": 19
+        },
+        "vcf_parser_python": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/vcf_parser/bin/python",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/vcf_parser",
+          "n_packages": 40,
+          "fingerprint_sha256": "e98ba772122f047604ea97b9cb5174bb877d0586cd91da411e319c09d330cc06",
+          "key_packages": {
+            "pysam": "pysam-0.23.3-py313hd07c5dd_2",
+            "python": "python-3.13.0-h9ebbce0_100_cp313"
+          },
+          "n_pip_packages": 9
+        },
+        "datasci_python": {
+          "binary": "/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3",
+          "env_dir": "/data_lab_PGP/shared/utils/conda_envs/datasci",
+          "n_packages": 264,
+          "fingerprint_sha256": "8f24ef220822376b90acfdac4082308060314a07bc9026e42cb736303a0a9bda",
+          "key_packages": {
+            "numpy": "numpy-1.26.4-py312h2809609_0",
+            "pandas": "pandas-2.3.3-py312hf79963d_1",
+            "pyarrow": "pyarrow-24.0.0-py312h7900ff3_0",
+            "python": "python-3.12.2-hab00c5b_0_cpython"
+          },
+          "n_pip_packages": 142
+        }
+      }
+    },
+    "nextflow_version": "nextflow version 25.10.2.10555",
+    "tool_versions": {
+      "bcftools": "bcftools 1.21",
+      "vep_cache_version": "111",
+      "vep_sif_sha256": "4273d3123c623e32c5cfca01afd079d4191ab29206723e9d0d7017e443efe533"
+    },
+    "spliceai_distance": "10000",
+    "pangolin_distance": "10000",
+    "launched_by": "mruizp",
+    "host": "nf.cnic.es",
+    "launch_cwd": "/data_lab_PGP/pipelines/annotation_pipeline_new"
+  },
+  "completed": {
+    "generated_at": "2026-10-01T15:46:44.490513+00:00",
+    "exit_code": 1,
+    "workflow_stats": "WorkflowStats[succeededCount=7; failedCount=6; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=5; abortedCount=4; succeedDuration=2m 41s; failedDuration=1s; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=5; peakCpus=19; peakMemory=96 GB; ]"
+  }
+}
