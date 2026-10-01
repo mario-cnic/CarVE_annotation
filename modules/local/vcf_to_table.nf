@@ -73,7 +73,7 @@ process VCF_TO_TABLE {
         --logging_level INFO \\
         --hgnc-table ${params.hgnc_table} \\
         --spliceai-symbol-map ${params.spliceai_symbol_map} \\
-        --gene-transcript-mapping ${params.gene_transcript_mapping} \\
+        --enst-spip-map ${params.enst_spip_map} \\
         --dbnsfp-aligned-columns ${params.dbnsfp_aligned_columns} \\
         --skip_quality_filter
     """

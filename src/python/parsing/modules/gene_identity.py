@@ -26,7 +26,8 @@ AMBIGUOUS = "ambiguous"
 UNRESOLVED = "unresolved"
 NO_PREDICTION = "no_prediction"
 PREDICTOR_ERROR = "predictor_error"
-MATCH_STATUSES = (MATCHED, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, PREDICTOR_ERROR,
+MATCHED_STRUCTURE = "matched_by_exon_structure"
+MATCH_STATUSES = (MATCHED, MATCHED_STRUCTURE, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, PREDICTOR_ERROR,
                   AMBIGUOUS, UNRESOLVED, NO_PREDICTION)
 
 # Entries of a multi-gene value are joined with '&' in the table (',' in the raw VCF INFO).
@@ -57,8 +58,9 @@ def split_entries(value) -> list:
 class GeneIdentity:
     """Resolves predictor symbols / accessions to Ensembl gene IDs (versions stripped)."""
 
-    def __init__(self, spliceai_symbol_map: str, hgnc_table: str, curated_transcripts: Optional[str] = None):
-        for label, path in (("spliceai_symbol_map", spliceai_symbol_map), ("hgnc_table", hgnc_table)):
+    def __init__(self, spliceai_symbol_map: str, hgnc_table: str, enst_spip_map: str):
+        for label, path in (("spliceai_symbol_map", spliceai_symbol_map), ("hgnc_table", hgnc_table),
+                            ("enst_spip_map", enst_spip_map)):
             if not path:
                 raise ValueError(f"GeneIdentity: {label} is required (no silent fallback to unmatched scores)")
         self._coord = {}
@@ -76,15 +78,13 @@ class GeneIdentity:
                     for sym in row.get(col, "").split("|"):
                         if sym:
                             self._hgnc_other.setdefault(sym, set()).add(ens)
-        # ENST -> {NM} for curated clinical transcripts (resources/gene_transcript_mapping.txt: Gen,NM,ENST)
-        self._curated_nm = {}
-        if curated_transcripts:
-            with open(curated_transcripts) as fh:
-                next(fh)
-                for line in fh:
-                    f = line.strip().split(",")
-                    if len(f) >= 3 and f[1].strip() and f[2].strip():
-                        self._curated_nm.setdefault(strip_version(f[2]), set()).add(strip_version(f[1]))
+        # ENST -> {SPiP NM} by identical exon structure (src/python/build_enst_spip_map.py). The curated
+        # Gen,NM,ENST table is deliberately NOT used here: for 28 of its genes the NM and the ENST are different
+        # transcripts, so pairing them would score the wrong isoform.
+        self._spip_by_enst = {}
+        with open(enst_spip_map) as fh:
+            for row in csv.DictReader(fh, delimiter="\t"):
+                self._spip_by_enst.setdefault(row["enst"], set()).add(row["spip_nm"])
         self._cache = {}
 
     def resolve_symbol(self, symbol: str):
@@ -118,15 +118,15 @@ class GeneIdentity:
             return True
         return strip_version(row_gene) in self.hgnc_gene_ids(symbol)
 
-    def row_refseq_transcripts(self, feature, mane_select, mane_plus_clinical) -> set:
-        """RefSeq NM accessions (versions stripped) that correspond to a row's Ensembl transcript."""
-        nms = set()
-        for v in (mane_select, mane_plus_clinical):
-            if not is_missing(v):
-                nms.add(strip_version(v))
-        if not is_missing(feature):
-            nms |= self._curated_nm.get(strip_version(feature), set())
-        return nms
+    def row_refseq_transcripts(self, feature, mane_select, mane_plus_clinical):
+        """(accession_nms, structural_nms) for a row's Ensembl transcript, versions stripped.
+
+        accession_nms: the RefSeq accession(s) VEP reports for the transcript (MANE Select / Plus Clinical).
+        structural_nms: SPiP-database transcripts with the same chromosome, strand and intron chain.
+        """
+        acc = {strip_version(v) for v in (mane_select, mane_plus_clinical) if not is_missing(v)}
+        struct = set(self._spip_by_enst.get(strip_version(feature), ())) if not is_missing(feature) else set()
+        return acc, struct
 
 
 def pick_gene_entry(entries: Iterable, row_gene, row_symbol, identity: Optional[GeneIdentity],

@@ -1,0 +1,30 @@
+{
+ "derived": "2026-10-01T16:24:44+02:00",
+ "variants_sampled": 2500,
+ "raw_lines_used": 2511,
+ "seed": 7,
+ "excluded": [
+  "Interpro_domain"
+ ],
+ "readme": "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a.readme.txt",
+ "dbnsfp": "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a_grch38.gz",
+ "argv": [
+  "src/tools/derive_dbnsfp_dependency.py",
+  "--readme",
+  "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a.readme.txt",
+  "--dbnsfp",
+  "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a_grch38.gz",
+  "--tabix",
+  "/data_lab_PGP/shared/utils/conda_envs/genomics/bin/tabix",
+  "--pq",
+  "nf_work/annotation_out/S223/S223.parsed.clean.pq",
+  "--n-variants",
+  "2500",
+  "--exclude",
+  "Interpro_domain",
+  "--out-tsv",
+  "RUNS/gene_attribution_audit/dbnsfp_column_dependency_2500.tsv",
+  "--out-aligned",
+  "RUNS/gene_attribution_audit/dbnsfp_aligned_raw_2500.txt"
+ ]
+}

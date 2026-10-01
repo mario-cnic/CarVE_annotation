@@ -114,7 +114,7 @@ def parse_dbnsfp_by_row_transcript(data: pd.DataFrame, aligned_columns: list[str
     VEP's dbNSFP plugin attaches to every transcript row of a variant the full '&'-joined lists of
     per-transcript values, aligned position by position with `Ensembl_transcriptid`. Here, for the
     transcript-aligned columns (resources/dbnsfp_transcript_aligned_columns.txt, derived from data by
-    src/tools/derive_dbnsfp_alignment.py), a row keeps the list element at the position of its own
+    src/tools/derive_dbnsfp_dependency.py), a row keeps the list element at the position of its own
     `Feature`; if its transcript is not in dbNSFP's list the aligned columns are left empty
     (`dbNSFP_match` = no_entry_for_row_transcript). Columns that are single-valued, or multi-valued but
     not transcript-aligned, are untouched. Adds `dbNSFP_match`, `dbNSFP_transcripts_all` (the original

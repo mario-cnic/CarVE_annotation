@@ -182,10 +182,10 @@ def argparsing() -> argparse.ArgumentParser:
              "Ensembl_transcriptid); required when dbNSFP columns are present",
     )
     parser.add_argument(
-        "--gene-transcript-mapping",
+        "--enst-spip-map",
         type=str,
         default=None,
-        help="Gen,NM,ENST curated transcript table (adds ENST->NM for SPiP transcript matching)",
+        help="resources/enst_to_spip_nm.*.tsv (Ensembl transcript -> SPiP RefSeq transcript by exon structure)",
     )
     parser.add_argument(
         "--skip_quality_filter",
@@ -368,12 +368,12 @@ def main(args: list[str] | None):
     needs_identity = any(c in data.columns for c in ("SpliceAI", "SPiP"))
     identity = None
     if needs_identity:
-        if not (args.hgnc_table and args.spliceai_symbol_map):
+        if not (args.hgnc_table and args.spliceai_symbol_map and args.enst_spip_map):
             raise ValueError(
-                "SpliceAI/SPiP columns are present: --hgnc-table and --spliceai-symbol-map are required so "
+                "SpliceAI/SPiP columns are present: --hgnc-table, --spliceai-symbol-map and --enst-spip-map are required so "
                 "scores are attached to the row's own gene/transcript. Refusing to fall back to unmatched scores."
             )
-        identity = GeneIdentity(args.spliceai_symbol_map, args.hgnc_table, args.gene_transcript_mapping)
+        identity = GeneIdentity(args.spliceai_symbol_map, args.hgnc_table, args.enst_spip_map)
 
     data = parse_spliceai_custom(data, identity=identity)
     data = build_spliceMAX(data, SPLICING_COLUMNS)

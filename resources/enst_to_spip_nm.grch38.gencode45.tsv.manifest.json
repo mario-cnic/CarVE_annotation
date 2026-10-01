@@ -1,0 +1,30 @@
+{
+ "built": "2026-10-01T16:27:28+02:00",
+ "gtf": "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
+ "gtf_sha256": "56a166e4a43c934a1910c0d09dec786ac048862fc65130731d41f3c7f451ae68",
+ "mane_gtf": "/data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
+ "mane_gtf_sha256": "7d19f1d16c39ddb865a01a919a718094e23f7be3a9870b260328b7d14f3a1d0a",
+ "spip_db_tsv": "RUNS/transcript_mapping/spip_refseq_hg38.tsv",
+ "spip_db_tsv_sha256": "3b652c13fe1c871a55844dca143e6bcdcf9b3984f6c3eb867fdb9bee99b364b4",
+ "curated": "resources/gene_transcript_mapping.txt",
+ "gencode_transcripts": 252930,
+ "spip_transcripts": 65484,
+ "pairs": 50280,
+ "enst_with_spip_match": 50139,
+ "map_sha256": "e6a4979ecb951e8bbdb7fe25a89655886b19fb6004ad0fb2ef55cbd2faa17361",
+ "argv": [
+  "src/python/build_enst_spip_map.py",
+  "--gtf",
+  "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
+  "--mane-gtf",
+  "/data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
+  "--spip-db-tsv",
+  "RUNS/transcript_mapping/spip_refseq_hg38.tsv",
+  "--curated",
+  "resources/gene_transcript_mapping.txt",
+  "--out-map",
+  "RUNS/transcript_mapping/enst_to_spip_nm.grch38.gencode45.tsv",
+  "--out-audit",
+  "RUNS/transcript_mapping/curated_mapping_audit.tsv"
+ ]
+}

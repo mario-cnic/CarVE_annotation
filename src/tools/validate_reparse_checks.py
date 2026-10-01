@@ -14,10 +14,11 @@ from modules import splicing as sp, gene_identity as gi  # noqa: E402
 ap = argparse.ArgumentParser()
 ap.add_argument("--pq", required=True); ap.add_argument("--row-groups", required=True)
 ap.add_argument("--hgnc", required=True); ap.add_argument("--symbol-map", required=True)
-ap.add_argument("--curated", required=True); ap.add_argument("--out", required=True)
+ap.add_argument("--curated", required=True, help="resources/gene_transcript_mapping.txt (defines tier 1 only)")
+ap.add_argument("--enst-spip-map", required=True); ap.add_argument("--out", required=True)
 a = ap.parse_args()
-ident = gi.GeneIdentity(a.symbol_map, a.hgnc, a.curated)
-cur = set(ident._curated_nm)  # curated ENST (version-stripped)
+ident = gi.GeneIdentity(a.symbol_map, a.hgnc, a.enst_spip_map)
+cur = {ln.split(',')[2].strip().split('.')[0] for ln in list(open(a.curated))[1:] if ln.count(',') >= 2}  # tier 1 = curated ENST
 smap = pd.read_csv(a.symbol_map, sep="\t").set_index("symbol")["ensg"]
 need = ["Locus", "Gene", "SYMBOL", "Feature", "MANE_SELECT", "MANE_PLUS_CLINICAL", "SpliceAI", "SPiP", "SPiP_prediction"]
 C = Counter()

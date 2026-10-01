@@ -1,3 +1,4 @@
+APPRIS
 AlphaMissense_pred
 AlphaMissense_score
 DEOGEN2_pred
@@ -28,9 +29,12 @@ HGVSc_snpEff
 HGVSp_ANNOVAR
 HGVSp_VEP
 HGVSp_snpEff
+LIST-S2_pred
+LIST-S2_score
 MPC_score
 MVP_score
 MetaRNN_pred
+MetaRNN_score
 MutationAssessor_pred
 MutationAssessor_score
 PHACTboost_score
@@ -40,10 +44,12 @@ Polyphen2_HDIV_pred
 Polyphen2_HDIV_score
 Polyphen2_HVAR_pred
 Polyphen2_HVAR_score
+REVEL_score
 SIFT4G_pred
 SIFT4G_score
 SIFT_pred
 SIFT_score
+TSL
 Uniprot_acc
 Uniprot_entry
 VARITY_ER_LOO_score

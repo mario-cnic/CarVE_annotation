@@ -20,17 +20,21 @@ import sys
 import pandas as pd
 
 
-def load_curated_mapping(path: str) -> dict[str, str]:
-    """Returns {gene_symbol: transcript_id} from the 217-panel's Gen,NM,ENST file."""
-    mapping = {}
+def load_curated_mapping(path: str) -> set[str]:
+    """Returns the set of curated transcript IDs (version stripped) from the 217-panel's Gen,NM,ENST file.
+
+    Keyed by ENST on purpose: the file's gene symbols are not reliable keys (TAZ and ASNA1 are renamed to
+    TAFAZZIN / GET3 in the VEP annotation, `NKX25` is a typo duplicate of NKX2-5, TAZ is listed twice), so a
+    symbol-keyed lookup silently never matches those genes. An ENST identifies its gene unambiguously.
+    """
+    curated = set()
     with open(path) as f:
         next(f)  # header
         for line in f:
             fields = line.strip().split(",")
-            if len(fields) >= 3 and fields[0].strip():
-                gene, enst = fields[0].strip().upper(), fields[2].strip()
-                mapping[gene] = enst
-    return mapping
+            if len(fields) >= 3 and fields[2].strip():
+                curated.add(_strip_version(fields[2]))
+    return curated
 
 
 def read_table(path: str) -> pd.DataFrame:
@@ -54,12 +58,10 @@ def _strip_version(transcript_id: str) -> str:
     return transcript_id.split(".")[0]
 
 
-def tag_priority(df: pd.DataFrame, curated: dict[str, str]) -> pd.DataFrame:
+def tag_priority(df: pd.DataFrame, curated: set[str]) -> pd.DataFrame:
     def tier_for_row(row) -> int:
-        gene = str(row.get("SYMBOL", "")).strip().upper()
         feature = str(row.get("Feature", "")).strip()
-        curated_transcript = curated.get(gene)
-        if curated_transcript and feature and _strip_version(feature) == _strip_version(curated_transcript):
+        if feature and _strip_version(feature) in curated:
             return 1
         mane = row.get("MANE_SELECT", "")
         if pd.notna(mane) and str(mane).strip() not in ("", "."):
@@ -80,7 +82,7 @@ def main():
 
     df = read_table(args.input)
     curated = load_curated_mapping(args.gene_transcript_mapping)
-    print(f"Loaded {len(curated)} curated gene->transcript mappings from {args.gene_transcript_mapping}")
+    print(f"Loaded {len(curated)} curated transcripts from {args.gene_transcript_mapping}")
 
     df = tag_priority(df, curated)
     tier_counts = df["TRANSCRIPT_PRIORITY_TIER"].value_counts().sort_index()

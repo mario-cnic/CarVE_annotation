@@ -9,7 +9,7 @@ from .io_qc import _safe_numeric_series
 from .gene_identity import (
     GeneIdentity, pick_gene_entry, split_entries, strip_version, is_missing, alt_from_locus,
     MATCHED, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, AMBIGUOUS, UNRESOLVED,
-    NO_PREDICTION, PREDICTOR_ERROR,
+    NO_PREDICTION, PREDICTOR_ERROR, MATCHED_STRUCTURE,
 )
 
 SPLICING_COLUMNS = [
@@ -105,9 +105,10 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
     """Attach SPiP results to each row by RefSeq transcript.
 
     SPiP is transcript-level: every entry is keyed by an `NM_` accession. A row (variant x Ensembl
-    transcript) receives the entry whose NM equals the row's own RefSeq transcript (MANE Select /
-    MANE Plus Clinical / curated clinical transcript). Rows with no RefSeq equivalent get
-    `not_applicable_transcript`; no other transcript's or gene's entry is ever used.
+    transcript) receives the entry whose NM equals the row's own RefSeq accession (MANE Select / MANE Plus
+    Clinical; status `matched`) or, failing that, the SPiP-database transcript with the same chromosome, strand
+    and intron chain (`matched_by_exon_structure`; SPiP's RefSeq snapshot is older than current MANE accessions).
+    Rows with no RefSeq counterpart get `not_applicable_transcript`; no other transcript's or gene's entry is used.
     Adds `SPiP_match` and `SPiP_anygene_max_prediction` (variant-level maximum, any transcript), and
     labelled same-gene columns for rows whose own transcript has no SPiP entry: `SPiP_samegene_prediction`
     (maximum over the row's gene's SPiP transcripts), `SPiP_samegene_transcript` (the `NM_` it comes from),
@@ -159,12 +160,17 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
                         except ValueError:
                             pass
                 same = (max(sg)[0], max(sg)[1], len({t for _, t in sg})) if sg else no_samegene
-                row_nms = identity.row_refseq_transcripts(feature, mane, mane_pc)
-                if not row_nms:
+                acc_nms, struct_nms = identity.row_refseq_transcripts(feature, mane, mane_pc)
+                if not acc_nms and not struct_nms:
                     res = (_SPIP_EMPTY, NOT_APPLICABLE_TRANSCRIPT, any_max, same)
                 else:
-                    hit = next((f for f in entries if strip_version(f[11]) in row_nms), None)
-                    res = (_spip_fields(hit), MATCHED, any_max, same) if hit else (_SPIP_EMPTY, NO_ENTRY, any_max, same)
+                    hit = next((f for f in entries if strip_version(f[11]) in acc_nms), None)       # same accession
+                    if hit:
+                        res = (_spip_fields(hit), MATCHED, any_max, same)
+                    else:
+                        hit = next((f for f in entries if strip_version(f[11]) in struct_nms), None)  # same exon structure
+                        res = ((_spip_fields(hit), MATCHED_STRUCTURE, any_max, same) if hit
+                               else (_SPIP_EMPTY, NO_ENTRY, any_max, same))
             row_cache[key] = res
         out.append(res[0]); matches.append(res[1]); anymax.append(res[2]); samegene.append(res[3])
 

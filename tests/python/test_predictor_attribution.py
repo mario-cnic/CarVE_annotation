@@ -40,9 +40,12 @@ def identity(tmp_path):
         f"MADD\t{MADD}\t1\t\t0\nMYBPC3\t{MYBPC3}\t1\t\t0\n"
         "DISAGREE\tENSG00000000007\t1\t\t0\nCOORDONLY\tENSG00000000008\t1\t\t0\n"
     )
-    cur = tmp_path / "curated.txt"
-    cur.write_text("Gen,NM,ENST\nGENEX,NM_000001.2,ENST00000000011\n")
-    return gi.GeneIdentity(str(sym), str(hgnc), str(cur))
+    enst = tmp_path / "enst_spip.tsv"
+    enst.write_text(
+        "enst\tenst_version\tgene_id\tgene_name\tspip_nm\tspip_symbol\tmatch_type\n"
+        "ENST00000000011\tENST00000000011.1\tG\tGENEX\tNM_000001\tGENEX\tsame_intron_chain\n"
+    )
+    return gi.GeneIdentity(str(sym), str(hgnc), str(enst))
 
 
 def sai(symbol, ds, allele="A", dp=1):
@@ -166,14 +169,14 @@ def test_spip_row_takes_its_own_transcript_not_the_first_entry():
     assert out["SPiP_anygene_max_prediction"].iloc[1] == pytest.approx(0.90)
 
 
-def _bare_identity(curated_nm=None):
+def _bare_identity(spip_by_enst=None):
     ident = gi.GeneIdentity.__new__(gi.GeneIdentity)
-    ident._curated_nm = curated_nm or {}
+    ident._spip_by_enst = spip_by_enst or {}
     ident._hgnc_current, ident._hgnc_other = {}, {}
     return ident
 
 
-def test_spip_curated_transcript_and_missing_nm_entry():
+def test_spip_exon_structure_match_and_missing_nm_entry():
     value = spip("NM_000001.2", "GENEX", "0.50")
     ident = _bare_identity({"ENST00000000011": {"NM_000001"}})
     df = pd.DataFrame({"Locus": ["chr1:1-C-A"] * 2, "SPiP": [value] * 2,
@@ -181,6 +184,7 @@ def test_spip_curated_transcript_and_missing_nm_entry():
                        "MANE_SELECT": [None, "NM_999999.1"], "MANE_PLUS_CLINICAL": [None, None]})
     out = sp.parse_spip(df, identity=ident)
     assert out["SPiP_prediction"].iloc[0] == pytest.approx(0.50) and out["SPiP_mechanism"].iloc[0] == "complex_splicing"
+    assert out["SPiP_match"].iloc[0] == gi.MATCHED_STRUCTURE                      # same exon structure, different accession
     assert np.isnan(out["SPiP_prediction"].iloc[1]) and out["SPiP_match"].iloc[1] == gi.NO_ENTRY
 
 
@@ -286,3 +290,31 @@ def test_dbnsfp_single_value_for_multi_transcript_list_is_kept_for_matched_rows_
     df = pd.DataFrame([dbn("ENST00000000002", SIFT_score="0.05"), dbn("ENST00000999999", SIFT_score="0.05")])
     out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
     assert out["SIFT_score"].iloc[0] == "0.05" and pd.isna(out["SIFT_score"].iloc[1])
+
+
+def test_spip_accession_match_wins_over_structural_match():
+    value = spip("NM_000001.2", "GENEX", "0.20") + "&" + spip("NM_000008.3", "GENEX", "0.70")
+    ident = _bare_identity({"ENST00000000011": {"NM_000001"}})
+    df = pd.DataFrame({"Locus": ["chr1:1-C-A"], "SPiP": [value], "Feature": ["ENST00000000011"],
+                       "MANE_SELECT": ["NM_000008.3"], "MANE_PLUS_CLINICAL": [None]})
+    out = sp.parse_spip(df, identity=ident)
+    assert one(out, "SPiP_match") == gi.MATCHED and one(out, "SPiP_prediction") == pytest.approx(0.70)
+
+
+def test_identity_requires_all_resources(tmp_path):
+    f = tmp_path / "x.tsv"; f.write_text("symbol\tensg\n")
+    with pytest.raises(ValueError):
+        gi.GeneIdentity(str(f), str(f), "")
+
+
+# ------------------------------------------------------------------ tier 1 is keyed by ENST, not by gene symbol
+def test_transcript_tier_one_survives_renamed_symbols_and_duplicates(tmp_path):
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src/python")))
+    import tag_transcript_priority as tp
+    cur = tmp_path / "cur.txt"
+    cur.write_text("Gen,NM,ENST\nTAZ,NM_000116.4,ENST00000601016\nTAZ,NM_000116.4,ENST00000369776\nNKX25,NM_004387.4,ENST00000329198\n")
+    curated = tp.load_curated_mapping(str(cur))
+    df = pd.DataFrame({"SYMBOL": ["TAFAZZIN", "TAFAZZIN", "NKX2-5", "OTHER", "OTHER"],
+                       "Feature": ["ENST00000601016.5", "ENST00000369776", "ENST00000329198", "ENST00000000001", "ENST00000000002"],
+                       "MANE_SELECT": [None, None, None, "NM_1.1", None]})
+    assert list(tp.tag_priority(df, curated)["TRANSCRIPT_PRIORITY_TIER"]) == [1, 1, 1, 2, 3]

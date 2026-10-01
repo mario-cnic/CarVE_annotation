@@ -3,7 +3,7 @@
 compare with the table's existing (old-parser) columns. Read-only on the input; writes aggregates only.
 
 Usage: validate_reparse_sample.py --pq T.parsed.clean.pq --row-group 16 --hgnc H.txt --symbol-map M.tsv \
-          --curated resources/gene_transcript_mapping.txt --out result.json
+          --enst-spip-map resources/enst_to_spip_nm.grch38.gencode45.tsv --out result.json
 """
 import argparse, json, os, sys
 import numpy as np, pandas as pd, pyarrow.parquet as pq
@@ -14,14 +14,14 @@ from modules import splicing as sp, gene_identity as gi  # noqa: E402
 ap = argparse.ArgumentParser()
 ap.add_argument("--pq", required=True); ap.add_argument("--row-group", type=int, required=True)
 ap.add_argument("--hgnc", required=True); ap.add_argument("--symbol-map", required=True)
-ap.add_argument("--curated", required=True); ap.add_argument("--out", required=True)
+ap.add_argument("--enst-spip-map", required=True); ap.add_argument("--out", required=True)
 a = ap.parse_args()
 
 need = ["Locus", "Gene", "SYMBOL", "Feature", "MANE_SELECT", "MANE_PLUS_CLINICAL", "SpliceAI", "SPiP", "Pangolin",
         "spliceai_custom_MAX", "SPiP_prediction", "Pangolin_max_score"]
 df = pq.ParquetFile(a.pq).read_row_group(a.row_group, columns=need).to_pandas()
 old = df[["spliceai_custom_MAX", "SPiP_prediction", "Pangolin_max_score"]].copy()
-ident = gi.GeneIdentity(a.symbol_map, a.hgnc, a.curated)
+ident = gi.GeneIdentity(a.symbol_map, a.hgnc, a.enst_spip_map)
 df = df.drop(columns=["spliceai_custom_MAX", "SPiP_prediction", "Pangolin_max_score"])
 df = sp.parse_spliceai_custom(df, identity=ident)
 df = sp.parse_spip(df, identity=ident)

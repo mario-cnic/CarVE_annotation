@@ -1,0 +1,457 @@
+column	documented_dependency	nonnull_rows	multi_rows	frac_len_eq_transcripts	frac_len_eq_proteins	frac_len_eq_uniprot	class
+chr	none	2511	0				single
+pos(1-based)	none	2511	0				single
+ref	none	2511	0				single
+alt	none	2511	0				single
+aaref	none	2509	0				single
+aaalt	none	2509	0				single
+rs_dbSNP	none	2495	5	0.4	0.4	0.4	multi_too_few_rows
+hg19_chr	none	2400	0				single
+hg19_pos(1-based)	none	2400	0				single
+hg18_chr	none	2393	0				single
+hg18_pos(1-based)	none	2393	0				single
+aapos	Ensembl_proteinid	2511	1392	1.0	1.0	1.0	transcript_aligned
+genename	none	2511	1392	1.0	1.0	1.0	transcript_aligned
+Ensembl_geneid	none	2511	1392	1.0	1.0	1.0	transcript_aligned
+Ensembl_transcriptid	multi_unspecified	2511	1392	1.0	1.0	1.0	transcript_aligned
+Ensembl_proteinid	Ensembl_transcriptid	2511	1392	1.0	1.0	1.0	transcript_aligned
+Uniprot_acc	multi_unspecified	2468	1392	1.0	1.0	1.0	transcript_aligned
+Uniprot_entry	multi_unspecified	2468	1392	1.0	1.0	1.0	transcript_aligned
+HGVSc_ANNOVAR	Ensembl_transcriptid	2430	1392	1.0	1.0	1.0	transcript_aligned
+HGVSp_ANNOVAR	Ensembl_proteinid	2430	1392	1.0	1.0	1.0	transcript_aligned
+HGVSc_snpEff	Ensembl_transcriptid	2483	1392	1.0	1.0	1.0	transcript_aligned
+HGVSp_snpEff	Ensembl_proteinid	2461	1392	1.0	1.0	1.0	transcript_aligned
+HGVSc_VEP	Ensembl_transcriptid	2511	1392	1.0	1.0	1.0	transcript_aligned
+HGVSp_VEP	Ensembl_proteinid	2509	1392	1.0	1.0	1.0	transcript_aligned
+APPRIS	Ensembl_transcriptid	2365	1392	1.0	1.0	1.0	transcript_aligned
+GENCODE_basic	Ensembl_transcriptid	2466	1392	1.0	1.0	1.0	transcript_aligned
+TSL	Ensembl_transcriptid	2494	1392	1.0	1.0	1.0	transcript_aligned
+VEP_canonical	Ensembl_transcriptid	2330	1392	1.0	1.0	1.0	transcript_aligned
+cds_strand	none	2511	1392	1.0	1.0	1.0	transcript_aligned
+refcodon	none	2509	1392	1.0	1.0	1.0	transcript_aligned
+codonpos	none	2509	1392	1.0	1.0	1.0	transcript_aligned
+codon_degeneracy	none	2509	1392	1.0	1.0	1.0	transcript_aligned
+Ancestral_allele	none	2311	0				single
+AltaiNeandertal	none	2511	0				single
+Denisova	none	2511	0				single
+VindijiaNeandertal	none	2511	0				single
+ChagyrskayaNeandertal	none	2511	0				single
+SIFT_score	Ensembl_proteinid	2248	1392	1.0	1.0	1.0	transcript_aligned
+SIFT_converted_rankscore	none	2091	0				single
+SIFT_pred	multi_unspecified	2248	1392	1.0	1.0	1.0	transcript_aligned
+SIFT4G_score	Ensembl_transcriptid	2356	1392	1.0	1.0	1.0	transcript_aligned
+SIFT4G_converted_rankscore	none	2307	0				single
+SIFT4G_pred	Ensembl_transcriptid	2356	1392	1.0	1.0	1.0	transcript_aligned
+Polyphen2_HDIV_score	Uniprot_acc	2116	1392	1.0	1.0	1.0	transcript_aligned
+Polyphen2_HDIV_rankscore	none	1821	0				single
+Polyphen2_HDIV_pred	Uniprot_acc	2116	1392	1.0	1.0	1.0	transcript_aligned
+Polyphen2_HVAR_score	Uniprot_acc	2116	1392	1.0	1.0	1.0	transcript_aligned
+Polyphen2_HVAR_rankscore	none	1821	0				single
+Polyphen2_HVAR_pred	Uniprot_acc	2116	1392	1.0	1.0	1.0	transcript_aligned
+LRT_score	none	1634	0				single
+LRT_converted_rankscore	none	1634	0				single
+LRT_pred	none	1634	0				single
+LRT_Omega	none	1634	0				single
+MutationTaster_score	multi_unspecified	2277	1455	0.321	0.321	0.321	unaligned_multi
+MutationTaster_converted_rankscore	none	2277	0				single
+MutationTaster_pred	none	2277	1455	0.321	0.321	0.321	unaligned_multi
+MutationTaster_model	none	2277	1455	0.321	0.321	0.321	unaligned_multi
+MutationTaster_AAE	none	2257	1455	0.321	0.321	0.321	unaligned_multi
+MutationAssessor_score	Uniprot_entry	2088	1392	1.0	1.0	1.0	transcript_aligned
+MutationAssessor_rankscore	none	1736	0				single
+MutationAssessor_pred	none	2088	1392	1.0	1.0	1.0	transcript_aligned
+FATHMM_score	Ensembl_proteinid	2240	1392	1.0	1.0	1.0	transcript_aligned
+FATHMM_converted_rankscore	none	2056	0				single
+FATHMM_pred	Ensembl_proteinid	2240	1392	1.0	1.0	1.0	transcript_aligned
+PROVEAN_score	Ensembl_proteinid	2258	1392	1.0	1.0	1.0	transcript_aligned
+PROVEAN_converted_rankscore	none	2102	0				single
+PROVEAN_pred	Ensembl_proteinid	2258	1392	1.0	1.0	1.0	transcript_aligned
+VEST4_score	Ensembl_transcriptid	2376	1392	1.0	1.0	1.0	transcript_aligned
+VEST4_rankscore	none	2348	0				single
+MetaSVM_score	none	2229	0				single
+MetaSVM_rankscore	none	2229	0				single
+MetaSVM_pred	none	2229	0				single
+MetaLR_score	none	2229	0				single
+MetaLR_rankscore	none	2229	0				single
+MetaLR_pred	none	2229	0				single
+Reliability_index	none	2229	0				single
+MetaRNN_score	none	2485	1392	1.0	1.0	1.0	transcript_aligned
+MetaRNN_rankscore	none	2473	0				single
+MetaRNN_pred	none	2485	1392	1.0	1.0	1.0	transcript_aligned
+M-CAP_score	none	199	0				single
+M-CAP_rankscore	none	199	0				single
+M-CAP_pred	none	199	0				single
+REVEL_score	Ensembl_transcriptid	2264	1392	1.0	1.0	1.0	transcript_aligned
+REVEL_rankscore	none	2113	0				single
+MutPred_score	none	2511	2511	0.0	0.0	0.0	unaligned_multi
+MutPred_rankscore	none	306	0				single
+MutPred_protID	none	2511	2511	0.0	0.0	0.0	unaligned_multi
+MutPred_AAchange	none	2511	2511	0.0	0.0	0.0	unaligned_multi
+MutPred_Top5features	none	2511	2511	0.0	0.0	0.0	unaligned_multi
+MVP_score	Ensembl_transcriptid	1533	1392	1.0	1.0	1.0	transcript_aligned
+MVP_rankscore	none	259	0				single
+gMVP_score	Ensembl_transcriptid	2304	1392	1.0	1.0	1.0	transcript_aligned
+gMVP_rankscore	none	2237	0				single
+MPC_score	Ensembl_transcriptid	2046	1392	1.0	1.0	1.0	transcript_aligned
+MPC_rankscore	none	1734	0				single
+PrimateAI_score	none	1983	0				single
+PrimateAI_rankscore	none	1983	0				single
+PrimateAI_pred	none	1983	0				single
+DEOGEN2_score	none	2235	1392	1.0	1.0	1.0	transcript_aligned
+DEOGEN2_rankscore	none	2039	0				single
+DEOGEN2_pred	none	2235	1392	1.0	1.0	1.0	transcript_aligned
+BayesDel_addAF_score	none	2340	0				single
+BayesDel_addAF_rankscore	none	2340	0				single
+BayesDel_addAF_pred	none	2340	0				single
+BayesDel_noAF_score	none	2340	0				single
+BayesDel_noAF_rankscore	none	2340	0				single
+BayesDel_noAF_pred	none	2340	0				single
+ClinPred_score	none	2232	0				single
+ClinPred_rankscore	none	2232	0				single
+ClinPred_pred	none	2232	0				single
+LIST-S2_score	none	2345	1392	1.0	1.0	1.0	transcript_aligned
+LIST-S2_rankscore	none	2267	0				single
+LIST-S2_pred	none	2345	1392	1.0	1.0	1.0	transcript_aligned
+VARITY_R_score	none	2182	1392	1.0	1.0	1.0	transcript_aligned
+VARITY_R_rankscore	none	1921	0				single
+VARITY_ER_score	none	2182	1392	1.0	1.0	1.0	transcript_aligned
+VARITY_ER_rankscore	none	1921	0				single
+VARITY_R_LOO_score	none	2182	1392	1.0	1.0	1.0	transcript_aligned
+VARITY_R_LOO_rankscore	none	1921	0				single
+VARITY_ER_LOO_score	none	2182	1392	1.0	1.0	1.0	transcript_aligned
+VARITY_ER_LOO_rankscore	none	1921	0				single
+ESM1b_score	none	2270	1392	1.0	1.0	1.0	transcript_aligned
+ESM1b_rankscore	none	2121	0				single
+ESM1b_pred	none	2270	1392	1.0	1.0	1.0	transcript_aligned
+EVE_score	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_rankscore	none	206	0				single
+EVE_Class10_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class20_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class25_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class30_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class40_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class50_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class60_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class70_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class75_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class80_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+EVE_Class90_pred	none	1459	1392	1.0	1.0	1.0	transcript_aligned
+AlphaMissense_score	none	2471	1392	1.0	1.0	1.0	transcript_aligned
+AlphaMissense_rankscore	none	2452	0				single
+AlphaMissense_pred	none	2471	1392	1.0	1.0	1.0	transcript_aligned
+PHACTboost_score	none	2238	1392	1.0	1.0	1.0	transcript_aligned
+PHACTboost_rankscore	none	2026	0				single
+MutFormer_score	none	2186	0				single
+MutFormer_rankscore	none	2186	0				single
+Aloft_Fraction_transcripts_affected	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+Aloft_prob_Tolerant	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+Aloft_prob_Recessive	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+Aloft_prob_Dominant	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+Aloft_pred	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+Aloft_Confidence	Ensembl_proteinid	2511	2511	0.0	0.0	0.0	unaligned_multi
+CADD_raw	none	2511	0				single
+CADD_raw_rankscore	none	2511	0				single
+CADD_phred	none	2511	0				single
+CADD_raw_hg19	none	2400	0				single
+CADD_raw_rankscore_hg19	none	2400	0				single
+CADD_phred_hg19	none	2400	0				single
+DANN_score	none	2400	0				single
+DANN_rankscore	none	2400	0				single
+fathmm-MKL_coding_score	none	2400	0				single
+fathmm-MKL_coding_rankscore	none	2400	0				single
+fathmm-MKL_coding_pred	none	2400	0				single
+fathmm-MKL_coding_group	none	2400	0				single
+fathmm-XF_coding_score	none	2217	0				single
+fathmm-XF_coding_rankscore	none	2217	0				single
+fathmm-XF_coding_pred	none	2217	0				single
+Eigen-raw_coding	none	2224	0				single
+Eigen-raw_coding_rankscore	none	2224	0				single
+Eigen-phred_coding	none	2224	0				single
+Eigen-PC-raw_coding	none	2224	0				single
+Eigen-PC-raw_coding_rankscore	none	2224	0				single
+Eigen-PC-phred_coding	none	2224	0				single
+GenoCanyon_score	none	2400	0				single
+GenoCanyon_rankscore	none	2400	0				single
+integrated_fitCons_score	none	2359	0				single
+integrated_fitCons_rankscore	none	2359	0				single
+integrated_confidence_value	none	2359	0				single
+GM12878_fitCons_score	none	2359	0				single
+GM12878_fitCons_rankscore	none	2359	0				single
+GM12878_confidence_value	none	2359	0				single
+H1-hESC_fitCons_score	none	2359	0				single
+H1-hESC_fitCons_rankscore	none	2359	0				single
+H1-hESC_confidence_value	none	2359	0				single
+HUVEC_fitCons_score	none	2359	0				single
+HUVEC_fitCons_rankscore	none	2359	0				single
+HUVEC_confidence_value	none	2359	0				single
+LINSIGHT	none	103	0				single
+LINSIGHT_rankscore	none	103	0				single
+GERP++_NR	none	2372	0				single
+GERP++_RS	none	2372	0				single
+GERP++_RS_rankscore	none	2372	0				single
+GERP_91_mammals	none	2133	0				single
+GERP_91_mammals_rankscore	none	2133	0				single
+phyloP100way_vertebrate	none	2511	0				single
+phyloP100way_vertebrate_rankscore	none	2511	0				single
+phyloP470way_mammalian	none	2105	0				single
+phyloP470way_mammalian_rankscore	none	2105	0				single
+phyloP17way_primate	none	2509	0				single
+phyloP17way_primate_rankscore	none	2509	0				single
+phastCons100way_vertebrate	none	2511	0				single
+phastCons100way_vertebrate_rankscore	none	2511	0				single
+phastCons470way_mammalian	none	2503	0				single
+phastCons470way_mammalian_rankscore	none	2503	0				single
+phastCons17way_primate	none	2509	0				single
+phastCons17way_primate_rankscore	none	2509	0				single
+SiPhy_29way_pi	none	2325	0				single
+SiPhy_29way_logOdds	none	2325	0				single
+SiPhy_29way_logOdds_rankscore	none	2325	0				single
+bStatistic	none	2439	0				single
+bStatistic_converted_rankscore	none	2439	0				single
+1000Gp3_AC	none	2045	0				single
+1000Gp3_AF	none	2045	0				single
+1000Gp3_AFR_AC	none	2045	0				single
+1000Gp3_AFR_AF	none	2045	0				single
+1000Gp3_EUR_AC	none	2045	0				single
+1000Gp3_EUR_AF	none	2045	0				single
+1000Gp3_AMR_AC	none	2045	0				single
+1000Gp3_AMR_AF	none	2045	0				single
+1000Gp3_EAS_AC	none	2045	0				single
+1000Gp3_EAS_AF	none	2045	0				single
+1000Gp3_SAS_AC	none	2045	0				single
+1000Gp3_SAS_AF	none	2045	0				single
+TWINSUK_AC	none	1867	0				single
+TWINSUK_AF	none	1867	0				single
+ALSPAC_AC	none	1867	0				single
+ALSPAC_AF	none	1867	0				single
+UK10K_AC	none	1867	0				single
+UK10K_AF	none	1867	0				single
+ESP6500_AA_AC	none	1763	0				single
+ESP6500_AA_AF	none	1763	0				single
+ESP6500_EA_AC	none	1763	0				single
+ESP6500_EA_AF	none	1763	0				single
+ExAC_AC	none	2240	0				single
+ExAC_AF	none	2240	0				single
+ExAC_Adj_AC	none	2240	0				single
+ExAC_Adj_AF	none	2240	0				single
+ExAC_AFR_AC	none	2240	0				single
+ExAC_AFR_AF	none	2240	0				single
+ExAC_AMR_AC	none	2240	0				single
+ExAC_AMR_AF	none	2240	0				single
+ExAC_EAS_AC	none	2240	0				single
+ExAC_EAS_AF	none	2240	0				single
+ExAC_FIN_AC	none	2240	0				single
+ExAC_FIN_AF	none	2240	0				single
+ExAC_NFE_AC	none	2240	0				single
+ExAC_NFE_AF	none	2240	0				single
+ExAC_SAS_AC	none	2240	0				single
+ExAC_SAS_AF	none	2240	0				single
+ExAC_nonTCGA_AC	none	2239	0				single
+ExAC_nonTCGA_AF	none	2239	0				single
+ExAC_nonTCGA_Adj_AC	none	2239	0				single
+ExAC_nonTCGA_Adj_AF	none	2239	0				single
+ExAC_nonTCGA_AFR_AC	none	2239	0				single
+ExAC_nonTCGA_AFR_AF	none	2239	0				single
+ExAC_nonTCGA_AMR_AC	none	2239	0				single
+ExAC_nonTCGA_AMR_AF	none	2239	0				single
+ExAC_nonTCGA_EAS_AC	none	2239	0				single
+ExAC_nonTCGA_EAS_AF	none	2239	0				single
+ExAC_nonTCGA_FIN_AC	none	2239	0				single
+ExAC_nonTCGA_FIN_AF	none	2239	0				single
+ExAC_nonTCGA_NFE_AC	none	2239	0				single
+ExAC_nonTCGA_NFE_AF	none	2239	0				single
+ExAC_nonTCGA_SAS_AC	none	2239	0				single
+ExAC_nonTCGA_SAS_AF	none	2239	0				single
+ExAC_nonpsych_AC	none	2238	0				single
+ExAC_nonpsych_AF	none	2238	0				single
+ExAC_nonpsych_Adj_AC	none	2238	0				single
+ExAC_nonpsych_Adj_AF	none	2238	0				single
+ExAC_nonpsych_AFR_AC	none	2238	0				single
+ExAC_nonpsych_AFR_AF	none	2238	0				single
+ExAC_nonpsych_AMR_AC	none	2238	0				single
+ExAC_nonpsych_AMR_AF	none	2238	0				single
+ExAC_nonpsych_EAS_AC	none	2238	0				single
+ExAC_nonpsych_EAS_AF	none	2238	0				single
+ExAC_nonpsych_FIN_AC	none	2238	0				single
+ExAC_nonpsych_FIN_AF	none	2238	0				single
+ExAC_nonpsych_NFE_AC	none	2238	0				single
+ExAC_nonpsych_NFE_AF	none	2238	0				single
+ExAC_nonpsych_SAS_AC	none	2238	0				single
+ExAC_nonpsych_SAS_AF	none	2238	0				single
+gnomAD_exomes_flag	none	264	0				single
+gnomAD_exomes_AC	none	2115	0				single
+gnomAD_exomes_AN	none	2115	0				single
+gnomAD_exomes_AF	none	2115	0				single
+gnomAD_exomes_nhomalt	none	2115	0				single
+gnomAD_exomes_POPMAX_AC	none	2114	0				single
+gnomAD_exomes_POPMAX_AN	none	2114	0				single
+gnomAD_exomes_POPMAX_AF	none	2114	0				single
+gnomAD_exomes_POPMAX_nhomalt	none	2114	0				single
+gnomAD_exomes_AFR_AC	none	2115	0				single
+gnomAD_exomes_AFR_AN	none	2115	0				single
+gnomAD_exomes_AFR_AF	none	2110	0				single
+gnomAD_exomes_AFR_nhomalt	none	2115	0				single
+gnomAD_exomes_AMR_AC	none	2115	0				single
+gnomAD_exomes_AMR_AN	none	2115	0				single
+gnomAD_exomes_AMR_AF	none	2110	0				single
+gnomAD_exomes_AMR_nhomalt	none	2115	0				single
+gnomAD_exomes_ASJ_AC	none	2115	0				single
+gnomAD_exomes_ASJ_AN	none	2115	0				single
+gnomAD_exomes_ASJ_AF	none	2109	0				single
+gnomAD_exomes_ASJ_nhomalt	none	2115	0				single
+gnomAD_exomes_EAS_AC	none	2115	0				single
+gnomAD_exomes_EAS_AN	none	2115	0				single
+gnomAD_exomes_EAS_AF	none	2112	0				single
+gnomAD_exomes_EAS_nhomalt	none	2115	0				single
+gnomAD_exomes_FIN_AC	none	2115	0				single
+gnomAD_exomes_FIN_AN	none	2115	0				single
+gnomAD_exomes_FIN_AF	none	2110	0				single
+gnomAD_exomes_FIN_nhomalt	none	2115	0				single
+gnomAD_exomes_MID_AC	none	2115	0				single
+gnomAD_exomes_MID_AN	none	2115	0				single
+gnomAD_exomes_MID_AF	none	2110	0				single
+gnomAD_exomes_MID_nhomalt	none	2115	0				single
+gnomAD_exomes_NFE_AC	none	2115	0				single
+gnomAD_exomes_NFE_AN	none	2115	0				single
+gnomAD_exomes_NFE_AF	none	2114	0				single
+gnomAD_exomes_NFE_nhomalt	none	2115	0				single
+gnomAD_exomes_SAS_AC	none	2115	0				single
+gnomAD_exomes_SAS_AN	none	2115	0				single
+gnomAD_exomes_SAS_AF	none	2111	0				single
+gnomAD_exomes_SAS_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_AF	none	2114	0				single
+gnomAD_exomes_non_ukb_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_AFR_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_AFR_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_AFR_AF	none	2107	0				single
+gnomAD_exomes_non_ukb_AFR_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_AMR_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_AMR_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_AMR_AF	none	2108	0				single
+gnomAD_exomes_non_ukb_AMR_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_ASJ_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_ASJ_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_ASJ_AF	none	2105	0				single
+gnomAD_exomes_non_ukb_ASJ_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_EAS_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_EAS_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_EAS_AF	none	2110	0				single
+gnomAD_exomes_non_ukb_EAS_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_FIN_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_FIN_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_FIN_AF	none	2108	0				single
+gnomAD_exomes_non_ukb_FIN_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_MID_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_MID_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_MID_AF	none	2104	0				single
+gnomAD_exomes_non_ukb_MID_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_NFE_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_NFE_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_NFE_AF	none	2113	0				single
+gnomAD_exomes_non_ukb_NFE_nhomalt	none	2115	0				single
+gnomAD_exomes_non_ukb_SAS_AC	none	2115	0				single
+gnomAD_exomes_non_ukb_SAS_AN	none	2115	0				single
+gnomAD_exomes_non_ukb_SAS_AF	none	2107	0				single
+gnomAD_exomes_non_ukb_SAS_nhomalt	none	2115	0				single
+gnomAD_genomes_flag	none	286	0				single
+gnomAD_genomes_AC	none	2137	0				single
+gnomAD_genomes_AN	none	2137	0				single
+gnomAD_genomes_AF	none	2137	0				single
+gnomAD_genomes_nhomalt	none	2137	0				single
+gnomAD_genomes_POPMAX_AC	none	2137	0				single
+gnomAD_genomes_POPMAX_AN	none	2137	0				single
+gnomAD_genomes_POPMAX_AF	none	2137	0				single
+gnomAD_genomes_POPMAX_nhomalt	none	2137	0				single
+gnomAD_genomes_AFR_AC	none	2137	0				single
+gnomAD_genomes_AFR_AN	none	2137	0				single
+gnomAD_genomes_AFR_AF	none	2137	0				single
+gnomAD_genomes_AFR_nhomalt	none	2137	0				single
+gnomAD_genomes_AMI_AC	none	2137	0				single
+gnomAD_genomes_AMI_AN	none	2137	0				single
+gnomAD_genomes_AMI_AF	none	2137	0				single
+gnomAD_genomes_AMI_nhomalt	none	2137	0				single
+gnomAD_genomes_AMR_AC	none	2137	0				single
+gnomAD_genomes_AMR_AN	none	2137	0				single
+gnomAD_genomes_AMR_AF	none	2137	0				single
+gnomAD_genomes_AMR_nhomalt	none	2137	0				single
+gnomAD_genomes_ASJ_AC	none	2137	0				single
+gnomAD_genomes_ASJ_AN	none	2137	0				single
+gnomAD_genomes_ASJ_AF	none	2137	0				single
+gnomAD_genomes_ASJ_nhomalt	none	2137	0				single
+gnomAD_genomes_EAS_AC	none	2137	0				single
+gnomAD_genomes_EAS_AN	none	2137	0				single
+gnomAD_genomes_EAS_AF	none	2137	0				single
+gnomAD_genomes_EAS_nhomalt	none	2137	0				single
+gnomAD_genomes_FIN_AC	none	2137	0				single
+gnomAD_genomes_FIN_AN	none	2137	0				single
+gnomAD_genomes_FIN_AF	none	2137	0				single
+gnomAD_genomes_FIN_nhomalt	none	2137	0				single
+gnomAD_genomes_MID_AC	none	2137	0				single
+gnomAD_genomes_MID_AN	none	2137	0				single
+gnomAD_genomes_MID_AF	none	2137	0				single
+gnomAD_genomes_MID_nhomalt	none	2137	0				single
+gnomAD_genomes_NFE_AC	none	2137	0				single
+gnomAD_genomes_NFE_AN	none	2137	0				single
+gnomAD_genomes_NFE_AF	none	2137	0				single
+gnomAD_genomes_NFE_nhomalt	none	2137	0				single
+gnomAD_genomes_SAS_AC	none	2137	0				single
+gnomAD_genomes_SAS_AN	none	2137	0				single
+gnomAD_genomes_SAS_AF	none	2137	0				single
+gnomAD_genomes_SAS_nhomalt	none	2137	0				single
+ALFA_European_AC	none	2483	0				single
+ALFA_European_AN	none	2483	0				single
+ALFA_European_AF	none	2483	0				single
+ALFA_African_Others_AC	none	2483	0				single
+ALFA_African_Others_AN	none	2483	0				single
+ALFA_African_Others_AF	none	2483	0				single
+ALFA_East_Asian_AC	none	2483	0				single
+ALFA_East_Asian_AN	none	2483	0				single
+ALFA_East_Asian_AF	none	2483	0				single
+ALFA_African_American_AC	none	2483	0				single
+ALFA_African_American_AN	none	2483	0				single
+ALFA_African_American_AF	none	2483	0				single
+ALFA_Latin_American_1_AC	none	2483	0				single
+ALFA_Latin_American_1_AN	none	2483	0				single
+ALFA_Latin_American_1_AF	none	2483	0				single
+ALFA_Latin_American_2_AC	none	2483	0				single
+ALFA_Latin_American_2_AN	none	2483	0				single
+ALFA_Latin_American_2_AF	none	2483	0				single
+ALFA_Other_Asian_AC	none	2483	0				single
+ALFA_Other_Asian_AN	none	2483	0				single
+ALFA_Other_Asian_AF	none	2483	0				single
+ALFA_South_Asian_AC	none	2483	0				single
+ALFA_South_Asian_AN	none	2483	0				single
+ALFA_South_Asian_AF	none	2483	0				single
+ALFA_Other_AC	none	2483	0				single
+ALFA_Other_AN	none	2483	0				single
+ALFA_Other_AF	none	2483	0				single
+ALFA_African_AC	none	2483	0				single
+ALFA_African_AN	none	2483	0				single
+ALFA_African_AF	none	2483	0				single
+ALFA_Asian_AC	none	2483	0				single
+ALFA_Asian_AN	none	2483	0				single
+ALFA_Asian_AF	none	2483	0				single
+ALFA_Total_AC	none	2483	0				single
+ALFA_Total_AN	none	2483	0				single
+ALFA_Total_AF	none	2483	0				single
+clinvar_id	none	587	0				single
+clinvar_clnsig	none	587	0				single
+clinvar_trait	none	583	0				single
+clinvar_review	none	587	0				single
+clinvar_hgvs	none	587	0				single
+clinvar_var_source	none	306	0				single
+clinvar_MedGen_id	none	583	0				single
+clinvar_OMIM_id	none	334	0				single
+clinvar_Orphanet_id	none	286	0				single
+Interpro_domain	multi_unspecified	1688	1392	1.0	1.0	1.0	excluded_ambiguous_separator
+GTEx_V8_eQTL_gene	none	1571	0				single
+GTEx_V8_eQTL_tissue	none	1571	0				single
+GTEx_V8_sQTL_gene	none	1028	0				single
+GTEx_V8_sQTL_tissue	none	1028	0				single
+eQTLGen_snp_id	none	1413	0				single
+eQTLGen_gene_id	none	1413	0				single
+eQTLGen_gene_symbol	none	1413	0				single
+eQTLGen_cis_or_trans	none	1413	0				single
+Geuvadis_eQTL_target_gene	none	441	187	0.1872	0.1872	0.1872	unaligned_multi
