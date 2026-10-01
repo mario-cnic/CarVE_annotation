@@ -106,6 +106,18 @@ class GeneIdentity:
         self._cache[symbol] = out
         return out
 
+    def hgnc_gene_ids(self, symbol: str) -> set:
+        """Ensembl gene IDs HGNC lists for a current / previous / alias symbol (empty if unknown)."""
+        return self._hgnc_current.get(symbol) or self._hgnc_other.get(symbol) or set()
+
+    def symbol_is_row_gene(self, symbol, row_symbol, row_gene) -> bool:
+        """True when a predictor's gene symbol denotes the row's gene (same symbol, or HGNC says so)."""
+        if is_missing(symbol) or is_missing(row_gene):
+            return False
+        if not is_missing(row_symbol) and symbol == row_symbol:
+            return True
+        return strip_version(row_gene) in self.hgnc_gene_ids(symbol)
+
     def row_refseq_transcripts(self, feature, mane_select, mane_plus_clinical) -> set:
         """RefSeq NM accessions (versions stripped) that correspond to a row's Ensembl transcript."""
         nms = set()

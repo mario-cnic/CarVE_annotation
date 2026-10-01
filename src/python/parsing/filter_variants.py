@@ -24,6 +24,7 @@ try:
     )
     from .modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
+        parse_dbnsfp_by_row_transcript, load_aligned_columns,
     )
     from .modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -60,6 +61,7 @@ except ImportError:
     )
     from modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
+        parse_dbnsfp_by_row_transcript, load_aligned_columns,
     )
     from modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -171,6 +173,13 @@ def argparsing() -> argparse.ArgumentParser:
         type=str,
         default=None,
         help="resources/spliceai_symbol_to_ensg.*.tsv (SpliceAI symbol -> Ensembl gene ID by coordinates)",
+    )
+    parser.add_argument(
+        "--dbnsfp-aligned-columns",
+        type=str,
+        default=None,
+        help="resources/dbnsfp_transcript_aligned_columns.txt (dbNSFP columns whose '&' lists align with "
+             "Ensembl_transcriptid); required when dbNSFP columns are present",
     )
     parser.add_argument(
         "--gene-transcript-mapping",
@@ -370,6 +379,13 @@ def main(args: list[str] | None):
     data = build_spliceMAX(data, SPLICING_COLUMNS)
 
     data = parse_spip(data, identity=identity)
+    if "Ensembl_transcriptid" in data.columns:
+        if not args.dbnsfp_aligned_columns:
+            raise ValueError(
+                "dbNSFP columns are present: --dbnsfp-aligned-columns is required so each row keeps the value "
+                "of its own transcript. Refusing to leave per-transcript lists on every transcript row."
+            )
+        data = parse_dbnsfp_by_row_transcript(data, load_aligned_columns(args.dbnsfp_aligned_columns))
     data = parse_dbnsfp(data, transcript=None, dbnsfp_cols=args.dbnsfp_cols)
     data = parse_missense(data, MISSENSE_COLUMNS)
     data = parse_splicevault(data)

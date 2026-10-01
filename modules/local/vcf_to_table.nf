@@ -74,6 +74,7 @@ process VCF_TO_TABLE {
         --hgnc-table ${params.hgnc_table} \\
         --spliceai-symbol-map ${params.spliceai_symbol_map} \\
         --gene-transcript-mapping ${params.gene_transcript_mapping} \\
+        --dbnsfp-aligned-columns ${params.dbnsfp_aligned_columns} \\
         --skip_quality_filter
     """
 

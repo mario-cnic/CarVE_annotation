@@ -169,6 +169,7 @@ def test_spip_row_takes_its_own_transcript_not_the_first_entry():
 def _bare_identity(curated_nm=None):
     ident = gi.GeneIdentity.__new__(gi.GeneIdentity)
     ident._curated_nm = curated_nm or {}
+    ident._hgnc_current, ident._hgnc_other = {}, {}
     return ident
 
 
@@ -196,3 +197,75 @@ def test_spip_never_borrows_another_genes_entry_and_keeps_error_status():
 def test_spip_requires_identity():
     with pytest.raises(ValueError):
         sp.parse_spip(pd.DataFrame({"SPiP": ["x"]}), identity=None)
+
+
+# ------------------------------------------------------------------ SPiP labelled same-gene columns
+def test_spip_samegene_columns_label_other_transcript_result(identity):
+    value = spip("NM_000009.1", "PMS2", "0.90") + "&" + spip("NM_000008.3", "PMS2", "0.10") + "&" + spip("NM_000050.1", "AIMP2", "0.60")
+    df = pd.DataFrame({"Locus": ["chr7:1-C-A"] * 3, "SPiP": [value] * 3, "Gene": [PMS2] * 3, "SYMBOL": ["PMS2"] * 3,
+                       "Feature": ["ENST00000000001", "ENST00000000002", "ENST00000000003"],
+                       "MANE_SELECT": ["NM_000008.3", None, "NM_777777.1"], "MANE_PLUS_CLINICAL": [None] * 3})
+    out = sp.parse_spip(df, identity=identity)
+    # row 0: own transcript present -> strict columns filled; same-gene columns describe the GENE (max over PMS2's 2 NMs)
+    assert out["SPiP_prediction"].iloc[0] == pytest.approx(0.10) and out["SPiP_match"].iloc[0] == gi.MATCHED
+    assert (out["SPiP_samegene_prediction"] == 0.90).all() and (out["SPiP_samegene_transcript"] == "NM_000009").all()
+    assert (out["SPiP_samegene_n_transcripts"] == 2).all()                       # AIMP2's entry is not counted
+    # row 1: no RefSeq equivalent -> strict empty, but the labelled gene-level value is there
+    assert np.isnan(out["SPiP_prediction"].iloc[1]) and out["SPiP_match"].iloc[1] == gi.NOT_APPLICABLE_TRANSCRIPT
+    # row 2: has an NM that SPiP lacks -> strict empty (no_entry), gene-level still labelled
+    assert out["SPiP_match"].iloc[2] == gi.NO_ENTRY and out["SPiP_samegene_prediction"].iloc[2] == 0.90
+
+
+def test_spip_samegene_resolves_old_symbol_through_hgnc(identity):
+    df = pd.DataFrame({"Locus": ["chr6:1-C-A"], "SPiP": [spip("NM_000100.1", "PARK2", "0.40")], "Gene": [PRKN],
+                       "SYMBOL": ["PRKN"], "Feature": ["ENST00000000009"], "MANE_SELECT": [None], "MANE_PLUS_CLINICAL": [None]})
+    out = sp.parse_spip(df, identity=identity)
+    assert one(out, "SPiP_samegene_prediction") == pytest.approx(0.40) and one(out, "SPiP_match") == gi.NOT_APPLICABLE_TRANSCRIPT
+
+
+# ------------------------------------------------------------------ dbNSFP per-transcript selection
+from modules import predictors as pr  # noqa: E402
+
+
+def dbn(feature, **cols):
+    base = {"Ensembl_transcriptid": "ENST00000000001&ENST00000000002&ENST00000000003",
+            "SIFT_score": "0.01&.&0.30", "AlphaMissense_score": "0.9&0.5&0.1", "REVEL_score": "0.7",
+            "MetaRNN_score": "0.8&0.2&0.4"}
+    base.update(cols)
+    return {"Feature": feature, **base}
+
+
+ALIGNED = ["Ensembl_transcriptid", "SIFT_score", "AlphaMissense_score", "MetaRNN_score"]
+
+
+def test_dbnsfp_row_keeps_its_own_transcript_value():
+    df = pd.DataFrame([dbn("ENST00000000003.5"), dbn("ENST00000000001"), dbn("ENST00000000002"), dbn("ENST00000999999")])
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert list(out["AlphaMissense_score"].iloc[:3]) == ["0.1", "0.9", "0.5"]
+    assert out["SIFT_score"].iloc[0] == "0.30" and np.isnan(out["SIFT_score"].iloc[2])      # '.' = missing for that transcript
+    assert list(out["dbNSFP_match"]) == [pr.DBNSFP_MATCHED] * 3 + [pr.DBNSFP_NO_ENTRY]
+    assert out["AlphaMissense_score"].iloc[3] is np.nan or pd.isna(out["AlphaMissense_score"].iloc[3])
+    assert (out["REVEL_score"] == "0.7").all()                                                # single-valued column untouched
+    assert out["Ensembl_transcriptid"].iloc[1] == "ENST00000000001"
+    assert out["dbNSFP_transcripts_all"].iloc[0].count("&") == 2                              # original list kept for audit
+
+
+def test_dbnsfp_anytranscript_max_keeps_the_old_variant_level_view():
+    df = pd.DataFrame([dbn("ENST00000000002")])
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert out["MetaRNN_score"].iloc[0] == "0.2" and out["MetaRNN_score_anytranscript_max"].iloc[0] == pytest.approx(0.8)
+
+
+def test_dbnsfp_rows_without_dbnsfp_and_missing_resource():
+    df = pd.DataFrame([dbn("ENST00000000001"), {"Feature": "ENST00000000009", "Ensembl_transcriptid": None,
+                                                "SIFT_score": None, "AlphaMissense_score": None, "MetaRNN_score": None}])
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert out["dbNSFP_match"].iloc[1] == pr.DBNSFP_NO_PREDICTION and pd.isna(out["SIFT_score"].iloc[1])
+    with pytest.raises(ValueError):
+        pr.parse_dbnsfp_by_row_transcript(df, None)
+
+
+def test_dbnsfp_misaligned_list_is_not_used():
+    df = pd.DataFrame([dbn("ENST00000000001", AlphaMissense_score="0.9&0.5")])           # 2 items for 3 transcripts
+    out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)
+    assert pd.isna(out["AlphaMissense_score"].iloc[0]) and out["dbNSFP_match"].iloc[0] == pr.DBNSFP_MISALIGNED

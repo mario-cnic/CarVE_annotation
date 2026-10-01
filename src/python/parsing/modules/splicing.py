@@ -108,7 +108,10 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
     transcript) receives the entry whose NM equals the row's own RefSeq transcript (MANE Select /
     MANE Plus Clinical / curated clinical transcript). Rows with no RefSeq equivalent get
     `not_applicable_transcript`; no other transcript's or gene's entry is ever used.
-    Adds `SPiP_match` and `SPiP_anygene_max_prediction` (variant-level maximum, any transcript).
+    Adds `SPiP_match` and `SPiP_anygene_max_prediction` (variant-level maximum, any transcript), and
+    labelled same-gene columns for rows whose own transcript has no SPiP entry: `SPiP_samegene_prediction`
+    (maximum over the row's gene's SPiP transcripts), `SPiP_samegene_transcript` (the `NM_` it comes from),
+    `SPiP_samegene_n_transcripts`. These describe the GENE, not the row's transcript.
     """
     if identity is None:
         raise ValueError("parse_spip requires a GeneIdentity (no silent fallback to unmatched scores)")
@@ -121,19 +124,20 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
         return data[name].tolist() if name in data.columns else [None] * len(data)
 
     parsed_cache, row_cache = {}, {}
-    out, matches, anymax = [], [], []
-    for raw, feature, mane, mane_pc, locus in zip(col(spip_col), col("Feature"), col("MANE_SELECT"),
-                                                  col("MANE_PLUS_CLINICAL"), col("Locus")):
-        key = (raw, feature, mane, mane_pc, locus)
+    out, matches, anymax, samegene = [], [], [], []
+    no_samegene = (np.nan, None, 0)
+    for raw, feature, mane, mane_pc, locus, symbol, gene in zip(
+            col(spip_col), col("Feature"), col("MANE_SELECT"), col("MANE_PLUS_CLINICAL"), col("Locus"),
+            col("SYMBOL"), col("Gene")):
+        key = (raw, feature, mane, mane_pc, locus, symbol, gene)
         if key in row_cache:
             res = row_cache[key]
         else:
-            res = None
             if is_missing(raw):
-                res = (_SPIP_EMPTY, NO_PREDICTION, np.nan)
+                res = (_SPIP_EMPTY, NO_PREDICTION, np.nan, no_samegene)
             elif "caused an error in SPiP execution" in str(raw):
                 res = (["Error", np.nan, np.nan, np.nan, np.nan, "error", np.nan, np.nan, np.nan, "error"],
-                       PREDICTOR_ERROR, np.nan)
+                       PREDICTOR_ERROR, np.nan, no_samegene)
             else:
                 if raw not in parsed_cache:
                     parsed_cache[raw] = [e.split("|") for e in split_entries(raw)]
@@ -146,20 +150,32 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
                     except ValueError:
                         pass
                 any_max = max(preds) if preds else np.nan
+                # same gene, any transcript (labelled; never mixed into the transcript-matched columns)
+                sg = []
+                for f in entries:
+                    if identity.symbol_is_row_gene(f[12].strip(), symbol, gene):
+                        try:
+                            sg.append((float(f[4]), strip_version(f[11])))
+                        except ValueError:
+                            pass
+                same = (max(sg)[0], max(sg)[1], len({t for _, t in sg})) if sg else no_samegene
                 row_nms = identity.row_refseq_transcripts(feature, mane, mane_pc)
                 if not row_nms:
-                    res = (_SPIP_EMPTY, NOT_APPLICABLE_TRANSCRIPT, any_max)
+                    res = (_SPIP_EMPTY, NOT_APPLICABLE_TRANSCRIPT, any_max, same)
                 else:
                     hit = next((f for f in entries if strip_version(f[11]) in row_nms), None)
-                    res = (_spip_fields(hit), MATCHED, any_max) if hit else (_SPIP_EMPTY, NO_ENTRY, any_max)
+                    res = (_spip_fields(hit), MATCHED, any_max, same) if hit else (_SPIP_EMPTY, NO_ENTRY, any_max, same)
             row_cache[key] = res
-        out.append(res[0]); matches.append(res[1]); anymax.append(res[2])
+        out.append(res[0]); matches.append(res[1]); anymax.append(res[2]); samegene.append(res[3])
 
     frame = pd.DataFrame(out, index=data.index, columns=list(NEW_SPIP_COLUMNS.values()))
     for c in frame.columns:
         data[c] = frame[c]
     data["SPiP_match"] = matches
     data["SPiP_anygene_max_prediction"] = anymax
+    data["SPiP_samegene_prediction"] = [x[0] for x in samegene]
+    data["SPiP_samegene_transcript"] = [x[1] for x in samegene]
+    data["SPiP_samegene_n_transcripts"] = [x[2] for x in samegene]
     logger.info("SPiP columns extracted, categorized, and status contract applied")
     return data
 

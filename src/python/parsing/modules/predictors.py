@@ -95,6 +95,92 @@ def parse_missense(data, missense_cols: list[str]):
     return data
 
 
+DBNSFP_MATCHED = "matched_transcript"
+DBNSFP_NO_ENTRY = "no_entry_for_row_transcript"
+DBNSFP_NO_ROW_TRANSCRIPT = "no_row_transcript"
+DBNSFP_NO_PREDICTION = "no_prediction"
+DBNSFP_MISALIGNED = "misaligned_list"
+
+
+def load_aligned_columns(path: str) -> list[str]:
+    """Column names (one per line, '#' comments allowed) listed in resources/dbnsfp_transcript_aligned_columns.txt."""
+    with open(path) as fh:
+        return [ln.strip() for ln in fh if ln.strip() and not ln.startswith("#")]
+
+
+def parse_dbnsfp_by_row_transcript(data: pd.DataFrame, aligned_columns: list[str] = None) -> pd.DataFrame:
+    """Give each row the dbNSFP value of its OWN transcript.
+
+    VEP's dbNSFP plugin attaches to every transcript row of a variant the full '&'-joined lists of
+    per-transcript values, aligned position by position with `Ensembl_transcriptid`. Here, for the
+    transcript-aligned columns (resources/dbnsfp_transcript_aligned_columns.txt, derived from data by
+    src/tools/derive_dbnsfp_alignment.py), a row keeps the list element at the position of its own
+    `Feature`; if its transcript is not in dbNSFP's list the aligned columns are left empty
+    (`dbNSFP_match` = no_entry_for_row_transcript). Columns that are single-valued, or multi-valued but
+    not transcript-aligned, are untouched. Adds `dbNSFP_match`, `dbNSFP_transcripts_all` (the original
+    transcript list) and `<col>_anytranscript_max` for the numeric MISSENSE_COLUMNS that are aligned.
+    """
+    tcol = "Ensembl_transcriptid"
+    if tcol not in data.columns:
+        logger.info("No dbNSFP transcript column, skipping per-transcript dbNSFP selection")
+        return data
+    if aligned_columns is None:
+        raise ValueError("parse_dbnsfp_by_row_transcript requires the aligned-column list "
+                         "(--dbnsfp-aligned-columns); refusing to leave per-transcript lists on every row")
+    cols = [c for c in aligned_columns if c in data.columns]
+    missing = data[tcol].isna() | data[tcol].astype(str).isin([".", ""])
+    data["dbNSFP_match"] = DBNSFP_NO_PREDICTION
+    data["dbNSFP_transcripts_all"] = data[tcol].where(~missing)
+    work = data.index[~missing]
+    if len(work) == 0:
+        return data
+    strip = lambda x: str(x).split(".")[0]
+    sub = {c: data.loc[work, c].tolist() for c in cols}
+    feats = data.loc[work, "Feature"].tolist() if "Feature" in data.columns else [None] * len(work)
+    tlists = sub[tcol] if tcol in sub else data.loc[work, tcol].tolist()
+    new = {c: [np.nan] * len(work) for c in cols}
+    anymax = {c: [np.nan] * len(work) for c in cols if c in MISSENSE_COLUMNS}
+    status = []
+    for i, (feat, tl) in enumerate(zip(feats, tlists)):
+        if feat is None or (isinstance(feat, float) and np.isnan(feat)):
+            status.append(DBNSFP_NO_ROW_TRANSCRIPT)
+            continue
+        ids = [strip(x) for x in str(tl).split("&")]
+        n = len(ids)
+        pos = ids.index(strip(feat)) if strip(feat) in ids else None
+        st = DBNSFP_MATCHED if pos is not None else DBNSFP_NO_ENTRY
+        for c in cols:
+            v = sub[c][i]
+            if not isinstance(v, str):
+                continue
+            items = v.split("&")
+            if c in anymax:
+                nums = []
+                for x in items:
+                    try:
+                        nums.append(float(x))
+                    except ValueError:
+                        pass
+                anymax[c][i] = max(nums) if nums else np.nan
+            if len(items) == 1:
+                new[c][i] = v if v != "." else np.nan        # single value: not a per-transcript list
+            elif len(items) == n:
+                if pos is not None and items[pos] != ".":
+                    new[c][i] = items[pos]
+            else:
+                st = DBNSFP_MISALIGNED if st == DBNSFP_MATCHED else st
+        status.append(st)
+    for c in cols:
+        data[c] = data[c].astype(object)
+        data.loc[work, c] = new[c]
+    for c, vals in anymax.items():
+        data[f"{c}_anytranscript_max"] = np.nan
+        data.loc[work, f"{c}_anytranscript_max"] = vals
+    data.loc[work, "dbNSFP_match"] = status
+    logger.info(f"dbNSFP per-transcript selection: {pd.Series(status).value_counts().to_dict()}")
+    return data
+
+
 def parse_dbnsfp(data: pd.DataFrame, transcript: str, dbnsfp_cols: str):
     """Extract corresponding value from dbnsfp columns for a specified transcript/gene."""
     if not transcript:
