@@ -41,3 +41,48 @@ Earlier statement in this session that the shared module is "used by Module 3" w
 - Vendored the parsing code into `src/python/parsing/` (commit d5a915c, verbatim, sha256-verified, provenance in its PROVENANCE.md); Nextflow config repointed (fa87d38). Legacy bash (`config/env.sh`, `vcf2parsed.sh`) not repointed.
 - HGNC complete set downloaded locally to `~/hgnc_build/` (not deployed anywhere).
 - Next: `TODO.md` item "Predictor score attribution".
+
+---
+
+## Addendum 2026-10-01 (later): corrections and implementation
+
+### Corrections to the audit above (found by checking the parser's real behaviour before coding)
+- **SpliceAI multi-gene values were not "first entry used".** The old `parse_spliceai_custom` split on `,` but the table joins gene entries with `&`; a multi-gene value therefore failed `float()` and returned NaN for every field (verified: 23,770 of 23,770 multi-gene rows in row group 16 had `spliceai_custom_MAX` = NaN). Those rows fell back to VEP's per-transcript plugin score (`SpliceAI_pred_*`, ~50 bp; verified gene-matched: `SpliceAI_pred_SYMBOL == SYMBOL` on 766,859 of 766,859 rows). So the audit rows "wrong entry used though the right one was present" (81,564; 270 flips) were rows that **lost** their custom score, not rows with a wrong-gene score. The real SpliceAI wrong-gene exposure is single-entry values of another gene (and gene-less rows) - see numbers below.
+- The old fallback used `custom > 0`, so a genuine 0.00 custom score was replaced by VEP's value (26 rows, none >= 0.20 in row group 16) - fixed with presence logic.
+- The table is biallelic (`Locus` ALT == SpliceAI/SPiP entry ALT on 100% of rows; the `ref`/`alt` columns are empty, ALT is taken from `Locus`), and contains no RefSeq-keyed rows (`Feature` is always `ENS...`, `SOURCE` empty).
+- `shared/utils/data/ensembl_to_refseq.tsv.gz` only maps MANE Select / MANE Plus Clinical, so it adds nothing beyond the row's own `MANE_SELECT` / `MANE_PLUS_CLINICAL` columns; not used.
+
+### What was implemented (`ae5a38c`)
+Matching rules, statuses, resources and tests are as in the plan; see `src/python/parsing/PROVENANCE.md` for the exact delta. New table columns: `spliceai_custom_match`, `spliceai_custom_anygene_MAX`, `Pangolin_match`, `Pangolin_anygene_max`, `SPiP_match`, `SPiP_anygene_max_prediction`. Existing column names unchanged.
+
+### Results on S223 (8,993,048 populated rows; new parsers applied to the table's raw strings, nothing overwritten; `src/tools/validate_reparse_sample.py`, JSONs in `RUNS/gene_attribution_audit/`)
+| | Old parser | New parser |
+|---|---|---|
+| SpliceAI custom score present | 6,062,036 | 5,585,352 |
+| ... removed (other gene's entry / no row gene / ambiguous) | | 622,000 (3,831 had score >= 0.20) |
+| ... recovered (multi-gene values the old parser dropped) | | 145,316 |
+| ... value changed where both present | | 0 |
+| SpliceAI match status | | matched 5,392,563 · alias_resolved 192,789 · no_entry_for_row_gene 470,247 · no_row_gene 171,111 · ambiguous 6,822 · unresolved 5 |
+| SPiP present | 7,756,696 | 659,542 matched |
+| SPiP status | | not_applicable_transcript 6,912,433 (89%) · no_entry_for_row_gene 184,721 |
+| SPiP rows >= 0.20 removed | | 19,453; 142 more crossed 0.20 by choosing the row's own transcript (5,141 values changed) |
+| Pangolin | 2,791,464 (all `ENSMUSG`) | 0: the S223 string is from the mouse db, so no entry can match a human `Gene` (expected; Pangolin must be re-run) |
+
+Alias rows cross-checked against the coordinate table: 428 of 192,789 disagree, all from the HGNC-only route (symbol absent from the coordinate table, e.g. `MICALCL`; checked in row group 16: 44/44).
+Small test (`test_data/test_run/annotation/MYBPC3.annotated.vcf.gz`, both parser stages run locally with the cluster envs): 238 rows in both outputs, only the matched-predictor columns and columns derived from them change; the 4 MYBPC3 transcript rows that carried `MADD`'s SpliceAI score of 0.30 moved from Tier 3 to Tier 4. Without the identity arguments `filter_variants.py` exits with an error (verified).
+
+### Costs and limits
+- SPiP is blank on rows whose transcript has no RefSeq equivalent (MANE Select / Plus Clinical / curated clinical transcript): 89% of S223 rows; tiers 1-2 are covered. Module 3 will see more empty SPiP cells.
+- Pangolin rows can only be validated after the re-run with the human db; the logic is tested on synthetic strings only.
+- Not validated through Nextflow on the cluster; `HGNC` file must be deployed first (below).
+
+### Note for Module 3 (not written to `carve-platform`; for the user to decide)
+Same column names. Values are now only the row's own gene/transcript. Rows without a matching entry are empty with a `*_match` reason, and the variant-level maximum is in `*_anygene_*`. Expect fewer populated SpliceAI/SPiP cells and some priority-tier shifts in this pipeline's own `PRIORITY_TIER`. Module 3's app reads the `.pq` as-is (`pd.read_parquet`) and does not call its own `parse_*`, so it is unaffected mechanically.
+
+### Manual deployment (user)
+```bash
+mkdir -p /data_lab_PGP/resources/annotation/hgnc
+cp ~/hgnc_build/hgnc_complete_set.txt /data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt
+sha256sum /data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt   # expect 91d0ad20c34f26fb12c8cce3f80a65a6fc694f3a508040b19f6bfa29ae0d889e
+chmod a-w /data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt
+```
