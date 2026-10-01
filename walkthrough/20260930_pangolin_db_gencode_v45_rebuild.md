@@ -142,3 +142,13 @@ bash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/panel7
 - Re-run Pangolin for every earlier result (incl. `S223`).
 - Update `carve-platform` `STATUS.md` / `PLT-139`.
 - Set MISC-12 to 🟢 once the re-test passes.
+
+
+---
+
+## Update 2026-10-01: deployed and re-tested (Pangolin-only)
+- **Deployed** (by the agent, on the user's instruction): `gencode.v45.ensembl_canonical.grch38.db` + `.BUILD_MANIFEST.txt` copied into `/data_lab_PGP/shared/utils/pangolin_db/`, sha256 `55831b76...eb8c` verified, `chmod a-w`. The old mouse file was not touched.
+- **Re-test** (user, `qrsh` node, `panel7_test.vcf`, `-d 10000`): 37 of 72 records annotated (baseline 22 of 72, all mouse); 82 gene-ID occurrences, all `ENSG`, zero `ENSMUSG`. Result: PASS for the species problem. (My earlier estimate that only ~18 records would pass was wrong; the fixture's REF alleles do not all match the reference, and Pangolin skips mismatches, but more passed than I predicted.)
+- **Operational lessons** (the first attempts failed for environment reasons, not the db): (1) a bare `qrsh` has a small `h_vmem` -> `OpenBLAS error: Memory allocation still failed` and `libtorch_cpu.so: failed to map segment`; use `qrsh -P PGP -A PGP -l h_vmem=16G`. (2) `export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1` (the Nextflow module already does). (3) `cd` into the project directory (relative paths). The `NNPACK ... Unsupported hardware` warnings are harmless.
+- **Side finding:** 8 fixture variants labelled `gene=MYBPC3` were scored against MADD (they lie 1.4-3 kb downstream of MYBPC3, inside MADD). That led to the gene/transcript attribution work: `20261001_predictor_gene_transcript_attribution_audit.md`, `BUG_TRACKER.md` `PRED-14`.
+- **Still pending for MISC-12:** full pipeline re-test through Nextflow (panel7, ~4 h), re-run Pangolin for `S223` (its Pangolin column is mouse-based), update `carve-platform` `STATUS.md` / `PLT-139` (not edited from here: other repo).

@@ -104,3 +104,20 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `gene_priority`: Priority category of target gene (`cardiac_primary`, `secondary`, etc.).
 - `SOURCE`: Pipeline stage / tool source.
 - `EVIDENCE`: Aggregated supporting evidence rationale.
+
+
+---
+
+## 3. Columns added by the gene/transcript attribution work (2026-10-01, `PRED-14`)
+
+Existing score columns keep their names but now hold only the value of the row's OWN gene (SpliceAI, Pangolin) or transcript (SPiP, dbNSFP). Rows are variant x VEP transcript. Details: `walkthrough/20261001_predictor_gene_transcript_attribution_audit.md`.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `spliceai_custom_match`, `Pangolin_match`, `SPiP_match` | String | Why the score is present or empty: `matched`, `matched_by_exon_structure` (SPiP only), `alias_resolved` (SpliceAI symbol resolved to the row's gene by coordinates AND HGNC), `no_entry_for_row_gene` (predictor has no entry for this gene/transcript), `no_row_gene` (row has no gene), `not_applicable_transcript` (SPiP: transcript has no RefSeq counterpart), `ambiguous` / `unresolved` (symbol could not be resolved safely), `no_prediction`, `predictor_error`. Distinct from the predictors' own `*_status` (`scored`/`not_covered`). |
+| `spliceai_custom_anygene_MAX`, `Pangolin_anygene_max`, `SPiP_anygene_max_prediction` | Float | Variant-level maximum over ALL genes/transcripts of the variant. Use only for variant-level questions, never as a gene's score. |
+| `SPiP_samegene_prediction`, `SPiP_samegene_transcript`, `SPiP_samegene_n_transcripts` | Float / String / Int | GENE-level SPiP result: maximum over the row's gene's SPiP transcripts, the `NM_` it comes from, and how many transcripts of the gene SPiP scored. Describes the gene, not the row's transcript; the strict `SPiP_*` columns remain own-transcript only. |
+| `dbNSFP_match` | String | `matched_transcript`, `no_entry_for_row_transcript` (dbNSFP did not score this transcript: the 67 transcript-aligned dbNSFP columns are empty), `misaligned_list`, `no_row_transcript`, `no_prediction` (no dbNSFP data for the variant). |
+| `dbNSFP_transcripts_all` | String | Original `&`-joined dbNSFP transcript list (audit). |
+| `REVEL_score_anytranscript_max`, `MetaRNN_score_anytranscript_max` | Float | Old behaviour kept explicit: maximum over all dbNSFP transcripts of the variant. `REVEL_score` / `MetaRNN_score` are now the row's own transcript's value. |
+| `MetaLR_score`, CADD, conservation, other single-valued dbNSFP columns | - | Variant-level in dbNSFP itself; unchanged (`resources/dbnsfp_column_dependency.tsv` classifies all 456 dbNSFP columns). |

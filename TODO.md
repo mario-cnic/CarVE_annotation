@@ -4,6 +4,15 @@
 
 ## 🔴 Priority 0: Foundational Fixes (block further predictor/parameter changes until done)
 
+- [ ] **Pending after the 2026-10-01 session (pangolin db + gene/transcript attribution) - checklist, details in the linked entries**
+  - [ ] **Cluster run, panel7** (`bash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/panel7_test.vcf.gz --run_id panel7_v45_retest`, ~4 h): `VCF_TO_TABLE` completes; Pangolin `ENSG`; MADD/MYBPC3 positions carry MADD's scores only on MADD rows; `SPiP_match` shows `matched_by_exon_structure`; manifest lists the HGNC / symbol-map / ENST->SPiP map / dbNSFP column files with hashes. (`MISC-12`, `PRED-14`)
+  - [ ] **Re-run Pangolin for S223** (mouse db) and re-parse S223 into a NEW file with the new parsers. (`MISC-12`)
+  - [ ] **User decision: 28 curated genes whose NM and ENST are different transcripts**, TAZ duplicate, `NKX25` typo, renamed symbols (walkthrough attribution audit, Addendum 7). File not edited.
+  - [ ] **User decision: rebuild SPiP's RefSeq database?** (recommended: defer until panel7 is reviewed.)
+  - [ ] Tell Module 3 what changed (columns, blanks, dbNSFP lists -> single values); update `carve-platform` `STATUS.md` / `PLT-139` (other repo: not edited from here).
+  - [ ] Not done: Branchpointer/LaBranchoR attribution check; 14 multi-valued non-aligned dbNSFP columns (Aloft, MutPred, MutationTaster); legacy bash path (`config/env.sh`, `vcf2parsed.sh`) still uses the unmatched shared parser; `shared/utils` and Module 3 copies of the parser are unchanged (three diverged copies).
+  - [ ] Push: all commits of this session are local only.
+
 - [ ] **Run Provenance & Reproducibility Manifest** — confirmed gap, no code change yet
   - Verified 2026-09-15: there is currently **no way to reconstruct what actually ran for a past run**. Checked `main.sh`, `config/env.sh`, every `RUNS/<RUN_NAME>/` folder on disk, and `src/python/audit_run_results.py`:
     - No file anywhere records the CLI flags/thresholds a run was invoked with (`--build`, `--max-af`, `--min-revel`, `--consequences`, gene list, etc.).
