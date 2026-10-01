@@ -9,6 +9,11 @@ row's own transcript "without an entry". Two transcripts are treated as the same
 chromosome and strand and have an identical intron chain (all splice junctions equal; first/last exon ends may
 differ = UTR extent). Single-exon transcripts need identical start and end.
 
+Only pairs verified to be the SAME GENE are kept: the ENST's GENCODE gene must equal the SPiP transcript's symbol, or
+resolve to it through HGNC (current/previous/alias symbol). Pairs across different genes (readthrough or bicistronic loci,
+e.g. PYURF/PIGY, LRRC51/LRTOMT) and pairs whose SPiP symbol HGNC does not know are dropped and counted in the manifest.
+The SPiP database is exported from its RData by this script (--spip-rdata/--rscript) so the input is reproducible.
+
 Outputs
   --out-map    resources/enst_to_spip_nm.grch38.gencode45.tsv : enst, enst_version, gene_id, gene_name, spip_nm,
                spip_symbol, match_type (identical_exons | same_intron_chain | single_exon_same_bounds)
@@ -16,8 +21,8 @@ Outputs
                NM present in SPiP, structural SPiP matches)
 Read-only on all inputs. Coordinates: GTF 1-based inclusive -> converted to 0-based half-open to compare with SPiP's BED12.
 """
-import argparse, csv, gzip, hashlib, json, re, sys
-from collections import defaultdict
+import argparse, csv, gzip, hashlib, json, re, subprocess, sys
+from collections import Counter, defaultdict
 from datetime import datetime, timezone
 
 
@@ -65,9 +70,36 @@ def key_of(chrom, strand, exons):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--gtf", required=True); ap.add_argument("--mane-gtf", required=True)
-    ap.add_argument("--spip-db-tsv", required=True); ap.add_argument("--curated", required=True)
+    ap.add_argument("--spip-db-tsv", required=True, help="SPiP RefSeq database as TSV (written from --spip-rdata when given)")
+    ap.add_argument("--spip-rdata", help="SPiP RefFiles/dataRefSeqhg38.RData; exported to --spip-db-tsv with --rscript")
+    ap.add_argument("--rscript"); ap.add_argument("--hgnc", required=True); ap.add_argument("--curated", required=True)
     ap.add_argument("--out-map", required=True); ap.add_argument("--out-audit", required=True)
     a = ap.parse_args()
+
+    if a.spip_rdata:
+        if not a.rscript:
+            sys.exit("--spip-rdata needs --rscript")
+        expr = ('e<-new.env(); load("%s", envir=e); x<-get("dataRefSeq",e); colnames(x)<-c("chrom","start0","end","nm","score",'
+                '"strand","thickStart","thickEnd","rgb","nExons","blockSizes","blockStarts","symbol"); '
+                'write.table(x,"%s",sep="\t",quote=FALSE,row.names=FALSE)' % (a.spip_rdata, a.spip_db_tsv))
+        subprocess.run([a.rscript, "-e", expr], check=True)
+    hgnc_cur, hgnc_other = defaultdict(set), defaultdict(set)
+    for r in csv.DictReader(open(a.hgnc), delimiter="\t"):
+        if not r["ensembl_gene_id"]:
+            continue
+        hgnc_cur[r["symbol"]].add(r["ensembl_gene_id"])
+        for k in ("prev_symbol", "alias_symbol"):
+            for sym in r[k].split("|"):
+                if sym:
+                    hgnc_other[sym].add(r["ensembl_gene_id"])
+
+    def gene_check(t, spip_symbol):
+        if t["gene_name"] == spip_symbol:
+            return "same_symbol"
+        known = hgnc_cur.get(spip_symbol) or hgnc_other.get(spip_symbol)
+        if not known:
+            return "dropped_symbol_unknown_to_hgnc"
+        return "same_gene_hgnc" if t["gene_id"].split(".")[0] in known else "dropped_different_gene"
 
     gen = read_gtf(a.gtf)
     mane = read_gtf(a.mane_gtf)
@@ -88,15 +120,20 @@ def main():
     n_pairs = 0
     enst_to_spip = defaultdict(list)
     with open(a.out_map, "w") as out:
-        out.write("enst\tenst_version\tgene_id\tgene_name\tspip_nm\tspip_symbol\tmatch_type\n")
+        out.write("enst\tenst_version\tgene_id\tgene_name\tspip_nm\tspip_symbol\tmatch_type\tgene_check\n")
+        gc = Counter()
         for tid, t in sorted(gen.items()):
             if not t["exons"]:
                 continue
             for nm in by_key.get(key_of(t["chrom"], t["strand"], t["exons"]), []):
                 s = spip[nm]
+                chk = gene_check(t, s["symbol"])
+                gc[chk] += 1
+                if chk.startswith("dropped"):
+                    continue
                 mt = ("single_exon_same_bounds" if len(t["exons"]) == 1 else
                       "identical_exons" if s["exons"] == t["exons"] else "same_intron_chain")
-                out.write(f"{tid.split('.')[0]}\t{tid}\t{t['gene_id']}\t{t['gene_name']}\t{nm}\t{s['symbol']}\t{mt}\n")
+                out.write(f"{tid.split('.')[0]}\t{tid}\t{t['gene_id']}\t{t['gene_name']}\t{nm}\t{s['symbol']}\t{mt}\t{chk}\n")
                 enst_to_spip[tid.split(".")[0]].append((nm, mt))
                 n_pairs += 1
 
@@ -134,12 +171,12 @@ def main():
     manifest = {"built": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
                 "gtf": a.gtf, "gtf_sha256": sha256(a.gtf), "mane_gtf": a.mane_gtf, "mane_gtf_sha256": sha256(a.mane_gtf),
                 "spip_db_tsv": a.spip_db_tsv, "spip_db_tsv_sha256": sha256(a.spip_db_tsv), "curated": a.curated,
-                "gencode_transcripts": len(gen), "spip_transcripts": len(spip), "pairs": n_pairs,
+                "gencode_transcripts": len(gen), "spip_transcripts": len(spip), "pairs": n_pairs, "gene_check_counts": dict(gc),
+                "hgnc": a.hgnc, "hgnc_sha256": sha256(a.hgnc), "spip_rdata": a.spip_rdata, "spip_rdata_sha256": sha256(a.spip_rdata) if a.spip_rdata else None,
                 "enst_with_spip_match": len(enst_to_spip), "map_sha256": sha256(a.out_map), "argv": sys.argv}
     json.dump(manifest, open(a.out_map + ".manifest.json", "w"), indent=1)
     print(json.dumps({k: v for k, v in manifest.items() if k not in ("argv",)}, indent=1))
-    from collections import Counter
-    print("curated audit:", Counter(i for r in audit for i in r["issues"].split(";")))
+    print("curated audit rows with issues other than version-only:", sum(1 for r in audit if any(not i.startswith("NM_version") and i != "ok" for i in r["issues"].split(";"))))
 
 
 if __name__ == "__main__":

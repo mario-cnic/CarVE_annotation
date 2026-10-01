@@ -55,4 +55,16 @@ describes that state. Since then, gene/transcript attribution was added (plan:
 - `filter_variants.py`: new `--hgnc-table`, `--spliceai-symbol-map`, `--gene-transcript-mapping`; refuses to run
   with SpliceAI/SPiP columns present but no identity resources (no silent fallback).
 
+Later changes (same day, `f805585`, `a0c1f4f`, `05a470a`):
+- `modules/predictors.py`: `parse_dbnsfp_by_row_transcript` + `load_aligned_columns` - each row keeps the element of its own
+  transcript for the 67 transcript-aligned dbNSFP columns (`resources/dbnsfp_transcript_aligned_columns.txt`, classified by
+  `src/tools/derive_dbnsfp_dependency.py` from the dbNSFP readme + raw lines); adds `dbNSFP_match`, `dbNSFP_transcripts_all`,
+  `<col>_anytranscript_max`; runs before `parse_missense`.
+- `modules/splicing.py` `parse_spip`: accession match, else exon-structure match (`matched_by_exon_structure`), plus labelled
+  `SPiP_samegene_*` columns.
+- `modules/gene_identity.py`: `GeneIdentity(spliceai_symbol_map, hgnc_table, enst_spip_map)` - all three are required; the
+  curated `Gen,NM,ENST` pairing is not used for SPiP.
+- `filter_variants.py`: required arguments `--hgnc-table`, `--spliceai-symbol-map`, `--enst-spip-map`, `--dbnsfp-aligned-columns`
+  (each only when the corresponding predictor columns are present).
+
 `git diff d5a915c -- src/python/parsing` shows the exact delta. The shared and Module 3 copies are unchanged.

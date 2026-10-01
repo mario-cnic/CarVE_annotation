@@ -1,5 +1,5 @@
 {
- "built": "2026-10-01T16:27:28+02:00",
+ "built": "2026-10-01T16:39:27+02:00",
  "gtf": "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
  "gtf_sha256": "56a166e4a43c934a1910c0d09dec786ac048862fc65130731d41f3c7f451ae68",
  "mane_gtf": "/data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
@@ -9,22 +9,38 @@
  "curated": "resources/gene_transcript_mapping.txt",
  "gencode_transcripts": 252930,
  "spip_transcripts": 65484,
- "pairs": 50280,
- "enst_with_spip_match": 50139,
- "map_sha256": "e6a4979ecb951e8bbdb7fe25a89655886b19fb6004ad0fb2ef55cbd2faa17361",
+ "pairs": 48454,
+ "gene_check_counts": {
+  "same_symbol": 46996,
+  "same_gene_hgnc": 1458,
+  "dropped_different_gene": 296,
+  "dropped_symbol_unknown_to_hgnc": 1530
+ },
+ "hgnc": "/data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt",
+ "hgnc_sha256": "91d0ad20c34f26fb12c8cce3f80a65a6fc694f3a508040b19f6bfa29ae0d889e",
+ "spip_rdata": "/data_lab_PGP/resources/annotation/SPiP/RefFiles/dataRefSeqhg38.RData",
+ "spip_rdata_sha256": "86de41515ade7a4071d7bdbf1c65e761134f8b9f865352430625c2cfc7519c2f",
+ "enst_with_spip_match": 48320,
+ "map_sha256": "d726b3eb44473e9acf94fb473f8f1ddeac70f481e9e575146a9afd905d4438fb",
  "argv": [
   "src/python/build_enst_spip_map.py",
   "--gtf",
   "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
   "--mane-gtf",
   "/data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
+  "--spip-rdata",
+  "/data_lab_PGP/resources/annotation/SPiP/RefFiles/dataRefSeqhg38.RData",
+  "--rscript",
+  "/data_lab_PGP/shared/utils/conda_envs/spip_env/bin/Rscript",
   "--spip-db-tsv",
   "RUNS/transcript_mapping/spip_refseq_hg38.tsv",
+  "--hgnc",
+  "/data_lab_PGP/resources/annotation/hgnc/hgnc_complete_set.2026-09-29.txt",
   "--curated",
   "resources/gene_transcript_mapping.txt",
   "--out-map",
-  "RUNS/transcript_mapping/enst_to_spip_nm.grch38.gencode45.tsv",
+  "resources/enst_to_spip_nm.grch38.gencode45.tsv",
   "--out-audit",
-  "RUNS/transcript_mapping/curated_mapping_audit.tsv"
+  "resources/gene_transcript_mapping.audit.2026-10-01.tsv"
  ]
 }
