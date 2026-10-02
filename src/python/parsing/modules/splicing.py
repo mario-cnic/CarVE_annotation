@@ -551,7 +551,7 @@ def _spliceai_entries(raw):
 
 
 def parse_spliceai_custom(data: pd.DataFrame, identity: GeneIdentity = None) -> pd.DataFrame:
-    """Unpack custom SpliceAI (-D 10000 / 20kb window) predictions, gene-matched and allele-matched.
+    """Unpack custom SpliceAI (-D 4999 / ~10kb window) predictions, gene-matched and allele-matched.
 
     The value holds one entry per gene the variant touches (joined by '&' in the table). A row takes
     the entry for its own gene -- resolved from SpliceAI's symbol to an Ensembl gene ID by coordinates
@@ -565,7 +565,7 @@ def parse_spliceai_custom(data: pd.DataFrame, identity: GeneIdentity = None) -> 
     if identity is None:
         raise ValueError("parse_spliceai_custom requires a GeneIdentity (no silent fallback to unmatched scores)")
 
-    logger.info("Unpacking custom SpliceAI (-D 10000) predictions (gene-matched) into `spliceai_custom_*` columns...")
+    logger.info("Unpacking custom SpliceAI (-D 4999) predictions (gene-matched) into `spliceai_custom_*` columns...")
 
     def column(name):
         return data[name].tolist() if name in data.columns else [None] * len(data)
@@ -649,11 +649,11 @@ def _extract_spliceai_details(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
         c_s = splice_custom.iloc[idx]
         v_s = splice_vep.iloc[idx]
         if custom_present.iloc[idx]:
-            methods.append("Custom Window (-D 10000 / 20kb)")
+            methods.append("Custom Window (-D 4999 / ~10kb)")
         elif v_s > 0 or has_vep:
             methods.append("VEP Standard (~50bp)")
         elif has_custom:
-            methods.append("Custom Window (-D 10000 / 20kb)")
+            methods.append("Custom Window (-D 4999 / ~10kb)")
         else:
             methods.append("Not Covered")
 

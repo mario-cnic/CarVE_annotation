@@ -20,7 +20,7 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
 2. **State-of-the-Art Splicing & Functional Annotation Matrix**:
    - **Ensembl VEP 111 (GRCh38)**: CADD (v1.6), REVEL, AlphaMissense, UTRAnnotator, MaxEntScan, and gnomAD v4.1 population frequencies (`AF_joint`).
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
-   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss in a 20kb window (`-d 10000`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
+   - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss within 4999 bp of each variant (`-d 4999`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 4999`**: Deep residual neural network predicting max delta scores within 4999 bp of each variant (the maximum the Illumina CLI accepts).
    - **Branch Point Predictor Pair**:
      - **LaBranchoR**: Bidirectional LSTM predicting top human catalytic branch points across GRCh38 (206,249 branch points).
@@ -179,7 +179,7 @@ bash run_annotate_vcf.sh -profile standard \
 | Tier | Records | Tools |
 | --- | --- | --- |
 | Broad | every record in the input | VEP 111 (with its plugins), Branchpointer/LaBranchoR |
-| Gene-restricted | only records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 4999`), Pangolin (`-d 10000`), SPiP (unless `--spip_tier broad`) |
+| Gene-restricted | only records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 4999`), Pangolin (`-d 4999`), SPiP (unless `--spip_tier broad`) |
 
 Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A missing score there means the tool was not run, not that the variant is predicted benign.
 

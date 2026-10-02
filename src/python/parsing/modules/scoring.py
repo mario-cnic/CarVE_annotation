@@ -254,7 +254,7 @@ def build_priority_tier(
         if s_comp > 0.05:
             m_label = splice_method.iloc[i]
             if "Custom" in m_label:
-                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max.iloc[i]:.2f} via Custom -D 10000)")
+                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max.iloc[i]:.2f} via Custom -D 4999)")
             elif "VEP" in m_label:
                 parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max.iloc[i]:.2f} via VEP Standard ~50bp)")
             else:
@@ -406,7 +406,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
     """Audits which bioinformatic tools, annotators, and predictors are present vs missing in the dataset."""
     tool_map = {
         "gnomAD Allele Frequency": ["gnomADv4_AF_grpmax_joint", "MAX_AF", "af", "gnomad_af", "AF"],
-        "SpliceAI Custom Window (-D 10000 / 20kb)": ["spliceai_custom_MAX", "SpliceAI_custom_MAX", "spliceai_custom_DS_AG", "SpliceAI_custom_DS_AG", "SpliceAI_D10000", "SpliceAI_10k"],
+        "SpliceAI Custom Window (-D 4999 / ~10kb)": ["spliceai_custom_MAX", "SpliceAI_custom_MAX", "spliceai_custom_DS_AG", "SpliceAI_custom_DS_AG", "SpliceAI_D10000", "SpliceAI_10k"],
         "SpliceAI VEP Standard (~50bp)": ["spliceAI_MAX", "SpliceAI_pred_DS_AG", "SpliceAI_DS_AG", "SpliceAI"],
         "SPiP Deep Splicing": ["SPiP_prediction", "SPiP"],
         "Pangolin Non-Coding": ["Pangolin_max_score", "Pangolin"],

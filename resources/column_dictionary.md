@@ -22,7 +22,7 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 2 (SpliceVault)** | *N/A (New)* | `SpliceVault_status` | String | Status contract: `aberrant_event_detected`, `no_events_found`, `not_covered`. |
 | **Objective 3 (Intron Offset)** | `INTRON_OFFSET` (Unsigned) | `intron_offset_signed` | Integer | **Signed** distance to nearest exon boundary (negative `-12` = intron, positive `+5` = exon, `0` = canonical boundary). |
 | **Objective 3 (Intron Offset)** | *N/A (New)* | `splice_side` | String | Nearest splice site type: `donor` (5' SS), `acceptor` (3' SS), `exonic`. |
-| **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_max_score` | Float | Maximum delta score across predicted splice site gain/loss positions in 20kb window (`-d 10000`). |
+| **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_max_score` | Float | Maximum delta score across predicted splice site gain/loss positions within 4999 bp of the variant (`-d 4999`). |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_lv_score` | Float | Cardiac Left Ventricle specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_aa_score` | Float | Cardiac Atrial Appendage specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
@@ -75,7 +75,7 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `SpliceVault_status`: Status contract (`aberrant_event_detected`, `no_events_found`, `not_covered`).
 
 ### E. Pangolin Deep Learning Splicing Predictor
-- `Pangolin_max_score`: Max delta score across predicted splice gain/loss positions (`-d 10000`).
+- `Pangolin_max_score`: Max delta score across predicted splice gain/loss positions (`-d 4999`).
 - `Pangolin_heart_lv_score`: Left Ventricle specific prediction.
 - `Pangolin_heart_aa_score`: Atrial Appendage specific prediction.
 - `Pangolin_status`: Status contract (`scored`, `not_covered`, `error`).

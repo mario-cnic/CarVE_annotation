@@ -4,7 +4,7 @@ Medical & Geneticist-Grade 4-Tab Clinical Prioritization Report Generator
 
 Generates a standalone, interactive HTML dashboard for a specific gene with 4 tabs:
   1. 📊 General / Overview (Executive summary, global triage KPIs, top candidates)
-  2. 🧬 Splicing Tab (Dedicated splicing metrics, custom 20kb delta channels, SpliceVault, Branchpoint)
+  2. 🧬 Splicing Tab (Dedicated splicing metrics, custom ~10kb delta channels, SpliceVault, Branchpoint)
   3. 🎯 UTR Tab (5' and 3' UTR variants, uAUG/Kozak alterations, translation consequences)
   4. 🔬 Missense Tab (AlphaMissense, REVEL, CADD, consensus pathogenicity)
 
@@ -12,7 +12,7 @@ Features:
   - Dynamically generated <thead> ensuring exact column header alignment.
   - Multi-candidate ClinVar extraction (clinvar_clnsig, CLIN_SIG, CLNSIG).
   - Dedicated gnomADv4 AF grpmax with fallback and explicit warning banner.
-  - SpliceAI 20kb context window & tool availability disclaimers.
+  - SpliceAI ~10kb context window & tool availability disclaimers.
 """
 
 import os
@@ -688,7 +688,7 @@ def generate_gene_report(pq_path, out_html_path):
     # SpliceAI Provenance
     has_custom_spliceai = ("spliceai_custom_MAX" in df.columns) and (df["spliceai_custom_MAX"].notna().sum() > 0)
     if has_custom_spliceai:
-        disclaimers.append(('provenance', '🧬 <strong>Custom SpliceAI Active</strong>: Evaluated with local <strong>±10,000 bp (20 kb) context window</strong> (-D 10000) for comprehensive deep intronic & non-canonical junction discovery.'))
+        disclaimers.append(('provenance', '🧬 <strong>Custom SpliceAI Active</strong>: Evaluated with local <strong>±4,999 bp (~10 kb) context window</strong> (-D 4999) for comprehensive deep intronic & non-canonical junction discovery.'))
     else:
         disclaimers.append(('info', 'ℹ️ <strong>VEP SpliceAI Active</strong>: Evaluated with Illumina precomputed lookup table (<strong>500 bp window</strong>). Custom 20kb inference was not computed for this batch.'))
 
@@ -1348,7 +1348,7 @@ def generate_gene_report(pq_path, out_html_path):
             <div class="kpi-card t2">
                 <div class="kpi-title">Deep Intronic Events (>500bp)</div>
                 <div class="kpi-value t2">{n_splice_deep:,}</div>
-                <small>Custom 20kb discovery</small>
+                <small>Custom ~10kb discovery</small>
             </div>
             <div class="kpi-card blue">
                 <div class="kpi-title">SpliceVault RNA Events</div>
@@ -1532,7 +1532,7 @@ def generate_gene_report(pq_path, out_html_path):
                         <td style="padding:10px; border:1px solid #cbd5e1; font-weight:bold; color:#d97706;">Tier 3</td>
                         <td style="padding:10px; border:1px solid #cbd5e1;"><span class="badge tier-3">VUS / Moderate Potential</span></td>
                         <td style="padding:10px; border:1px solid #cbd5e1;">
-                            • Priority Score &ge; 15.0 OR Splicing &Delta; &ge; 0.20 floor (SpliceAI 20kb, Pangolin, SPiP)<br/>
+                            • Priority Score &ge; 15.0 OR Splicing &Delta; &ge; 0.20 floor (SpliceAI ~10kb, Pangolin, SPiP)<br/>
                             • Moderate-impact amino acid alterations or UTR regulatory variants
                         </td>
                         <td style="padding:10px; border:1px solid #cbd5e1; color:#d97706; font-weight:600;">Secondary Research Candidate</td>

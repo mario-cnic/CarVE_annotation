@@ -95,8 +95,8 @@ def run_audit():
 | **SPiP** | v2.1 (Multi-threaded) | Donor / Acceptor / Exonic | `SPiP_interpretation`, `SPiP_prediction`, `SPiP_score`, `SPiP_mechanism` | `scored`, `not_covered`, `error` |
 | **SpliceVault** | Empirical GTEx/SRA | RNA Aberrant Events & Cryptic Splice | `SpliceVault_top_events`, `SpliceVault_Predictions_Decoded`, `SpliceVault_site_sample_count`, `SpliceVault_SpliceAI_delta` | `aberrant_event_detected`, `no_events_found`, `not_covered` |
 | **Intron Offset** | Refactored Signed | Distance to Nearest Splice Junction | `intron_offset_signed`, `splice_side` | Exact integer (neg = intron, pos = exon) |
-| **Pangolin** | PyTorch Ensemble | 20kb Window (`-d 10000`) | `Pangolin_max_score`, `Pangolin_heart_lv_score`, `Pangolin_heart_aa_score` | `scored`, `not_covered`, `error` |
-| **SpliceAI Local** | TensorFlow 2.15 | 20kb Window (`-D 10000`) | `spliceAI_MAX`, `SpliceAI_status` | `scored`, `not_covered`, `error` |
+| **Pangolin** | PyTorch Ensemble | ~10kb Window (`-d 4999`) | `Pangolin_max_score`, `Pangolin_heart_lv_score`, `Pangolin_heart_aa_score` | `scored`, `not_covered`, `error` |
+| **SpliceAI Local** | TensorFlow 2.15 | ~10kb Window (`-D 4999`) | `spliceAI_MAX`, `SpliceAI_status` | `scored`, `not_covered`, `error` |
 | **Branchpointer** | Signal-Feature Model | -18 to -44 bp Upstream of 3' SS | `Branchpointer_prob`, `Branchpointer_U2_energy`, `Branchpoint_disrupted` | `scored`, `not_covered`, `error` |
 | **LaBranchoR** | Bi-LSTM Deep Learning | 206,249 Top BP Sites (GRCh38) | `LaBranchoR_score`, `LaBranchoR_acc_dist` | `scored`, `not_covered`, `error` |
 
