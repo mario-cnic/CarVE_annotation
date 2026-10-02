@@ -2,14 +2,14 @@
   "schema_version": 1,
   "module": "2 (annotation_pipeline_new)",
   "launch": {
-    "generated_at": "2026-10-01T15:44:22.006251+00:00",
-    "command_line": "/opt/nextflow/nextflow run annotate_vcf.nf -profile standard --input_vcf test_data/raw_vcfs/panel7_refcorrected.vcf.gz --run_id panel7_v45_retest2",
+    "generated_at": "2026-10-01T16:08:10.768127+00:00",
+    "command_line": "/opt/nextflow/nextflow run annotate_vcf.nf -profile standard --input_vcf test_data/raw_vcfs/panel7_refcorrected.vcf.gz -resume --run_id panel7_v45_retest2",
     "cli_flags": {
       "run_id": "panel7_v45_retest2",
       "profile": "standard",
       "spip_tier": "",
       "output_format": "",
-      "resume": false
+      "resume": true
     },
     "resolved_paths": {
       "nextflow_binary": "/opt/nextflow/nextflow",
@@ -24,7 +24,7 @@
       "v5_genes_loc_bed": "095d18df373b0dc39872a90dcb612aa2f7af4cf7a9c19eb1c59f764fbae3cf59"
     },
     "annotation_pipeline_repo": {
-      "commit": "77f2124d691a679d53fb02cc01e8b1acd5a4a8ef",
+      "commit": "d6bcc608743caa9e9034bacf1498a32a8e2b7027",
       "dirty": false,
       "dirty_files": [],
       "dirty_patch": null
@@ -250,8 +250,8 @@
     "launch_cwd": "/data_lab_PGP/pipelines/annotation_pipeline_new"
   },
   "completed": {
-    "generated_at": "2026-10-01T15:46:44.490513+00:00",
-    "exit_code": 1,
-    "workflow_stats": "WorkflowStats[succeededCount=7; failedCount=6; ignoredCount=0; cachedCount=0; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=5; abortedCount=4; succeedDuration=2m 41s; failedDuration=1s; cachedDuration=0ms;loadCpus=0; loadMemory=0; peakRunning=5; peakCpus=19; peakMemory=96 GB; ]"
+    "generated_at": "2026-10-01T20:29:10.084315+00:00",
+    "exit_code": 0,
+    "workflow_stats": "WorkflowStats[succeededCount=10; failedCount=6; ignoredCount=0; cachedCount=7; pendingCount=0; submittedCount=0; runningCount=0; retriesCount=6; abortedCount=0; succeedDuration=56m 40s; failedDuration=12h 30m 37s; cachedDuration=2m 41s;loadCpus=0; loadMemory=0; peakRunning=5; peakCpus=11; peakMemory=36 GB; ]"
   }
 }
