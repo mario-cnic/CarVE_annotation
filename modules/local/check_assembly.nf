@@ -1,9 +1,11 @@
 // Pre-flight input check for the whole-VCF entry point: fails the run before any predictor is
-// scheduled if the input VCF's ##contig lengths or REF alleles disagree with params.fasta
-// (BUG_TRACKER.md MISC-14). Logic and thresholds: src/python/check_vcf_assembly.py.
+// scheduled if the input VCF's ##contig lengths or REF alleles disagree with params.fasta, if it
+// has multiallelic or non-normalised records, is a gVCF, or has duplicate sample names. The report
+// also records the genotype mode and sample names. Logic and thresholds:
+// src/python/check_vcf_assembly.py.
 //
-// No stub block, so the check also runs for real under -stub-run: it only reads the VCF header,
-// the first params.assembly_ref_check_records records and the FASTA index.
+// No stub block, so the check also runs for real under -stub-run: it reads the whole VCF once
+// (minutes on a WGS input) and the FASTA index.
 
 process CHECK_INPUT_ASSEMBLY {
     tag "${meta.partition_id}"
@@ -28,6 +30,8 @@ process CHECK_INPUT_ASSEMBLY {
         --report ${meta.partition_id}.assembly_check.tsv \\
         --ref-check-records ${params.assembly_ref_check_records} \\
         --max-ref-mismatch-frac ${params.assembly_max_ref_mismatch_frac} \\
-        --min-ref-checked ${params.assembly_min_ref_checked}
+        --min-ref-checked ${params.assembly_min_ref_checked} \\
+        --max-multiallelic ${params.input_max_multiallelic} \\
+        --max-unnormalised ${params.input_max_unnormalised}
     """
 }

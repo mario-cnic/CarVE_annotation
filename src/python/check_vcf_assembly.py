@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Pre-flight check that an input VCF matches the reference FASTA the predictors use.
+"""Pre-flight check of an input VCF: reference assembly, record normalisation and sample columns.
 
-Two independent checks:
+Assembly (two independent checks):
 
 1. Header: every ##contig with a length is resolved to a FASTA contig (exact name, then with the
    `chr` prefix toggled, then MT <-> chrM) and its length compared with the FASTA index. Any
@@ -12,10 +12,24 @@ Two independent checks:
 A VCF with no ##contig lengths cannot pass check 1, so it passes only if check 2 examined at least
 `--min-ref-checked` records and stayed under the threshold; otherwise it fails as unverifiable.
 
+Records (one pass over the whole file, no FASTA needed):
+
+3. Multiallelic records (more than one ALT) fail above `--max-multiallelic`.
+4. Biallelic indels/MNVs that are not left-aligned or not parsimonious fail above
+   `--max-unnormalized`: a record is not normalised when REF and ALT end with the same base, or
+   both are longer than one base and start with the same base.
+5. gVCF input (`<NON_REF>` / `<*>` ALT, or `##GVCFBlock` header lines) always fails.
+6. Duplicate chrom:pos:ref:alt records, and records whose ALT equals REF, only warn.
+
+Samples: duplicate sample names fail. The report records the genotype mode (`no_samples`,
+`samples_without_GT`, `single_sample`, `multi_sample`), the sample names and the declared FORMAT
+fields; nothing is changed downstream by them.
+
 Exit status: 0 = pass (warnings possible), 1 = fail. A TSV report is written to `--report`.
 """
 
 import argparse
+import gzip
 import sys
 
 import pysam
@@ -78,10 +92,87 @@ def check_ref_alleles(vcf, fasta, fasta_lengths, max_records):
     return checked, skipped, mismatches
 
 
-def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_frac, min_ref_checked):
+def header_sample_names(vcf_path):
+    """Sample names from the #CHROM line, read without htslib (which refuses duplicate names)."""
+    opener = gzip.open if vcf_path.endswith((".gz", ".bgz")) else open
+    with opener(vcf_path, "rt") as f:
+        for line in f:
+            if line.startswith("#CHROM"):
+                return line.rstrip("\n").split("\t")[9:]
+            if not line.startswith("#"):
+                break
+    return []
+
+
+def is_normalised(ref, alt):
+    """True when a biallelic ACGT record is trimmed and left-aligned (VCF anchor-base convention)."""
+    if ref[-1] == alt[-1]:
+        return False
+    return not (len(ref) > 1 and len(alt) > 1 and ref[0] == alt[0])
+
+
+def scan_records(vcf):
+    """One pass over all records. Returns a dict of counts."""
+    c = dict(records=0, multiallelic=0, not_normalised=0, symbolic=0, gvcf=0, no_alt=0, duplicates=0, alt_is_ref=0)
+    group, seen = None, set()
+    for rec in vcf:
+        c["records"] += 1
+        alts = rec.alts or ()
+        key = (rec.chrom, rec.pos)
+        if key != group:
+            group, seen = key, set()
+        if not alts:
+            c["no_alt"] += 1
+            continue
+        if any(a in ("<NON_REF>", "<*>") for a in alts):
+            c["gvcf"] += 1
+        sig = (rec.ref, alts)
+        if sig in seen:
+            c["duplicates"] += 1
+        seen.add(sig)
+        if len(alts) > 1:
+            c["multiallelic"] += 1
+            continue
+        ref, alt = rec.ref.upper(), alts[0].upper()
+        if set(ref) - ACGT or set(alt) - ACGT:
+            c["symbolic"] += 1
+        elif ref == alt:
+            c["alt_is_ref"] += 1
+        elif not is_normalised(ref, alt):
+            c["not_normalised"] += 1
+    return c
+
+
+def genotype_mode(samples, format_ids):
+    """Genotype mode of the input from its header."""
+    if not samples:
+        return "no_samples"
+    if "GT" not in format_ids:
+        return "samples_without_GT"
+    return "single_sample" if len(samples) == 1 else "multi_sample"
+
+
+def write_report(report_path, rows, failures, warnings):
+    with open(report_path, "w") as out:
+        out.write("key\tvalue\n")
+        for k, v in rows + [("failure", f) for f in failures] + [("warning", w) for w in warnings]:
+            out.write(f"{k}\t{v}\n")
+
+
+def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_frac, min_ref_checked,
+        max_multiallelic=0, max_unnormalised=0):
     fasta = pysam.FastaFile(fasta_path)
     fasta_lengths = dict(zip(fasta.references, fasta.lengths))
-    vcf = pysam.VariantFile(vcf_path)
+    try:
+        vcf = pysam.VariantFile(vcf_path)
+    except (ValueError, OSError) as exc:
+        names = header_sample_names(vcf_path)
+        dups = sorted({n for n in names if names.count(n) > 1})
+        msg = (f"duplicate sample name(s) in the #CHROM line: {', '.join(dups)}" if dups
+               else f"VCF header could not be read: {exc}")
+        write_report(report_path, [("status", "FAIL"), ("vcf", vcf_path), ("fasta", fasta_path)], [msg], [])
+        print(f"ERROR: {msg}", file=sys.stderr)
+        return 1
     header_contigs = {name: c.length for name, c in vcf.header.contigs.items()}
 
     failures, warnings = [], []
@@ -113,33 +204,69 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
             f"(need >= {min_ref_checked}); add ##contig lines, e.g. `bcftools reheader --fai`"
         )
 
+    # Record scan reopens the file: the REF spot-check above consumed the first records.
+    scan = scan_records(pysam.VariantFile(vcf_path))
+    fix = f"bcftools norm -m -any -f {fasta_path}"
+    if scan["gvcf"] or any(k.startswith("GVCFBlock") for k in (r.key for r in vcf.header.records)):
+        failures.append("input is a gVCF (<NON_REF>/<*> ALT or ##GVCFBlock header); use the genotyped VCF")
+    if scan["multiallelic"] > max_multiallelic:
+        failures.append(f"{scan['multiallelic']} multiallelic record(s) (allowed {max_multiallelic}); split with `{fix}`")
+    if scan["not_normalised"] > max_unnormalised:
+        failures.append(
+            f"{scan['not_normalised']} indel/MNV record(s) not left-aligned or not parsimonious "
+            f"(allowed {max_unnormalised}); normalise with `{fix}`"
+        )
+    if scan["duplicates"]:
+        warnings.append(f"{scan['duplicates']} duplicate chrom:pos:ref:alt record(s)")
+    if scan["alt_is_ref"]:
+        warnings.append(f"{scan['alt_is_ref']} record(s) with ALT identical to REF")
+    if scan["no_alt"]:
+        warnings.append(f"{scan['no_alt']} record(s) without an ALT allele")
+
+    samples = list(vcf.header.samples)
+    dup_names = sorted({n for n in samples if samples.count(n) > 1})
+    if dup_names:
+        failures.append(f"duplicate sample name(s): {', '.join(dup_names)}")
+    format_ids = list(vcf.header.formats.keys())
+    mode = genotype_mode(samples, format_ids)
+    if mode == "samples_without_GT":
+        warnings.append("sample columns present but no GT FORMAT field declared")
+
     status = "FAIL" if failures else "PASS"
-    with open(report_path, "w") as out:
-        out.write("key\tvalue\n")
-        rows = [
-            ("status", status),
-            ("vcf", vcf_path),
-            ("fasta", fasta_path),
-            ("header_contigs_with_length", n_len),
-            ("header_contigs_matched", len(matched)),
-            ("header_contigs_length_mismatch", len(mismatched)),
-            ("header_contigs_not_in_fasta", len(unmatched)),
-            ("ref_records_checked", checked),
-            ("ref_records_skipped", skipped),
-            ("ref_mismatches", len(ref_mm)),
-            ("max_ref_mismatch_frac", max_ref_mismatch_frac),
-        ]
-        rows += [("failure", f) for f in failures] + [("warning", w) for w in warnings]
-        for k, v in rows:
-            out.write(f"{k}\t{v}\n")
+    rows = [
+        ("status", status),
+        ("vcf", vcf_path),
+        ("fasta", fasta_path),
+        ("header_contigs_with_length", n_len),
+        ("header_contigs_matched", len(matched)),
+        ("header_contigs_length_mismatch", len(mismatched)),
+        ("header_contigs_not_in_fasta", len(unmatched)),
+        ("ref_records_checked", checked),
+        ("ref_records_skipped", skipped),
+        ("ref_mismatches", len(ref_mm)),
+        ("max_ref_mismatch_frac", max_ref_mismatch_frac),
+        ("records_scanned", scan["records"]),
+        ("multiallelic_records", scan["multiallelic"]),
+        ("not_normalised_records", scan["not_normalised"]),
+        ("symbolic_or_non_acgt_records", scan["symbolic"]),
+        ("duplicate_site_records", scan["duplicates"]),
+        ("alt_equals_ref_records", scan["alt_is_ref"]),
+        ("genotype_mode", mode),
+        ("n_samples", len(samples)),
+        ("sample_names", ",".join(samples)),
+        ("format_fields_declared", ",".join(f for f in ("GT", "GQ", "DP", "AD", "PL", "PS", "FT") if f in format_ids)),
+    ]
+    write_report(report_path, rows, failures, warnings)
 
     for w in warnings:
         print(f"WARNING: {w}", file=sys.stderr)
     for f in failures:
         print(f"ERROR: {f}", file=sys.stderr)
     print(
-        f"Assembly check {status}: {len(matched)}/{n_len} header contigs match, "
-        f"{len(ref_mm)}/{checked} REF mismatches"
+        f"Input check {status}: {len(matched)}/{n_len} header contigs match, "
+        f"{len(ref_mm)}/{checked} REF mismatches, {scan['records']} records "
+        f"({scan['multiallelic']} multiallelic, {scan['not_normalised']} not normalised), "
+        f"genotype mode {mode} ({len(samples)} sample(s))"
     )
     return 1 if failures else 0
 
@@ -154,8 +281,13 @@ def main():
                    help="Fail above this REF mismatch fraction (default 0.01)")
     p.add_argument("--min-ref-checked", type=int, default=20,
                    help="Minimum REF-checked records when ##contig lengths are absent (default 20)")
+    p.add_argument("--max-multiallelic", type=int, default=0,
+                   help="Fail above this many multiallelic records (default 0)")
+    p.add_argument("--max-unnormalised", type=int, default=0,
+                   help="Fail above this many not-left-aligned / non-parsimonious records (default 0)")
     a = p.parse_args()
-    sys.exit(run(a.vcf, a.fasta, a.report, a.ref_check_records, a.max_ref_mismatch_frac, a.min_ref_checked))
+    sys.exit(run(a.vcf, a.fasta, a.report, a.ref_check_records, a.max_ref_mismatch_frac, a.min_ref_checked,
+                 a.max_multiallelic, a.max_unnormalised))
 
 
 if __name__ == "__main__":

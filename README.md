@@ -167,7 +167,7 @@ bash run_annotate_vcf.sh -profile standard \
 
 | Argument | Default | Description |
 | --- | --- | --- |
-| `--input_vcf <FILE>` | required | bgzipped VCF with a sibling `.tbi` index. **Must be GRCh38**, called against the GATK-bundle `Homo_sapiens_assembly38.fasta` that the predictors use. A pre-flight check fails the run before any predictor starts if the `##contig` lengths or the first 1000 REF alleles disagree with that FASTA. Without `##contig` lines it continues with a warning only if ≥20 REF alleles match (`MISC-14`). Both `chr1` and `1` contig names are accepted |
+| `--input_vcf <FILE>` | required | bgzipped VCF with a sibling `.tbi` index. **Must be GRCh38**, called against the GATK-bundle `Homo_sapiens_assembly38.fasta` that the predictors use. A pre-flight check fails the run before any predictor starts if the `##contig` lengths or the first 1000 REF alleles disagree with that FASTA. Without `##contig` lines it continues with a warning only if ≥20 REF alleles match (`MISC-14`). Both `chr1` and `1` contig names are accepted. The same check also fails the run on multiallelic records, records that are not left-aligned or parsimonious, gVCF input and duplicate sample names (fix: `bcftools norm -m -any -f <fasta>`); duplicate sites and ALT equal to REF only warn |
 | `--run_id <LABEL>` | input filename without `.vcf.gz` | Output folder name and prefix for every published file |
 | `--spip_tier` | `restricted` | Which tier SPiP runs in (see below) |
 | `--output_format` | `pq` | Final table format: `pq` or `tsv` only |
@@ -189,7 +189,7 @@ Everything is published to `nf_work/annotation_out/<run_id>/`:
 
 | File | Content |
 | --- | --- |
-| `<run_id>.assembly_check.tsv` | Pre-flight assembly check result: contig-length and REF-allele comparison against `params.fasta`, plus any warnings |
+| `<run_id>.assembly_check.tsv` | Pre-flight input check result: contig-length and REF-allele comparison against `params.fasta`, record normalisation counts, genotype mode (`no_samples`, `samples_without_GT`, `single_sample`, `multi_sample`), sample names, declared FORMAT fields, plus any warnings |
 | `RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
 | `RUN_DIRTY.<timestamp>.patch` | Only for a launch from a dirty tree: the uncommitted changes. Rebuild the launch-time code with `git checkout <commit> && git apply <patch>` |
 | `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
