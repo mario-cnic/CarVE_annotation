@@ -51,3 +51,59 @@ Method: `src/tools/analyze_nextflow_tasks.py` on `.nextflow.log.5` (S223) and `.
 
 **MISC-17 - the killed long chunks were busy and small as well.** 20 jobs (S223, 4 slots each), exit 137 at 86,401 s (24 h; two at 48 h): CPU time ~227,000 s each (63 CPU-hours), i.e. 26-66% of the slot time (median 57% Pangolin, 66% SpliceAI = about 2.3-2.6 of 4 cores busy), `maxvmem` only 1.1-1.7 GB. So memory pressure is refuted here too. They kept consuming CPU for 24 h without finishing a chunk that takes ~6 h (SpliceAI) on a healthy node. What this suggests (not proven): the CPU time was spent without progress (spinning threads, contention or oversubscription) - to be compared with healthy chunks.
 - Next diagnostic (cluster login node): `bash resources/pull_qacct_snapshot.sh RUNS/transcript_mapping/misc17_healthy_job_ids.tsv RUNS/transcript_mapping/misc17_healthy_qacct.tsv` (74 healthy chunk jobs from all 7 nodes, labelled with process, node and hours). Compare CPU time per chunk and cores busy between healthy chunks and the killed ones: if healthy chunks need far less CPU time for the same work, the killed ones were wasting CPU.
+
+## MISC-17: healthy vs killed chunks, per node (2026-10-02T09:39+02:00)
+Inputs: `RUNS/transcript_mapping/misc17_healthy_qacct.tsv` (74 jobs; 3 tail chunks of 96-115 s excluded -> 71: 37 SpliceAI, 34 Pangolin) and `misc16_17_qacct.tsv` (20 killed chunks). Node of every job taken from the Nextflow log (`.nextflow.log.5`: job id -> work dir -> 2nd line of `.command.log`; 71/71 healthy labels agree with it); qacct itself has no hostname in these TSVs. Script: `src/tools/analyze_misc17_qacct.py` (read-only); full output `RUNS/transcript_mapping/misc17_qacct_comparison.txt` (gitignored). Units: `cpu` = SGE CPU seconds summed over slots; cores busy = cpu / wallclock.
+
+### FACTS - SpliceAI (the clean signal)
+- **Cores busy is the same everywhere: 2.56-2.72 for all 37 healthy chunks and 2.58-2.65 for the 9 killed ones**, on every node, 4 or 8 slots. Threads are pinned (TF 2+2, `src/python/annotate_spliceai.py:17-18`), so a chunk is ~2.6 cores whatever the slot request; the 8-slot retries bought nothing.
+- CPU per chunk is what varies. Reference = 30 four-slot chunks on c0051-cn2/-cn3/-cn4, c0053-cn2/-cn3: **median 17.0 CPU-h (10.9-19.3), wall median 6.4 h**. Relative CPU-h per node: five reference nodes 0.64-1.14x; **c0051-cn1 1.07-2.18x (median 1.5x; three chunks at 31-37 CPU-h, wall 11.9-14.0 h)**; **c0053-cn1 7.2x**. Across all 37 chunks wall time tracks CPU time (Spearman 0.98) while cores busy does not (-0.15): a slow chunk is a chunk that burned more CPU-seconds for the same 8,000 variants.
+- c0053-cn1: the 7 killed 4-slot chunks stopped at 63 CPU-h (>= 3.7x the reference); the 3 attempt-2 chunks (8 slots, 48 h limit) needed 122-124 CPU-h (7.2-7.3x): one finished at 47.9 h, two were killed at 48.0 h with 123.9-124.1 CPU-h, i.e. within ~1.5% of the finishing CPU of the one that made it.
+
+### FACTS - c0053-cn1 as a node
+- **It never completed a 4-slot SpliceAI/Pangolin chunk: 13 of 13 first attempts (7 SpliceAI, 6 Pangolin) were killed at 24 h**, submitted Sep-25 10:38-12:24 (+ attempt-2 chunks on Sep-26 10:44). Chunks submitted to other nodes in the same minutes ran normally (e.g. c0051-cn4 SpliceAI Sep-25 10:45, 6.7 h). So not a time-window effect within S223; the slowness lasted >= 26 h.
+- Its only finished chunks are the two slowest of all 71 healthy ones: SpliceAI 47.9 h / 122 CPU-h; Pangolin 34.9 h / 112 CPU-h at 3.2 cores busy (next highest Pangolin anywhere: 45 CPU-h, 23.7 h). Both are 8-slot attempt-2 chunks, n = 1 each.
+- Killed Pangolin on c0053-cn1: 55-69 CPU-h in 24 h at 2.0-2.9 cores; Pangolin elsewhere is mostly wait-dominated (median 0.9 cores, see below). Same node, both tools CPU-saturated and slow.
+- Loss accounting: of the 528 killed task-hours, **408 (77%) are c0053-cn1** (13 x 24 h + 2 x 48 h), 120 (23%) are Pangolin on c0051-cn1 (3) and c0051-cn4 (2).
+
+### FACTS - Pangolin (no clean baseline)
+- Healthy Pangolin chunks are not one population: 3 finished at ~3.9 cores in 0.5-5.1 h (2-20 CPU-h), most of the rest took 8-23.7 h at 0.03-2.2 cores (0.35-45 CPU-h; one 8-slot chunk 5.9 h at 2.4 cores). CPU time is not a proxy for work here; no per-node CPU-ratio is computed. Why Pangolin chunks differ so much on healthy nodes is not explained by these data (chunk content not examined).
+- **The 24 h `h_rt` sits inside the healthy wall-time range.** Healthy wall per node (median / max): c0051-cn4 22.1 / 23.2 h, c0053-cn2 20.5 / 23.7 h, c0051-cn1 19.1 / 22.5 h, others 14-16 h. All 4 finished 4-slot Pangolin chunks on c0051-cn4 took 21.8-23.3 h; 2 more on that node were killed at 24 h with 25 CPU-h at 1.04 cores - the same CPU profile as the finished ones (16-21 CPU-h), i.e. the tail beyond the limit, not the c0053-cn1 pattern.
+- c0051-cn1 Pangolin: 3 killed (43, 93, 46 CPU-h in 24 h) vs 6 finished (12.8-22.5 h): mixed, not classified.
+
+### What the data supports / does not support
+- **Supports (FACT):** (1) c0053-cn1 differs from healthy nodes even when its chunks finish: same ~2.6 cores busy but 7x the CPU-seconds per SpliceAI chunk, 13/13 first attempts killed. (2) c0051-cn1 shows the same SpliceAI signature at a milder, graded level (1.1-2.2x). (3) Not memory (<= 1.7 GB), not an allocation of too few cores (cores busy unchanged), not too many threads inside the job for SpliceAI (pinned 2+2). (4) 77% of the lost task-hours trace to one node.
+- **Supports as INFERENCE only:** each CPU-second does less work on c0053-cn1 (slower effective cores: frequency/power throttling, a different CPU, SMT or memory-bandwidth sharing, hypervisor effects), or the pinned threads burn CPU without progress (spinning on a stalled resource). Constant cores busy rules out starvation by time-slicing (that would LOWER cores busy), but does not separate these two.
+- **Does not support / unknown:** the cause; whether c0053-cn1 is still slow (S223 ran 2026-09-25..29; one run only; panel7 had no long chunks); whether Pangolin's 24 h kills elsewhere are a node effect (they look like the wall-time tail); thread settings as a fix (SpliceAI threads already pinned and not varying; Pangolin sets `OMP_NUM_THREADS=${task.cpus}`, `modules/local/pangolin.nf:26`, so its 8-slot chunks (1.7-3.2 cores) are not comparable to 4-slot ones). n = 1 successful chunk per tool on c0053-cn1, both attempt-2.
+
+### PROPOSAL (for review; `nextflow.config` NOT edited)
+1. **Exclude c0053-cn1 for `process_long`** (SPLICEAI_ANNOTATE, PANGOLIN_ANNOTATE: the only two users of the label). Works whatever the cause, reversible, would have removed 408 of 528 lost task-hours and the retry-lands-on-the-same-node problem. Implementation caveat: `process.clusterOptions` is one closure in the `standard` profile (`nextflow.config:169-171`: `-P`, `-A`, `h_vmem`, `TMPDIR`); a `clusterOptions` inside `withLabel: process_long` would REPLACE it and silently drop those flags, so add a conditional inside the existing closure instead. SGE syntax to verify first on the login node: `qsub -w v -l h='!c0053-cn1' -b y /bin/true` (verification only, nothing runs). After approval I check the config renders and a local `-stub-run` completes.
+2. **Ask the admins about c0053-cn1** (and c0051-cn1) with evidence: run `resources/misc17_node_benchmark.sh` pinned to c0053-cn1, c0051-cn1 and one healthy node (commands in `TODO.md`). If the fixed pure-Python loop is slower on c0053-cn1, it is the hardware/hypervisor; if the loop is normal but the real SpliceAI chunk is slow, look at memory/threads/IO there. The same run also shows whether the node is still slow today.
+3. **Pangolin 24 h limit as a separate item**, not fixed by (1): healthy wall up to 23.7 h. Option: `withName: PANGOLIN_ANNOTATE { time = { 36.h * task.attempt } }` (36 h = 1.5x the longest healthy chunk; a guess, not derived). A SHORTER `h_rt` at the current chunk size would kill healthy Pangolin chunks; shorter `h_rt` + smaller chunks only makes sense after (1) and only if Pangolin time scales with variant count (not shown).
+4. **Not proposed:** thread-setting changes (no evidence for SpliceAI), shortening SpliceAI `h_rt` (c0051-cn1's healthy-but-slow chunks reach 14 h), changing slots (SpliceAI uses ~2.6 of 4; the 8-slot retry wastes slots but is not the cause).
+5. **Watch c0051-cn1** (SpliceAI 1.1-2.2x, 3 Pangolin kills) after the next run: `analyze_misc17_qacct.py` on the new qacct pull.
+
+### Commands for the login node (I cannot run SGE; nothing below has been run)
+```
+# (a) syntax check of the proposed exclusion - verification only, nothing is submitted
+qsub -w v -l h='!c0053-cn1' -b y /bin/true
+
+# (b) qacct detail for 5 jobs: stime/utime split and involuntary context switches (spinning vs slow cores)
+for j in 5012707 5011431 5011808 5011581 5012021; do echo "== $j"; \
+  qacct -j $j | egrep '^(hostname|slots|ru_wallclock|ru_utime|ru_stime|cpu|ru_nvcsw|ru_nivcsw|ru_minflt|ru_majflt|io|iow|maxrss|start_time|end_time)'; done
+#   5012707 c0053-cn1 SpliceAI ok 47.9 h | 5011431 c0053-cn1 SpliceAI killed 24 h | 5011808 c0051-cn1 12.9 h
+#   5011581 c0051-cn1 7.2 h | 5012021 c0053-cn3 6.9 h (reference)
+
+# (c) node benchmark: same SpliceAI chunk (first 100 variants of S223 chunk_0009), same flags as process_long attempt 1
+R=/data_lab_PGP/pipelines/annotation_pipeline_new; cd $R; mkdir -p RUNS/transcript_mapping/misc17_bench
+CH=$R/work/4a/2bb9ec1a24d841fb820c12ec6ef3c0/chunk_0009.vcf.gz
+FA=/references/genomes/Homo_sapiens/GATK_bundle/v0/Homo_sapiens_assembly38.fasta
+for n in c0053-cn1 c0051-cn1 c0051-cn2; do
+  qsub -N misc17_bench_$n -S /bin/bash -P BIGN -A PGP -pe smp 4 -l h=$n -l h_rt=02:00:00 \
+       -l h_rss=12G -l mem_free=12G -l h_vmem=22G -j y -o RUNS/transcript_mapping/misc17_bench/$n.out \
+       resources/misc17_node_benchmark.sh $CH 100 $FA
+done
+# afterwards: grep BENCH RUNS/transcript_mapping/misc17_bench/*.out
+# (if `-l h=<node>` needs the FQDN on this cluster, use it; healthy SpliceAI: ~6.4 h / 8,000 variants = ~5 min for 100)
+```
+Reading (c): the fixed loops (`python_loop`, `numpy_matmul_1thread`, `numpy_memcopy`) report CPU seconds for identical work. Several times higher on c0053-cn1 than on c0051-cn2 -> slow hardware/hypervisor (evidence for the admins). Loops equal but `spliceai_real` slower -> something specific to the TF workload there (memory bandwidth, IO, threads). `BENCH rusage` and (b): high `ru_stime` / `ru_nivcsw` on the slow node points to spinning/contention rather than slower cores.
