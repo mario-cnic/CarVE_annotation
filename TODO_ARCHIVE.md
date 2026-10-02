@@ -1,0 +1,88 @@
+# TODO archive
+
+Completed or obsolete items moved out of `TODO.md`, text unchanged. Open work stays in `TODO.md`; do not edit entries here except to append a dated correction.
+
+## Archived 2026-10-02T11:47:10+02:00
+
+### Priority 0 checklist steps completed 2026-10-01/02 (pangolin db + gene/transcript attribution, MISC-16/17)
+
+- [x] **Cluster run, panel7 - DONE 2026-10-01/02 (`panel7_v45_retest2`, exit 0; results in walkthrough attribution audit Addendum 11).** Original checklist text: **Cluster run, panel7** (`bash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/panel7_refcorrected.vcf.gz --run_id panel7_v45_retest2`, ~4 h; the original `panel7_test.vcf.gz` is rejected by the assembly check: 35/72 invalid REF alleles, see walkthrough attribution audit Addendum 10): `VCF_TO_TABLE` completes; Pangolin `ENSG`; MADD/MYBPC3 positions carry MADD's scores only on MADD rows; `SPiP_match` shows `matched_by_exon_structure`; manifest lists the HGNC / symbol-map / ENST->SPiP map / dbNSFP column files with hashes. (`MISC-12`, `PRED-14`)
+- [x] **MISC-17 diagnostic, step 2 - DONE 2026-10-02 (result: walkthrough `20261002_nextflow_slow_and_hung_tasks_s223_panel7.md`, section 'MISC-17: healthy vs killed chunks, per node'):** `bash resources/pull_qacct_snapshot.sh RUNS/transcript_mapping/misc17_healthy_job_ids.tsv RUNS/transcript_mapping/misc17_healthy_qacct.tsv` (74 healthy chunk jobs) to compare their CPU time with the killed chunks' ~227,000 CPU-s. Result of step 1 (2026-10-02): hung/killed tasks were CPU-busy with small memory (MISC-16: 100% of one CPU for 2 h, ~25 MB; MISC-17: ~2.5 of 4 cores for 24 h, <= 1.7 GB), so NOT memory pressure.
+- [x] **MISC-17 diagnostic, step 3 - DONE 2026-10-02: c0053-cn1 is 9.2x slower per CPU-second (~400 MHz cores), results in the walkthrough section 'Benchmark and qacct detail results'.** Original: **(login node, optional but decisive for the cause):** node benchmark on c0053-cn1 / c0051-cn1 / c0051-cn2 (`resources/misc17_node_benchmark.sh`, ~5-35 min each) and a `qacct` detail pull for 5 jobs; exact commands in the walkthrough ('Commands for the login node'). Then `grep BENCH RUNS/transcript_mapping/misc17_bench/*.out`.
+
+### Closed 2026-10-02: `main.sh` deprecated (Mario), items about `main.sh` only
+
+- [x] **Run Provenance & Reproducibility Manifest** — **CLOSED 2026-10-02 (Mario): the `main.sh` bash path is deprecated, so the `main.sh` manifest will not be built. The Nextflow manifest is the only one; its remaining gaps are in the reproducibility item below.** Original text (history, about `main.sh`):
+  - Verified 2026-09-15: there is currently **no way to reconstruct what actually ran for a past run**. Checked `main.sh`, `config/env.sh`, every `RUNS/<RUN_NAME>/` folder on disk, and `src/python/audit_run_results.py`:
+    - No file anywhere records the CLI flags/thresholds a run was invoked with (`--build`, `--max-af`, `--min-revel`, `--consequences`, gene list, etc.).
+    - No file records tool/model versions actually used (VEP version + cache version, CADD plugin version, REVEL/AlphaMissense version, SpliceAI package version + `-D` value, Pangolin model version, SPiP version, gnomAD release, reference FASTA/GENCODE build).
+    - No git commit hash of the pipeline codebase is captured per run.
+    - `config/env.sh` auto-detects/falls back across multiple binary locations (e.g. `PYTHON_SPLICEAI`, `BCFTOOLS_BIN`) with silent fallthrough — the actual binary resolved can differ between two runs of the same command on the same machine with no record of which one was used.
+    - `audit_run_results.py`'s "version_lineage" only tracks output-file mtimes/re-run staleness, not tool/parameter versions — not a substitute for this.
+  - This directly violates this project's own provenance requirement (every metric must be traceably tied to its source script, tool version, and database release) and is why the SpliceAI `-D` question below couldn't be answered by "check the last run" — there was nothing to check.
+  - **Scope for the fix (not yet designed in detail)**: write a `run_manifest.json`/`.md` into each `RUNS/<RUN_NAME>/` at start of `main.sh` capturing: resolved CLI args, resolved binary paths from `env.sh` (not just env var names), pipeline git commit hash + dirty-tree flag, and per-predictor tool/model/database versions (queried at run time, not hardcoded docs — see existing `DOC-1` bug in `BUG_TRACKER.md` where docs already drifted from the real CADD version).
+  - **Blocks**: the SpliceAI window fix immediately below (and any other predictor/parameter change) should not land until a run can at least record what value it used — otherwise this exact ambiguity (what did we actually run last month?) recurs immediately.
+  - **Live example, 2026-09-16**: needed the original `--raw-dir` for `run_more_genes_20260817_1143` (to resume it after the `ORCH-10` VEP fix below) and it wasn't recorded anywhere — the user's own recollection (`_RAW/`) turned out to be empty and unrelated to this run. Only recovered it by brute-force forensics: found `RUNS/predictors_050826/input/by_gene_more_genes/` had the same gene count (154) as the run's audit report, then confirmed by opening `DMD.pq` and matching its row count (533,174) exactly against the converted `_tmp/DMD.vcf.gz`. That worked this time only because an unrelated run folder happened to still hold the input — it is not a real recovery mechanism and won't always work.
+  - **Update 2026-09-22**: the Nextflow whole-VCF entry point (`annotate_vcf.nf`) now has this — `src/python/write_run_manifest.py` + `run_annotate_vcf.sh`, same schema `sarek_pipeline`'s own `write_run_manifest.py` already committed to (`PLT-012`), capturing resolved CLI args, resolved binary paths, git commit hash + dirty-tree flag, input/resource file hashes, and best-effort tool versions (`bcftools`, VEP cache version, VEP container hash, SpliceAI/Pangolin distance values) queried at run time. **`main.sh` itself is unchanged and still has none of this** — this item stays open for the bash pipeline; the checkbox above isn't struck because it was never main.sh's scope that got addressed. See `walkthrough/20260922_nextflow_migration_provenance_manifest.md`.
+
+- [x] **OBSOLETE 2026-10-02 (Mario): `main.sh` deprecated; `ORCH-10` closed as obsolete. Resource sizing for the Nextflow path is the `process_long` item below.** Original item (history): **Scale every predictor job's `h_vmem`/thread count to gene size instead of one fixed value for every gene** (CRITICAL priority, not yet implemented — see `BUG_TRACKER.md` `ORCH-10`)
+  - Originally scoped to VEP only; user expanded scope 2026-09-17 to cover all annotation tools (SpliceAI, Pangolin, SPiP, Branchpointer), not just VEP — `main.sh` hardcodes a fixed `h_vmem`/`-pe smp` for every one of these per-gene qsub calls (lines ~401-497), the same class of bug as `ORCH-10`.
+  - Caused two real production failures on the same gene so far: `main.sh:442` submits every gene's VEP job with the identical `-l h_vmem=15G -pe smp 4` regardless of variant count. DMD (533,174 variants, 2.3x the panel's next-largest gene) was SIGKILLed once (job `4975105`, 2026-08-17, exit 137 at `maxvmem=56.885G`) and, resubmitted unchanged, then ran 19 days pinned at that same memory ceiling with zero output (job `4979674`, still stuck as of 2026-09-16).
+  - Confirmed `h_vmem` is per-slot on this cluster (user confirmed 2026-09-17) — so `-l h_vmem=15G -pe smp 4` is really a 60GB total budget, consistent with the `56.885G` ceiling observed.
+  - **Real historical data being gathered, not yet analyzed** (2026-09-18): `src/hpc/logger.sh`'s own per-step timing/memory instrumentation has never actually run (see `ORCH-11` — `LOG_DIR` is never exported by `main.sh`), so there is no local dataset to mine directly. Instead: extracted all 1,996 real SGE job IDs for every (gene, step) in `run_more_genes_20260817_1143` from local `_log/*/*.out`/`*.err` files into `RUNS/run_more_genes_20260817_1143/job_ids.tsv` (run-specific data, kept out of git per `RUNS/` already being gitignored — not under `resources/`, which is for stable/curated reference data only), and wrote the generic, reusable `resources/pull_qacct_snapshot.sh <job_ids.tsv> <output.tsv>` to look up each job's real `maxvmem`/`cpu`/`ru_wallclock`/`slots` via `qacct -j` (the `-o <user>` broad-query form of `qacct` returned nothing on this cluster, likely an implicit date-window default — per-job-ID lookup works fine). **User will run this script; output should land at `RUNS/run_more_genes_20260817_1143/qacct.tsv`.**
+  - **Important sequencing caveat (user, 2026-09-17)**: this snapshot reflects the *current* SpliceAI `-D 10000` behavior. Once the separate SpliceAI window fix above (`-D 10000` → `4999`) lands, SpliceAI's own memory/wallclock profile will change, making any SpliceAI-specific tiers derived from this snapshot stale. VEP/Pangolin/SPiP/Branchpointer tiers are unaffected by that change and can be derived from this snapshot as-is; SpliceAI's tiers should be re-derived from a fresh snapshot after the `-D` change lands, not before.
+  - **Correction (user, 2026-09-21): do not treat any current `h_vmem`/thread value as a real cost signal.** Every fixed request in the per-gene qsub calls (VEP 15G, SpliceAI 20G, SPiP 60G, Branchpointer 8G, etc.) was set manually by the user with no profiling behind it — e.g. SPiP's 60G is *not* evidence SPiP is the most expensive tool, it's an arbitrary guess. This came up because a separate discussion (splitting predictor execution into a "broad-safe" tier that can run genome/WES/panel-wide vs. a "gene-restricted" tier for tools with no viable precomputed substitute) initially mis-used SPiP's 60G request as if it were real cost data — flagged and retracted. Verified in that same discussion: SpliceAI and Pangolin have no usable genome-wide precomputed score alternative at this pipeline's target ~4999–10000bp window (Illumina's retired SpliceAI table and the public Pangolin Zenodo set — DOI 10.5281/zenodo.15649338 — both use a 50bp window, SpliceAI-lookup's live default is 500bp) so both must stay gene/region-restricted regardless of what any profiling later shows. Branchpointer/LaBranchoR is confirmed broad-safe by design, not by cost: `annotate_branchpointer_vars.sh:43` intersects against a precomputed genome-wide catalog (`labranchor_grch38_top.bed.gz`, 206,249 branch points), it's not live per-window inference. SPiP's tier is genuinely unresolved — blocked on the same real `qacct` data as this whole item, not on anything default/assumed.
+  - Fix scope (not yet designed): size `h_vmem` (and/or thread/fork count) per tool from the gene's input variant count at submission time, using real tiers derived from the `qacct` snapshot above rather than a fitted formula from too few points — or maintain a hardcoded override list for known outlier genes (DMD, RYR2, CACNA1C, LAMA2, NEBL, NF1, PRDM16, PCCA — all 5–20x the panel median).
+  - **Blocked on the run-provenance manifest above** — a resource-sizing change like this is exactly the kind of per-run parameter that must be recorded going forward, or this incident repeats invisibly.
+
+### Phases 1-4 (all done; written when `main.sh` was the main entry point)
+
+## 🚀 Phase 1: High-Performance Compute & Orchestration (Inference & Checkpointing)
+- [x] **State-Aware Pipeline Checkpointing & Granular Flags**
+  - [x] Implement `-s "$file"` file integrity checks across all pipeline stages (Steps 1–5)
+  - [x] Add dynamic SGE dependency hold chaining (`active_predictor_jobs`)
+  - [x] Add granular CLI override flags: `--overwrite-all`, `--force-spliceai`, `--force-vep`, `--force-pangolin`, `--force-spip`, `--force-branchpoint`, `--force-merge`, `--force-vcf2parsed`, `--force-reports`, `--skip-genes`
+- [x] **Parallel SpliceAI VCF Chunking Engine**
+  - [x] Implement streaming header-preserving VCF chunker (`src/python/split_vcf_chunks.py`)
+  - [x] Integrate multi-worker parallel inference pool matching `$NSLOTS` in `src/hpc/annotate_spliceai_vars.sh`
+  - [x] Add automated volume thresholding ($\ge 15,000$ variants) and individual chunk checkpointing
+  - [x] Lossless `bcftools concat -a` merge and `tabix` indexing
+  - [x] Unit test suite in `tests/python/test_vcf_chunking.py` (100% passed)
+- [x] **Built-in Run Quality & Completeness Auditor**
+  - [x] Implement `src/python/audit_run_results.py` with predictor completeness %, deep learning throughput, and schema diffing
+  - [x] Integrate `--audit-run` and `--audit-only` CLI flags into `main.sh`
+  - [x] Add automated Step 6 post-run SGE audit job (`audit_${RUN_NAME}`) chained to terminal tasks
+
+---
+
+## 🧬 Phase 2: Biological & Clinical Variant Prioritization
+- [x] **gnomAD v4 Joint Population Frequency Integration**
+  - [x] Fix UCSC `chr10` $\leftrightarrow$ Ensembl `10` contig mapping via `--synonyms chr_synonyms.txt` in `annotate_vep_vars.sh`
+  - [x] Add `gnomADv4 AF grpmax` across all 4 dashboard tabs with fallback detection and warning alerts
+- [x] **5' UTR Annotator & Multi-Tab Dashboard**
+  - [x] Integrate 5' UTR consequence, uORF, and start/stop disruption annotations into `vcf_parser_pysam.py`
+  - [x] Implement 4-tab Clinical Prioritization Report (`generate_clinical_prioritization_report.py`)
+- [x] **Centralized Configuration & Shared Library Fallbacks**
+  - [x] Implement `config/env.sh` and `src/python/config.py` path resolver
+  - [x] Removed dead `get_full_gene_curation_dataframe`/`filter_by_custom_gene_list`/`engine` imports from `filter_variants.py` (leftover references to functionality that migrated to `clinical_variant_prioritization`; the previously-checked "in-memory fallback" in `config.py` was never on the production import path and did not actually fix this — see [walkthrough/20260910_full_technical_methodological_audit.md](./walkthrough/20260910_full_technical_methodological_audit.md))
+  - [x] ACMG calculation externalized to downstream app pipeline; lightweight annotations retained in-pipeline
+- [x] **Cardiomyopathy Domain & Cardiac Isoform / PSI Filter**
+  - [x] Add cardiac ventricle Percent Spliced In (PSI > 85%) flag for `TTN` truncating variants (TTNtv in A-band)
+  - [x] Map critical DCM structural domains (`BAG3` BAG domain, `LMNA` rod domain, `FLNC` Ig-like folds)
+
+---
+
+## 📊 Phase 3: Reporting & Clinical Dashboard Enhancements
+- [x] **Multi-Gene Cohort Master Dashboard (`generate_cohort_master_dashboard.py`)**
+  - [x] Aggregate top-tier prioritized variants across all single-gene Parquet tables into a unified master cohort dashboard
+  - [x] Cohort-level summary metrics (distribution of High/Moderate candidates, gene breakdown, splicing vs missense burden)
+  - [x] Interactive Plotly visualizations and 1-click CSV candidate exporter
+  - [x] Comprehensive pytest coverage in `tests/python/test_generate_cohort_master_dashboard.py`
+
+---
+
+## 🔒 Phase 4: Containerization & Infrastructure Stability
+- [x] **Unified Apptainer / Singularity SIF Container (`annotation_pipeline.sif`)**
+  - [x] Create definition file `resources/containers/annotation_pipeline.def` packaging Python datasci, R, genomics binaries, and Plotly
+  - [x] Automated build script `src/hpc/build_container.sh` with environment-resolved output paths
+  - [x] Integrated `--use-container` and `--sif <PATH>` CLI flags in `main.sh` and execution wrapper in `config/env.sh`
