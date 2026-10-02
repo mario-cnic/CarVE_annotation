@@ -311,6 +311,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
 - [2026-09-18: DMD VEP OOM Incident, Run-Provenance Gap, and Resource-Sizing Handoff (live incident root-caused to a fixed `h_vmem` not scaled to gene size — `ORCH-10`; dormant timing/memory logger found — `ORCH-11`; SpliceAI `-D` window literature review; session handoff with concrete next steps)](./walkthrough/20260918_dmd_vep_oom_incident_and_resource_provenance_handoff.md)
 - [2026-09-30: Pangolin annotation db rebuilt from GENCODE 45 (`MISC-12`)](./walkthrough/20260930_pangolin_db_gencode_v45_rebuild.md)
 - [2026-10-01: Predictor score attribution audit (wrong-gene / wrong-transcript scores on overlapping loci; alias-vs-neighbour resolution)](./walkthrough/20261001_predictor_gene_transcript_attribution_audit.md)
+- [2026-10-02: Slow and hung Nextflow tasks in the S223 and panel7 runs (`MISC-16`, `MISC-17`)](./walkthrough/20261002_nextflow_slow_and_hung_tasks_s223_panel7.md)
 
 ---
 
