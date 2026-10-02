@@ -110,3 +110,21 @@ Reading (c): the fixed loops (`python_loop`, `numpy_matmul_1thread`, `numpy_memc
 
 ## Update 2026-10-02: host exclusion applied (user decision)
 `nextflow.config`: new param `long_task_excluded_hosts = ['c0053-cn1']`; the `standard` profile's `clusterOptions` closure appends ` -l h=!c0053-cn1` when `task.process` ends in `SPLICEAI_ANNOTATE` or `PANGOLIN_ANNOTATE` (the only `process_long` users). Checks: SGE verification `qsub -w v -P BIGN -A PGP -l h='!c0053-cn1' -b y /bin/true` -> "found suitable queue(s)" (run by the user; the first attempt failed only because `-P` came after the command); the closure, extracted verbatim from the config, evaluated in a throwaway pipeline: SpliceAI/Pangolin get `... -l h_vmem=22G -l h=!c0053-cn1`, `CONCAT` keeps `... -l h_vmem=18G`, `--long_task_excluded_hosts false` removes it; `nextflow config -profile standard` parses; local `-stub-run` (`local_dev`, log/work/outdir in the job tmp dir) completes. Not verified on the cluster (the local profile never evaluates this closure for SGE). Next full run: check `#$ -l h=` in a task's `.command.run` and `python3 src/tools/analyze_nextflow_tasks.py --log .nextflow.log` for tasks on c0053-cn1. Still open: Pangolin `h_rt`, admin ticket, c0051-cn1.
+
+## Benchmark and qacct detail results (2026-10-02, ~11:00+02:00): c0053-cn1 is slow hardware
+Jobs 5014281 (c0053-cn1), 5014282 (c0051-cn1), 5014283 (c0051-cn2), `RUNS/transcript_mapping/misc17_bench/*.out`; qacct detail of 5 S223 jobs (pasted by the user).
+
+### FACTS
+- **Same fixed single-thread work, CPU seconds (= wall seconds in every case):** pure-Python loop 17.5 s on c0053-cn1 vs 1.9 s on c0051-cn1 and c0051-cn2 (**9.2x**); numpy matmul 3.3 vs 0.36 s (9.2x); 1.6 GB memcopy x5 5.6 vs 1.24 s (4.5x). c0051-cn1 equals c0051-cn2 today (one 2.26 s blip in the loop). CPU = wall means the extra time is real CPU, not waiting, contention or spinning.
+- **Node facts** (same CPU model on both: AMD EPYC 9654, 384 logical CPUs, min/max 1500/3709 MHz, governor `performance` on both): c0053-cn1 had **18 logical CPUs at ~400 MHz (below the 1500 MHz minimum)** and the rest at 2400 MHz, loadavg 3.3/3.1/3.1 with no visible CPU-heavy process; c0051-cn2 idle (loadavg 0.0), the active cores at ~3,700 MHz.
+- **qacct, finished S223 chunks (SpliceAI):** system-time share of CPU is 17-20% on every node, including c0053-cn1 (16.8%) -> no excess kernel/spin time. Involuntary context switches per CPU-second: 8.6 on c0053-cn1 vs 21.7 on the reference node -> no contention. Total voluntary context switches per chunk are about the same on all (c0053-cn1 2.9e9; c0051-cn1 slow-mode 2.5e9, normal 3.0e9; reference 3.1e9) while CPU time differs 1.7-6.7x. Killed jobs' `ru_utime`/`ru_stime` (0.6 s / 1.4 s for 5011431) are just the wrapper, unusable.
+- c0051-cn1 benchmarks normal today, so its earlier graded slowness (SpliceAI 1.1-2.2x) is not reproduced.
+
+### INFERENCE
+- c0053-cn1's cores deliver ~1/9 of the work per CPU-second; the 9.2x equals 3,700 MHz / 400 MHz (9.25), and 400 MHz is below the 1500 MHz P-state floor with the `performance` governor, so the limit is probably firmware/hardware (power cap, thermal throttle, stuck low-power state), not the OS. The match could be a coincidence: the frequency was read once, not tied to the core that ran the benchmark. Fits the S223 data: 7.2x CPU for the same SpliceAI work, same cores busy, no extra sys/spin time. Pangolin on that node (killed at 2.0-2.9 cores) fits too.
+- The node is still slow 5 days after S223 -> not transient.
+- Unexplained: loadavg ~3 with nothing visible (possible tasks in uninterruptible wait); why c0051-cn1 was slower in S223.
+
+### Not done / bug in my script
+- The real-SpliceAI part did not run on any node: `/usr/bin/time` does not exist on the compute nodes (script bug, fixed: bash `time`). Not needed for the conclusion.
+- Conclusion for the fix: the c0053-cn1 exclusion (already applied) addresses the cause; keep it until the admins fix the node. Message for the admins is in `TODO.md`.

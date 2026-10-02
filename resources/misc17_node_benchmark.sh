@@ -52,9 +52,10 @@ if [ $# -ge 3 ]; then
     trap 'rm -rf "$tmp"' EXIT   # only the dir created above
     echo "--- real workload: first $n variants of $chunk"
     zcat "$chunk" | awk -v n="$n" '/^#/ {print; next} c<n {print; c++}' > "$tmp/in.vcf"
-    /usr/bin/time -f "BENCH spliceai_real n=$n cpu_user_s=%U cpu_sys_s=%S wall_s=%e maxrss_kb=%M" \
-        "$PY" "$HERE/src/python/annotate_spliceai.py" "$tmp/in.vcf" "$tmp/out.vcf" "$fasta" -d "${SPLICEAI_D:-10000}" \
-        > "$tmp/stdout.log" 2>&1
+    # bash builtin `time` (compute nodes have no /usr/bin/time: first run 2026-10-02 failed on it)
+    TIMEFORMAT="BENCH spliceai_real n=$n user_s=%U sys_s=%S wall_s=%R"
+    { time "$PY" "$HERE/src/python/annotate_spliceai.py" "$tmp/in.vcf" "$tmp/out.vcf" "$fasta" -d "${SPLICEAI_D:-10000}" \
+        > "$tmp/stdout.log" 2>&1 ; } 2>&1
     tail -n 3 "$tmp/stdout.log"
     echo "BENCH spliceai_real_out_lines=$(grep -vc '^#' "$tmp/out.vcf" 2>/dev/null || echo 0)"
 fi
