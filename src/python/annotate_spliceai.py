@@ -24,9 +24,9 @@ except Exception:
 from spliceai.utils import Annotator, get_delta_scores
 import pysam
 
-def annotate_vcf(in_vcf: str, out_vcf: str, fasta_path: str, distance: int = 10000, mask: int = 0):
+def annotate_vcf(in_vcf: str, out_vcf: str, fasta_path: str, distance: int = 4999, mask: int = 0):
     """
-    Annotates VCF variants with SpliceAI deep learning predictions at distance -d (default: 10000).
+    Annotates VCF variants with SpliceAI deep learning predictions at distance -d (default: 4999).
     """
     print(f"Initializing SpliceAI model weights and FASTA reference ({fasta_path})...")
     annotator = Annotator(fasta_path, "grch38")
@@ -56,11 +56,11 @@ def annotate_vcf(in_vcf: str, out_vcf: str, fasta_path: str, distance: int = 100
     print(f"SpliceAI annotation finished. Total variants: {count}, Annotated with SpliceAI: {annotated}")
 
 def main():
-    parser = argparse.ArgumentParser(description="SpliceAI Local Annotation Engine at -D 10000")
+    parser = argparse.ArgumentParser(description="SpliceAI Local Annotation Engine (default -D 4999)")
     parser.add_argument("input_vcf", help="Input VCF file")
     parser.add_argument("output_vcf", help="Output VCF file")
     parser.add_argument("fasta", help="GRCh38 FASTA genome reference file")
-    parser.add_argument("-d", "--distance", type=int, default=10000, help="Maximum intronic distance for splice predictions (Default: 10000)")
+    parser.add_argument("-d", "--distance", type=int, default=4999, help="Maximum intronic distance for splice predictions (Default: 4999)")
     args = parser.parse_args()
     
     annotate_vcf(args.input_vcf, args.output_vcf, args.fasta, distance=args.distance)

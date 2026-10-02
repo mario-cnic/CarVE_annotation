@@ -7,7 +7,7 @@
 #   3. (optional) the REAL workload: the first N variants of one S223 chunk through src/python/annotate_spliceai.py,
 #      same script/model/FASTA as the pipeline; run the SAME chunk on every node.
 #
-# Usage: misc17_node_benchmark.sh [CHUNK.vcf.gz N_VARIANTS FASTA]   (SpliceAI -d from $SPLICEAI_D, default 10000 = pipeline value)
+# Usage: misc17_node_benchmark.sh [CHUNK.vcf.gz N_VARIANTS FASTA]   (SpliceAI -d from $SPLICEAI_D, default 4999 = pipeline value)
 # Output: stdout (use qsub -o). Lines starting "BENCH" are the comparable numbers.
 set -u
 PY=/data_lab_PGP/shared/utils/conda_envs/spliceai_env/bin/python3
@@ -54,7 +54,7 @@ if [ $# -ge 3 ]; then
     zcat "$chunk" | awk -v n="$n" '/^#/ {print; next} c<n {print; c++}' > "$tmp/in.vcf"
     # bash builtin `time` (compute nodes have no /usr/bin/time: first run 2026-10-02 failed on it)
     TIMEFORMAT="BENCH spliceai_real n=$n user_s=%U sys_s=%S wall_s=%R"
-    { time "$PY" "$HERE/src/python/annotate_spliceai.py" "$tmp/in.vcf" "$tmp/out.vcf" "$fasta" -d "${SPLICEAI_D:-10000}" \
+    { time "$PY" "$HERE/src/python/annotate_spliceai.py" "$tmp/in.vcf" "$tmp/out.vcf" "$fasta" -d "${SPLICEAI_D:-4999}" \
         > "$tmp/stdout.log" 2>&1 ; } 2>&1
     tail -n 3 "$tmp/stdout.log"
     echo "BENCH spliceai_real_out_lines=$(grep -vc '^#' "$tmp/out.vcf" 2>/dev/null || echo 0)"

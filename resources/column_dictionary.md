@@ -26,7 +26,7 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_lv_score` | Float | Cardiac Left Ventricle specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_aa_score` | Float | Cardiac Atrial Appendage specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
-| **Objective 5 (SpliceAI -D 10000)** | *N/A (New)* | `SpliceAI_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
+| **Objective 5 (SpliceAI -D 4999)** | *N/A (New)* | `SpliceAI_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_prob` | Float | Predicted branch point probability score. |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_U2_energy` | Float | Predicted free energy of U2 snRNA duplex binding (kcal/mol). |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpoint_disrupted` | String | Branchpoint disruption flag (`YES` / `NO`). |
