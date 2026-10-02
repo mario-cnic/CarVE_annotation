@@ -1,5 +1,6 @@
 import os
 import random
+import shutil
 import sys
 
 import pysam
@@ -10,6 +11,9 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../.
 from check_vcf_assembly import run, resolve_contig
 
 CHR1_LEN, CHR2_LEN = 3000, 2000
+
+BCFTOOLS = shutil.which("bcftools") or "/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools"
+pytestmark = pytest.mark.skipif(not os.access(BCFTOOLS, os.X_OK), reason="bcftools not available")
 
 
 @pytest.fixture
@@ -64,7 +68,7 @@ def report(tmp_path):
 
 
 def go(tmp_path, vcf, fasta_path, **kw):
-    args = dict(ref_check_records=1000, max_ref_mismatch_frac=0.01, min_ref_checked=20)
+    args = dict(ref_check_records=1000, max_ref_mismatch_frac=0.01, min_ref_checked=20, bcftools=BCFTOOLS)
     args.update(kw)
     return run(vcf, fasta_path, str(tmp_path / "r.tsv"), **args)
 
@@ -271,3 +275,26 @@ def test_genotype_mode_and_samples_reported(tmp_path, fasta, samples, format_ids
     r = report(tmp_path)
     assert r["genotype_mode"] == mode and r["n_samples"] == n and r["sample_names"] == ",".join(samples)
     assert r["format_fields_declared"] == ",".join(f for f in ("GT", "GQ", "DP") if f in format_ids)
+
+
+def test_contig_absent_from_fasta_is_excluded_not_fatal(tmp_path, fasta):
+    fa, seqs = fasta
+    header = GRCH38_LIKE + ["##contig=<ID=chrUn_x,length=500>"]
+    vcf = write_vcf(tmp_path / "unk.vcf.gz", header, true_records(seqs) + [("chrUn_x", 10, "A", "C")])
+    assert go(tmp_path, vcf, fa) == 0
+    assert "not in the FASTA are excluded from the normalisation check" in open(tmp_path / "r.tsv").read()
+
+
+def test_normalisation_not_run_when_assembly_failed(tmp_path, fasta):
+    fa, seqs = fasta
+    vcf = write_vcf(tmp_path / "badref2.vcf.gz", GRCH38_LIKE, wrong_records(seqs))
+    assert go(tmp_path, vcf, fa) == 1
+    r = report(tmp_path)
+    assert r["multiallelic_records"] == "not_run" and r["not_normalised_records"] == "not_run"
+
+
+def test_missing_bcftools_fails_with_message(tmp_path, fasta):
+    fa, seqs = fasta
+    vcf = write_vcf(tmp_path / "ok2.vcf.gz", GRCH38_LIKE, true_records(seqs))
+    assert go(tmp_path, vcf, fa, bcftools=str(tmp_path / "no_such_bcftools")) == 1
+    assert "normalisation check could not run: bcftools not found" in open(tmp_path / "r.tsv").read()

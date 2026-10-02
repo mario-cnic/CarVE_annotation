@@ -12,12 +12,12 @@ Assembly (two independent checks):
 A VCF with no ##contig lengths cannot pass check 1, so it passes only if check 2 examined at least
 `--min-ref-checked` records and stayed under the threshold; otherwise it fails as unverifiable.
 
-Records (one pass over the whole file, no FASTA needed):
+Records (`bcftools norm -m -any -f FASTA -c w` over the whole file, contigs renamed to the FASTA
+names first; skipped when an assembly check already failed):
 
-3. Multiallelic records (more than one ALT) fail above `--max-multiallelic`.
-4. Biallelic indels/MNVs that are not left-aligned or not parsimonious fail above
-   `--max-unnormalized`: a record is not normalised when REF and ALT end with the same base, or
-   both are longer than one base and start with the same base.
+3. Multiallelic records (`split` in the bcftools summary) fail above `--max-multiallelic`.
+4. Records that are not left-aligned or not parsimonious (`realigned`) fail above
+   `--max-unnormalised`.
 5. gVCF input (`<NON_REF>` / `<*>` ALT, or `##GVCFBlock` header lines) always fails.
 6. Duplicate chrom:pos:ref:alt records, and records whose ALT equals REF, only warn.
 
@@ -30,7 +30,11 @@ Exit status: 0 = pass (warnings possible), 1 = fail. A TSV report is written to 
 
 import argparse
 import gzip
+import os
+import re
+import subprocess
 import sys
+import tempfile
 
 import pysam
 
@@ -104,16 +108,9 @@ def header_sample_names(vcf_path):
     return []
 
 
-def is_normalised(ref, alt):
-    """True when a biallelic ACGT record is trimmed and left-aligned (VCF anchor-base convention)."""
-    if ref[-1] == alt[-1]:
-        return False
-    return not (len(ref) > 1 and len(alt) > 1 and ref[0] == alt[0])
-
-
 def scan_records(vcf):
     """One pass over all records. Returns a dict of counts."""
-    c = dict(records=0, multiallelic=0, not_normalised=0, symbolic=0, gvcf=0, no_alt=0, duplicates=0, alt_is_ref=0)
+    c = dict(records=0, symbolic=0, gvcf=0, no_alt=0, duplicates=0, alt_is_ref=0)
     group, seen = None, set()
     for rec in vcf:
         c["records"] += 1
@@ -130,17 +127,52 @@ def scan_records(vcf):
         if sig in seen:
             c["duplicates"] += 1
         seen.add(sig)
-        if len(alts) > 1:
-            c["multiallelic"] += 1
-            continue
-        ref, alt = rec.ref.upper(), alts[0].upper()
-        if set(ref) - ACGT or set(alt) - ACGT:
-            c["symbolic"] += 1
-        elif ref == alt:
-            c["alt_is_ref"] += 1
-        elif not is_normalised(ref, alt):
-            c["not_normalised"] += 1
+        if len(alts) == 1:
+            ref, alt = rec.ref.upper(), alts[0].upper()
+            if set(ref) - ACGT or set(alt) - ACGT:
+                c["symbolic"] += 1
+            elif ref == alt:
+                c["alt_is_ref"] += 1
     return c
+
+
+def bcftools_norm_counts(bcftools, vcf_path, fasta_path, contig_map, regions):
+    """Runs `bcftools norm -m -any -c w` on the contig-renamed VCF and returns its summary counts.
+
+    contig_map: {name in VCF: name in FASTA}. regions: VCF contig names to keep, or None for all.
+    Returns a dict (e.g. total, split, joined, realigned) or raises RuntimeError.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        map_path = os.path.join(tmp, "rename.txt")
+        with open(map_path, "w") as f:
+            f.writelines(f"{k}\t{v}\n" for k, v in contig_map.items())
+        ann = [bcftools, "annotate", "--rename-chrs", map_path, "-Ou"]
+        if regions is not None:
+            ann += ["-r", ",".join(regions)]
+        norm = [bcftools, "norm", "-f", fasta_path, "-m", "-any", "-c", "w", "-Ou", "-o", os.devnull, "-"]
+        err_ann, err_norm = os.path.join(tmp, "annotate.err"), os.path.join(tmp, "norm.err")
+        try:
+            with open(err_ann, "w") as ea, open(err_norm, "w") as en:
+                p1 = subprocess.Popen(ann + [vcf_path], stdout=subprocess.PIPE, stderr=ea)
+                p2 = subprocess.Popen(norm, stdin=p1.stdout, stderr=en)
+                p1.stdout.close()
+                rc2, rc1 = p2.wait(), p1.wait()
+        except FileNotFoundError as exc:
+            raise RuntimeError(f"bcftools not found ({bcftools}): {exc}")
+        with open(err_norm) as f:
+            norm_lines = f.read().splitlines()
+        with open(err_ann) as f:
+            ann_tail = f.read().splitlines()[-3:]
+    if rc1 != 0 or rc2 != 0:
+        tail = " | ".join(ann_tail + norm_lines[-3:])
+        raise RuntimeError(f"bcftools annotate/norm failed (exit {rc1}/{rc2}): {tail}")
+    for line in norm_lines:
+        m = re.match(r"^Lines\s+([a-z/]+):\s+([\d/]+)\s*$", line)
+        if m:
+            counts = dict(zip(m.group(1).split("/"), (int(x) for x in m.group(2).split("/"))))
+            if "split" in counts and "realigned" in counts:
+                return counts
+    raise RuntimeError("could not read the `Lines total/split/joined/realigned` summary of bcftools norm")
 
 
 def genotype_mode(samples, format_ids):
@@ -160,7 +192,7 @@ def write_report(report_path, rows, failures, warnings):
 
 
 def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_frac, min_ref_checked,
-        max_multiallelic=0, max_unnormalised=0):
+        max_multiallelic=0, max_unnormalised=0, bcftools="bcftools"):
     fasta = pysam.FastaFile(fasta_path)
     fasta_lengths = dict(zip(fasta.references, fasta.lengths))
     try:
@@ -207,21 +239,39 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
     # Record scan reopens the file: the REF spot-check above consumed the first records.
     scan = scan_records(pysam.VariantFile(vcf_path))
     fix = f"bcftools norm -m -any -f {fasta_path}"
-    if scan["gvcf"] or any(k.startswith("GVCFBlock") for k in (r.key for r in vcf.header.records)):
+    if scan["gvcf"] or any(r.key.startswith("GVCFBlock") for r in vcf.header.records):
         failures.append("input is a gVCF (<NON_REF>/<*> ALT or ##GVCFBlock header); use the genotyped VCF")
-    if scan["multiallelic"] > max_multiallelic:
-        failures.append(f"{scan['multiallelic']} multiallelic record(s) (allowed {max_multiallelic}); split with `{fix}`")
-    if scan["not_normalised"] > max_unnormalised:
-        failures.append(
-            f"{scan['not_normalised']} indel/MNV record(s) not left-aligned or not parsimonious "
-            f"(allowed {max_unnormalised}); normalise with `{fix}`"
-        )
     if scan["duplicates"]:
         warnings.append(f"{scan['duplicates']} duplicate chrom:pos:ref:alt record(s)")
     if scan["alt_is_ref"]:
         warnings.append(f"{scan['alt_is_ref']} record(s) with ALT identical to REF")
     if scan["no_alt"]:
         warnings.append(f"{scan['no_alt']} record(s) without an ALT allele")
+
+    # Normalisation counts from bcftools; not worth a full pass on an input that already failed.
+    norm = {"split": "not_run", "realigned": "not_run"}
+    if not failures:
+        try:
+            contigs = list(dict.fromkeys(list(vcf.index.keys() if vcf.index else []) + list(header_contigs)))
+        except (AttributeError, TypeError):
+            contigs = list(header_contigs)
+        contig_map = {c: resolve_contig(c, fasta_lengths) for c in contigs}
+        in_fasta = {c: f for c, f in contig_map.items() if f is not None}
+        absent = [c for c, f in contig_map.items() if f is None]
+        if absent:
+            warnings.append(f"{len(absent)} contig(s) not in the FASTA are excluded from the normalisation check")
+        try:
+            norm = bcftools_norm_counts(bcftools, vcf_path, fasta_path, in_fasta, list(in_fasta) if absent else None)
+        except RuntimeError as exc:
+            failures.append(f"normalisation check could not run: {exc}")
+        else:
+            if norm["split"] > max_multiallelic:
+                failures.append(f"{norm['split']} multiallelic record(s) (allowed {max_multiallelic}); split with `{fix}`")
+            if norm["realigned"] > max_unnormalised:
+                failures.append(
+                    f"{norm['realigned']} record(s) not left-aligned or not parsimonious "
+                    f"(allowed {max_unnormalised}); normalise with `{fix}`"
+                )
 
     samples = list(vcf.header.samples)
     dup_names = sorted({n for n in samples if samples.count(n) > 1})
@@ -246,8 +296,8 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
         ("ref_mismatches", len(ref_mm)),
         ("max_ref_mismatch_frac", max_ref_mismatch_frac),
         ("records_scanned", scan["records"]),
-        ("multiallelic_records", scan["multiallelic"]),
-        ("not_normalised_records", scan["not_normalised"]),
+        ("multiallelic_records", norm["split"]),
+        ("not_normalised_records", norm["realigned"]),
         ("symbolic_or_non_acgt_records", scan["symbolic"]),
         ("duplicate_site_records", scan["duplicates"]),
         ("alt_equals_ref_records", scan["alt_is_ref"]),
@@ -265,7 +315,7 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
     print(
         f"Input check {status}: {len(matched)}/{n_len} header contigs match, "
         f"{len(ref_mm)}/{checked} REF mismatches, {scan['records']} records "
-        f"({scan['multiallelic']} multiallelic, {scan['not_normalised']} not normalised), "
+        f"({norm['split']} multiallelic, {norm['realigned']} not normalised), "
         f"genotype mode {mode} ({len(samples)} sample(s))"
     )
     return 1 if failures else 0
@@ -281,13 +331,14 @@ def main():
                    help="Fail above this REF mismatch fraction (default 0.01)")
     p.add_argument("--min-ref-checked", type=int, default=20,
                    help="Minimum REF-checked records when ##contig lengths are absent (default 20)")
+    p.add_argument("--bcftools", default="bcftools", help="bcftools executable (default: bcftools on PATH)")
     p.add_argument("--max-multiallelic", type=int, default=0,
                    help="Fail above this many multiallelic records (default 0)")
     p.add_argument("--max-unnormalised", type=int, default=0,
                    help="Fail above this many not-left-aligned / non-parsimonious records (default 0)")
     a = p.parse_args()
     sys.exit(run(a.vcf, a.fasta, a.report, a.ref_check_records, a.max_ref_mismatch_frac, a.min_ref_checked,
-                 a.max_multiallelic, a.max_unnormalised))
+                 a.max_multiallelic, a.max_unnormalised, a.bcftools))
 
 
 if __name__ == "__main__":
