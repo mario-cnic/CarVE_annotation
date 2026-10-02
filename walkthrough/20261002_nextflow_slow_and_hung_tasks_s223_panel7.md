@@ -128,3 +128,13 @@ Jobs 5014281 (c0053-cn1), 5014282 (c0051-cn1), 5014283 (c0051-cn2), `RUNS/transc
 ### Not done / bug in my script
 - The real-SpliceAI part did not run on any node: `/usr/bin/time` does not exist on the compute nodes (script bug, fixed: bash `time`). Not needed for the conclusion.
 - Conclusion for the fix: the c0053-cn1 exclusion (already applied) addresses the cause; keep it until the admins fix the node. Message for the admins is in `TODO.md`.
+
+## Why is S223 Pangolin so variable? (2026-10-02) - it ran with the MOUSE database
+Script `src/tools/analyze_pangolin_chunk_runtime.py` (read-only: work dirs of the 48 Pangolin jobs in the two qacct TSVs), output `RUNS/transcript_mapping/misc17_pangolin_runtime.txt` (gitignored).
+### FACTS
+- **All 48 tasks ran `pangolin_grch38.db`, the mouse annotation db of `MISC-12`** (chr1-chr19 only; `.command.sh`). `.command.err` has one `[Line N] WARNING, skipping variant` per unscored variant ("not contained in a gene body", or "format not supported"). So a human variant is "scored" only when it coincides with a mouse gene body; S223's Pangolin times describe a wrong workload.
+- The instant chunks (96 s, 3 of 37) contain only chr20-chr22: those contigs are absent from the db, so every variant is skipped without a lookup. Two other chunks also skipped all 8,000 variants (0 scored) but took 8.4 h and 12.6 h with 0.35-0.42 CPU-h (0.03-0.04 cores): their variants are on chr3 / chr8-9, which ARE in the db, so each lookup found nothing but took ~4-6 s of waiting, not CPU. Chunks with CPU-bound behaviour (3.9 cores, 0.5-5 h) had many variants "scored".
+- Among the 32 finished chunks with >= 5,500 variants on chr1-19 (wall 1.8-35 h) neither the number of chr1-19 variants nor of scored variants explains wall time (Spearman 0.37 and 0.47); only CPU time tracks it (0.78, trivially). Node does not explain it either (same node hosted both instant and 12 h chunks).
+### INFERENCE
+- The 14-24 h "healthy Pangolin baseline" and the 24 h limit question come from a run with the wrong db; the real per-chunk time with `gencode.v45.ensembl_canonical.grch38.db` (human, scores every in-gene variant) is UNKNOWN. The wait-dominated chunks suggest slow per-variant db lookups (sqlite file on network storage); not tested.
+- So the Pangolin `h_rt` (e.g. 36 h) should not be decided now: wait for the S223 Pangolin re-run with the correct db (already pending, `MISC-12`) and measure with `analyze_misc17_qacct.py` / `analyze_pangolin_chunk_runtime.py`. The `c0053-cn1` exclusion is unaffected (its slowness shows on SpliceAI and in the node benchmark).
