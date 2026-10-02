@@ -104,6 +104,7 @@ def test_statuses_and_missing_values_stay_null(tmp_path):
     assert df.loc[("chrX:400-T-A", "MOTHER_1"), "gt_status"] == "no_call"
     assert df.loc[("chr1:100-A-C", "FATHER_1"), "gt_status"] == "hom_ref"
     assert pd.isna(df.loc[("chr1:100-A-C", "PROBAND-1"), "ps"])
+    assert pd.isna(df.loc[("chr1:200-G-T", "PROBAND-1"), "ad"])
 
 
 def test_single_sample_without_optional_format_fields(tmp_path):

@@ -75,6 +75,8 @@ def split_ad(value):
     if value in (".", ""):
         return None, None, None
     parts = value.split(",")
+    if all(x == "." for x in parts):
+        return None, None, None
     if len(parts) == 2:
         return value, to_int(parts[0]), to_int(parts[1])
     return value, None, None
