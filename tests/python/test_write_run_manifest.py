@@ -106,3 +106,27 @@ def test_patch_names_are_unique_per_launch(repo, monkeypatch):
     first = wrm.capture_dirty_tree(repo, out.parent, "20260101T000000Z")["path"]
     second = wrm.capture_dirty_tree(repo, out.parent, "20260101T000001Z")["path"]
     assert first != second
+
+
+def test_completed_records_input_check_and_genotype_file(tmp_path):
+    out = tmp_path / "run"
+    out.mkdir()
+    (out / "RUN_MANIFEST.json").write_text(json.dumps({"launch": {}, "completed": None}))
+    (out / "r1.assembly_check.tsv").write_text(
+        "key\tvalue\nstatus\tPASS\ngenotype_mode\tmulti_sample\nn_samples\t3\nsample_names\tA,B,C\n"
+        "multiallelic_records\t0\nvcf\t/x/in.vcf.gz\n")
+    (out / "r1.genotypes.pq").write_bytes(b"PAR1")
+    wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
+    done = json.loads((out / "RUN_MANIFEST.json").read_text())["completed"]
+    assert done["input_check"]["genotype_mode"] == "multi_sample" and done["input_check"]["sample_names"] == "A,B,C"
+    assert "vcf" not in done["input_check"]
+    assert done["genotype_outputs"]["r1.genotypes.pq"]["sha256"]
+
+
+def test_completed_without_check_report_or_genotypes(tmp_path):
+    out = tmp_path / "run"
+    out.mkdir()
+    (out / "RUN_MANIFEST.json").write_text(json.dumps({"launch": {}, "completed": None}))
+    wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
+    done = json.loads((out / "RUN_MANIFEST.json").read_text())["completed"]
+    assert done["input_check"] is None and done["genotype_outputs"] == {}

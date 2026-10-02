@@ -16,6 +16,7 @@ include { GENE_RESTRICTED_WHOLE_SUBWORKFLOW } from './workflows/gene_restricted_
 include { MERGE_SUBWORKFLOW } from './workflows/merge_subworkflow.nf'
 include { VCF_TO_TABLE } from './modules/local/vcf_to_table.nf'
 include { TAG_TRANSCRIPT_PRIORITY } from './modules/local/tag_transcript_priority.nf'
+include { EXTRACT_GENOTYPES; ADD_WIDE_GENOTYPES } from './modules/local/genotypes.nf'
 
 workflow {
     if (!params.input_vcf) {
@@ -88,4 +89,12 @@ workflow {
     TAG_TRANSCRIPT_PRIORITY(VCF_TO_TABLE.out.table)
 
     TAG_TRANSCRIPT_PRIORITY.out.table.view { m, table -> "Final table: ${m.partition_id} -> ${table}" }
+
+    // Long genotype table from the merged VCF; no output when the input has no genotypes.
+    if (params.genotypes != 'off') {
+        EXTRACT_GENOTYPES(MERGE_SUBWORKFLOW.out.vcf)
+        if (params.genotype_wide) {
+            ADD_WIDE_GENOTYPES(TAG_TRANSCRIPT_PRIORITY.out.table.join(EXTRACT_GENOTYPES.out.genotypes))
+        }
+    }
 }

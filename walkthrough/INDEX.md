@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-02 | [20261002_genotype_tracking.md](./20261002_genotype_tracking.md) | Genotype tracking in the Nextflow output |
 | 2026-10-02 | [20261002_nextflow_slow_and_hung_tasks_s223_panel7.md](./20261002_nextflow_slow_and_hung_tasks_s223_panel7.md) | Slow and hung Nextflow tasks: S223 (2026-09-25..29) and `panel7_v45_retest2` (2026-10-01) |
 | 2026-10-01 | [20261001_predictor_gene_transcript_attribution_audit.md](./20261001_predictor_gene_transcript_attribution_audit.md) | Predictor score attribution: wrong-gene / wrong-transcript scores on overlapping loci |
 | 2026-09-30 | [20260930_pangolin_db_gencode_v45_rebuild.md](./20260930_pangolin_db_gencode_v45_rebuild.md) | Pangolin annotation db rebuilt from GENCODE 45 (MISC-12 / PLT-139) |

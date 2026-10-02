@@ -171,6 +171,8 @@ bash run_annotate_vcf.sh -profile standard \
 | `--run_id <LABEL>` | input filename without `.vcf.gz` | Output folder name and prefix for every published file |
 | `--spip_tier` | `restricted` | Which tier SPiP runs in (see below) |
 | `--output_format` | `pq` | Final table format: `pq` or `tsv` only |
+| `--genotypes` | `auto` | `auto` writes the long genotype table when the input has samples with GT; `off` skips it |
+| `--genotype_wide` | `false` | Also write `<run_id>.parsed.clean.withGT.<fmt>`: the main table plus `GT_<sample>` (HET/HOMALT/HOMREF/MISSING) and `GQ_/DP_/AD_<sample>` columns. Fails above `--genotype_wide_max_samples` (default 10) |
 | `-profile` | `standard` | `standard` = SGE + Singularity (production). `local_dev` = local miniforge environments, for `-stub-run` testing only |
 | `-resume` | off | Reuse cached tasks from Nextflow's `work/` directory |
 
@@ -195,6 +197,8 @@ Everything is published to `nf_work/annotation_out/<run_id>/`:
 | `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
 | `<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
 | `<run_id>.parsed.clean.pq` | **Final table.** One row per variant × VEP transcript. Every transcript is kept and tagged with `TRANSCRIPT_PRIORITY_TIER`: 1 = curated 217-panel transcript, 2 = MANE Select, 3 = other |
+| `<run_id>.genotypes.pq` | Long genotype table, one row per variant × sample (every pair, incl. homozygous-reference and no-call), joinable to the final table on `Locus`. Written only when the input has samples with a `GT` field. A pair that is absent means no evidence, not homozygous reference. Columns in `resources/column_dictionary.md` §4 |
+| `<run_id>.parsed.clean.withGT.pq` | Only with `--genotype_wide`: the final table with `GT_<sample>` columns added (never replaces the final table) |
 
 For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
 

@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../src/python')))
 
-from check_vcf_assembly import run, resolve_contig
+from check_vcf_assembly import run, resolve_contig, parse_norm_summary
 
 CHR1_LEN, CHR2_LEN = 3000, 2000
 
@@ -298,3 +298,11 @@ def test_missing_bcftools_fails_with_message(tmp_path, fasta):
     vcf = write_vcf(tmp_path / "ok2.vcf.gz", GRCH38_LIKE, true_records(seqs))
     assert go(tmp_path, vcf, fa, bcftools=str(tmp_path / "no_such_bcftools")) == 1
     assert "normalisation check could not run: bcftools not found" in open(tmp_path / "r.tsv").read()
+
+
+def test_norm_summary_parses_old_and_new_bcftools_formats():
+    old = ["Lines   total/split/joined/realigned/removed/skipped:\t22/1/0/3/0/0"]
+    new = ["Lines   total/split/joined/realigned/mismatch_removed/dup_removed/skipped:\t72/2/0/4/0/0/0"]
+    assert parse_norm_summary(old)["split"] == 1 and parse_norm_summary(old)["realigned"] == 3
+    assert parse_norm_summary(new)["split"] == 2 and parse_norm_summary(new)["realigned"] == 4
+    assert parse_norm_summary(["no summary here"]) is None

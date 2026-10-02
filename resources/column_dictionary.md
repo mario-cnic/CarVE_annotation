@@ -121,3 +121,23 @@ Existing score columns keep their names but now hold only the value of the row's
 | `dbNSFP_transcripts_all` | String | Original `&`-joined dbNSFP transcript list (audit). |
 | `REVEL_score_anytranscript_max`, `MetaRNN_score_anytranscript_max` | Float | Old behaviour kept explicit: maximum over all dbNSFP transcripts of the variant. `REVEL_score` / `MetaRNN_score` are now the row's own transcript's value. |
 | `MetaLR_score`, CADD, conservation, other single-valued dbNSFP columns | - | Variant-level in dbNSFP itself; unchanged (`resources/dbnsfp_column_dependency.tsv` classifies all 456 dbNSFP columns). |
+
+
+---
+
+## 4. Genotype table `<run_id>.genotypes.pq` (2026-10-02, `src/python/extract_genotypes.py`)
+
+One row per variant x sample for every record of the annotated VCF, including homozygous-reference and no-call genotypes. Join to the main table on `Locus` (`CHROM:POS-REF-ALT`). A variant x sample pair that is not in the table means no evidence for that sample; it never means homozygous reference. Missing FORMAT values are null, not 0. Not written when the input has no sample columns or no `GT` field (see `genotype_mode` in `<run_id>.assembly_check.tsv`).
+
+| Column | Type | Meaning |
+|---|---|---|
+| `Locus`, `chrom`, `pos`, `ref`, `alt` | String / Int | Variant key as in the annotated VCF (contig naming as in the input). |
+| `sample_id` | String | Sample name from the VCF header. |
+| `gt_raw` | String | The GT string as in the VCF (`0/1`, `1|0`, `./.`, `1`). |
+| `gt_status` | String | `hom_ref`, `het`, `hom_alt`, `no_call` (all alleles missing), `partial_no_call` (e.g. `./1`), `haploid_ref`, `haploid_alt`, `multiallelic_other` (e.g. `1/2` on an unsplit record). Unphased `1/0` from split multiallelics counts as `het`. |
+| `allele_1`, `allele_2`, `phased`, `ploidy` | Int / Bool | Parsed GT alleles (null when missing; `allele_2` null for haploid), `|` phasing, number of GT alleles. |
+| `gq`, `dp` | Int | FORMAT GQ and DP. |
+| `ad`, `ad_ref`, `ad_alt` | String / Int | FORMAT AD as written; `ad_ref`/`ad_alt` only when AD has exactly two values. |
+| `pl`, `ps`, `ft` | String | FORMAT PL, PS, FT, only when declared in the header. |
+
+Wide view (`--genotype_wide`): `GT_<sample>` = `HET` (het), `HOMALT` (hom_alt, haploid_alt), `HOMREF` (hom_ref, haploid_ref), `MISSING` (no_call, partial_no_call, multiallelic_other, and rows without genotypes); `GQ_/DP_/AD_<sample>` copy the long-table values.

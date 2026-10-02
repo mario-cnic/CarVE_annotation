@@ -344,6 +344,22 @@ def cmd_launch(args):
     print(f"wrote {manifest_path}")
 
 
+def read_input_check(outdir: Path) -> dict | None:
+    """Genotype mode, samples and normalisation counts from the published *.assembly_check.tsv."""
+    reports = sorted(outdir.glob("*.assembly_check.tsv"))
+    if not reports:
+        return None
+    keep = ("status", "genotype_mode", "n_samples", "sample_names", "format_fields_declared", "records_scanned",
+            "multiallelic_records", "not_normalised_records", "duplicate_site_records")
+    values = {}
+    for line in reports[0].read_text().splitlines()[1:]:
+        key, _, value = line.partition("\t")
+        if key in keep:
+            values[key] = value
+    values["report"] = reports[0].name
+    return values
+
+
 def cmd_completed(args):
     outdir = Path(args.outdir)
     manifest_path = outdir / "RUN_MANIFEST.json"
@@ -365,6 +381,8 @@ def cmd_completed(args):
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "exit_code": args.exit_code,
         "workflow_stats": workflow_stats,
+        "input_check": read_input_check(outdir),
+        "genotype_outputs": {p.name: resource_identity(str(p)) for p in sorted(outdir.glob("*.genotypes.pq"))},
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"updated {manifest_path}")

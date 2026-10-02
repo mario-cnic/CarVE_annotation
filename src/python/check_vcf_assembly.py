@@ -136,6 +136,18 @@ def scan_records(vcf):
     return c
 
 
+def parse_norm_summary(lines):
+    """Parses the `Lines total/split/joined/realigned/...` summary of `bcftools norm` (the field list
+    differs between versions, e.g. 1.21 and 1.24). Returns {field: count} or None."""
+    for line in lines:
+        m = re.match(r"^Lines\s+([a-z_/]+):\s+([\d/]+)\s*$", line)
+        if m:
+            counts = dict(zip(m.group(1).split("/"), (int(x) for x in m.group(2).split("/"))))
+            if "split" in counts and "realigned" in counts:
+                return counts
+    return None
+
+
 def bcftools_norm_counts(bcftools, vcf_path, fasta_path, contig_map, regions):
     """Runs `bcftools norm -m -any -c w` on the contig-renamed VCF and returns its summary counts.
 
@@ -166,13 +178,10 @@ def bcftools_norm_counts(bcftools, vcf_path, fasta_path, contig_map, regions):
     if rc1 != 0 or rc2 != 0:
         tail = " | ".join(ann_tail + norm_lines[-3:])
         raise RuntimeError(f"bcftools annotate/norm failed (exit {rc1}/{rc2}): {tail}")
-    for line in norm_lines:
-        m = re.match(r"^Lines\s+([a-z/]+):\s+([\d/]+)\s*$", line)
-        if m:
-            counts = dict(zip(m.group(1).split("/"), (int(x) for x in m.group(2).split("/"))))
-            if "split" in counts and "realigned" in counts:
-                return counts
-    raise RuntimeError("could not read the `Lines total/split/joined/realigned` summary of bcftools norm")
+    counts = parse_norm_summary(norm_lines)
+    if counts is None:
+        raise RuntimeError("could not read the `Lines total/split/joined/realigned` summary of bcftools norm")
+    return counts
 
 
 def genotype_mode(samples, format_ids):
