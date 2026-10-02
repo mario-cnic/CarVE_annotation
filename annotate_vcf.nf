@@ -95,6 +95,9 @@ workflow {
         EXTRACT_GENOTYPES(MERGE_SUBWORKFLOW.out.vcf)
         if (params.genotype_wide) {
             ADD_WIDE_GENOTYPES(TAG_TRANSCRIPT_PRIORITY.out.table.join(EXTRACT_GENOTYPES.out.genotypes))
+            EXTRACT_GENOTYPES.out.genotypes.count().subscribe { n ->
+                if (n == 0) log.warn "genotype_wide: the input has no genotypes (no samples or no GT), so no withGT table is written"
+            }
         }
     }
 }

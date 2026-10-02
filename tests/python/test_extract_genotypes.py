@@ -60,7 +60,9 @@ def go(tmp_path, vcf, name="g.pq"):
 @pytest.mark.parametrize("raw,expected", [
     ("0/0", ("hom_ref", 0, 0, False, 2)),
     ("0/1", ("het", 0, 1, False, 2)),
-    ("1/0", ("het", 1, 0, False, 2)),
+    ("1/0", ("alt_plus_other_allele", 1, 0, False, 2)),
+    ("2/0", ("alt_plus_other_allele", 2, 0, False, 2)),
+    ("0/2", ("het", 0, 2, False, 2)),
     ("1|0", ("het", 1, 0, True, 2)),
     ("1/1", ("hom_alt", 1, 1, False, 2)),
     ("./.", ("no_call", None, None, False, 2)),
@@ -70,6 +72,7 @@ def go(tmp_path, vcf, name="g.pq"):
     ("1", ("haploid_alt", 1, None, False, 1)),
     ("0", ("haploid_ref", 0, None, False, 1)),
     ("0/0/1", ("het", 0, 0, False, 3)),
+    ("1|1", ("hom_alt", 1, 1, True, 2)),
 ])
 def test_parse_gt(raw, expected):
     assert parse_gt(raw) == expected
@@ -142,7 +145,7 @@ def test_wide_view_maps_statuses_and_keeps_row_count(tmp_path):
     w = pd.read_parquet(out)
     assert len(w) == len(RECORDS) * 3
     first = w[w.Locus == "chr1:100-A-C"].iloc[0]
-    assert (first["GT_PROBAND-1"], first["GT_FATHER_1"], first["GT_MOTHER_1"]) == ("HET", "HOMREF", "HET")
+    assert (first["GT_PROBAND-1"], first["GT_FATHER_1"], first["GT_MOTHER_1"]) == ("HET", "HOMREF", "HET")  # 1|0 phased het
     assert first["GQ_PROBAND-1"] == 99
     second = w[w.Locus == "chr1:200-G-T"].iloc[0]
     assert (second["GT_PROBAND-1"], second["GT_FATHER_1"], second["GT_MOTHER_1"]) == ("MISSING", "HOMALT", "MISSING")
@@ -157,3 +160,35 @@ def test_wide_view_refuses_too_many_samples(tmp_path):
     main = make_main_table(tmp_path, ["chr1:100-A-C"])
     assert wide_run(main, gt, str(tmp_path / "w.pq"), max_samples=2) == 1
     assert not os.path.exists(tmp_path / "w.pq")
+
+
+def test_split_multiallelic_1_0_is_not_reported_as_het(tmp_path):
+    recs = [("chr1", 100, "A", "C", ["1/0:60:20:0,12:.:PASS", "0/1:60:20:10,10:.:PASS", "1|0:60:20:10,10:.:PASS"])]
+    vcf = write_vcf(tmp_path / "split.vcf.gz", TRIO, recs)
+    _, out = go(tmp_path, vcf)
+    df = pd.read_parquet(out).set_index("sample_id")
+    assert df.loc["PROBAND-1", "gt_status"] == "alt_plus_other_allele"
+    assert df.loc["FATHER_1", "gt_status"] == "het" and df.loc["MOTHER_1", "gt_status"] == "het"
+
+
+def test_wide_view_batches_give_the_same_result(tmp_path):
+    vcf = write_vcf(tmp_path / "trio.vcf.gz", TRIO, RECORDS)
+    _, gt = go(tmp_path, vcf)
+    main = make_main_table(tmp_path, [r[0] + ":" + str(r[1]) + "-" + r[2] + "-" + r[3] for r in RECORDS])
+    a, b = str(tmp_path / "a.pq"), str(tmp_path / "b.pq")
+    assert wide_run(main, gt, a, 10, batch_rows=1000) == 0 and wide_run(main, gt, b, 10, batch_rows=2) == 0
+    pd.testing.assert_frame_equal(pd.read_parquet(a), pd.read_parquet(b))
+
+
+def test_wide_view_fails_when_a_table_row_has_no_genotype(tmp_path):
+    vcf = write_vcf(tmp_path / "trio.vcf.gz", TRIO, RECORDS)
+    _, gt = go(tmp_path, vcf)
+    main = make_main_table(tmp_path, ["chr1:100-A-C", "chr9:999-A-T"])
+    assert wide_run(main, gt, str(tmp_path / "w.pq"), 10) == 1
+
+
+def test_wide_view_rejects_non_parquet_table(tmp_path):
+    vcf = write_vcf(tmp_path / "trio.vcf.gz", TRIO, RECORDS)
+    _, gt = go(tmp_path, vcf)
+    (tmp_path / "t.tsv").write_text("Locus\nchr1:100-A-C\n")
+    assert wide_run(str(tmp_path / "t.tsv"), gt, str(tmp_path / "w.pq"), 10) == 1

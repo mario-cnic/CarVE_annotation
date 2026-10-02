@@ -32,7 +32,7 @@ process EXTRACT_GENOTYPES {
 
 process ADD_WIDE_GENOTYPES {
     tag "${meta.partition_id}"
-    label 'process_low'
+    label 'process_medium'
     publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
 
     input:

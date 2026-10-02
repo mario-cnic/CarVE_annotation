@@ -11,7 +11,12 @@ gt_status, allele_1, allele_2, phased, ploidy, gq, dp, ad, ad_ref, ad_alt and, w
 header, pl, ps, ft.
 
 gt_status: hom_ref, het, hom_alt, no_call, partial_no_call (e.g. ./1), haploid_ref, haploid_alt,
-multiallelic_other (e.g. 1/2 on an unsplit record).
+multiallelic_other (e.g. 1/2 on an unsplit record), alt_plus_other_allele (unphased 1/0: see below).
+
+An unphased "1/0" is not a heterozygote with a reference copy. Callers write heterozygotes as 0/1;
+`bcftools norm -m -any` writes 1/0 when the sample carries this ALT plus a different ALT. In the S223
+chr22 slice every 1/0 genotype had more reads than AD ref + alt (DP > AD sum) and 81% had no
+reference reads, while no 0/1 genotype did.
 
 An input with no sample columns, or without a GT FORMAT field, writes no file and exits 0.
 """
@@ -46,6 +51,8 @@ def parse_gt(raw):
         status = "haploid_ref" if first == 0 else "haploid_alt"
     elif all(a == 0 for a in called):
         status = "hom_ref"
+    elif ploidy == 2 and not phased and first != 0 and second == 0:
+        status = "alt_plus_other_allele"
     else:
         nonzero = {a for a in called if a != 0}
         if len(nonzero) > 1:

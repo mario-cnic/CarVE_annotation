@@ -134,10 +134,12 @@ One row per variant x sample for every record of the annotated VCF, including ho
 | `Locus`, `chrom`, `pos`, `ref`, `alt` | String / Int | Variant key as in the annotated VCF (contig naming as in the input). |
 | `sample_id` | String | Sample name from the VCF header. |
 | `gt_raw` | String | The GT string as in the VCF (`0/1`, `1|0`, `./.`, `1`). |
-| `gt_status` | String | `hom_ref`, `het`, `hom_alt`, `no_call` (all alleles missing), `partial_no_call` (e.g. `./1`), `haploid_ref`, `haploid_alt`, `multiallelic_other` (e.g. `1/2` on an unsplit record). Unphased `1/0` from split multiallelics counts as `het`. |
+| `gt_status` | String | `hom_ref`, `het`, `hom_alt`, `no_call` (all alleles missing), `partial_no_call` (e.g. `./1`), `haploid_ref`, `haploid_alt`, `multiallelic_other` (e.g. `1/2` on an unsplit record), `alt_plus_other_allele` (unphased `1/0`/`2/0`: the sample carries this ALT and a DIFFERENT ALT, not a reference copy; written by `bcftools norm -m -any` for split multiallelics. In the S223 chr22 slice every such genotype had more reads than AD ref + alt and 81% had no reference reads; heterozygotes are written `0/1`, and phased `1|0` is a true `het`). |
 | `allele_1`, `allele_2`, `phased`, `ploidy` | Int / Bool | Parsed GT alleles (null when missing; `allele_2` null for haploid), `|` phasing, number of GT alleles. |
 | `gq`, `dp` | Int | FORMAT GQ and DP. |
 | `ad`, `ad_ref`, `ad_alt` | String / Int | FORMAT AD as written; `ad_ref`/`ad_alt` only when AD has exactly two values. |
 | `pl`, `ps`, `ft` | String | FORMAT PL, PS, FT, only when declared in the header. |
 
-Wide view (`--genotype_wide`): `GT_<sample>` = `HET` (het), `HOMALT` (hom_alt, haploid_alt), `HOMREF` (hom_ref, haploid_ref), `MISSING` (no_call, partial_no_call, multiallelic_other, and rows without genotypes); `GQ_/DP_/AD_<sample>` copy the long-table values.
+The table also holds records the main table does not (e.g. ALT `*`, the spanning-deletion allele: 230 of 88,323 in the S223 chr22 slice).
+
+Wide view (`--genotype_wide`, Parquet only): `GT_<sample>` = `HET` (het, alt_plus_other_allele: one copy of this ALT), `HOMALT` (hom_alt, haploid_alt), `HOMREF` (hom_ref, haploid_ref), `MISSING` (no_call, partial_no_call, multiallelic_other, and rows without genotypes); `GQ_/DP_/AD_<sample>` copy the long-table values.
