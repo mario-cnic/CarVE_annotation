@@ -67,7 +67,6 @@ process VEP_ANNOTATE {
     // reintroducing warning suppression is out of scope for this port.
     script:
     def vep_files = params.vep_dir
-    def plugins   = params.vep_plugins_dir
     """
     vep --fork ${task.cpus} -species homo_sapiens \\
         --dir_plugins ${params.data_lab_pgp}/resources/annotation/VEP/VEP_plugins \\
@@ -80,20 +79,21 @@ process VEP_ANNOTATE {
         --check_existing \\
         --everything \\
         --no_stats \\
-        --plugin CADD,"${plugins}/CADD/v1.7/GRCh38/whole_genome_SNVs.tsv.gz" \\
-        --plugin UTRAnnotator,file=${plugins}/UTRAnnotator/uORF_5UTR_GRCh38_PUBLIC.txt \\
-        --plugin SpliceAI,snv=${plugins}/spliceAI/spliceai_scores.raw.snv.hg38.vcf.gz,indel=${plugins}/spliceAI/spliceai_scores.raw.indel.hg38.vcf.gz \\
+        --plugin CADD,"${params.vep_cadd}" \\
+        --plugin UTRAnnotator,file=${params.vep_utrannotator} \\
+        --plugin SpliceAI,snv=${params.vep_spliceai_snv},indel=${params.vep_spliceai_indel} \\
         --plugin SpliceRegion \\
-        --plugin REVEL,${plugins}/REVEL/GRCh38/new_tabbed_revel_grch38.tsv.gz \\
-        --plugin Mastermind,${plugins}/MasterMind/mastermind_cited_variants_reference-2024.07.03-grch38.vcf.gz \\
-        --plugin LoFtool,${plugins}/LoFtool/LoFtool_scores.txt \\
-        --plugin pLI,${plugins}/pLI/plI_gene.txt \\
-        --plugin dbNSFP,"${plugins}/dbNSFP/dbNSFP4.8a_grch38.gz,ALL" \\
-        --plugin AlphaMissense,file=${plugins}/AlphaMissense/AlphaMissense_hg38.tsv.gz \\
-        --plugin MaxEntScan,${plugins}/MaxEntScan/download/fordownload \\
-        --custom file=${params.references_dir}/genomes/Homo_sapiens/annotations/splicevardb/splicevardb.to.annotate.tsv.vcf.gz,short_name=splicevardb,format=vcf,type=exact,coords=0,fields=gene%hgvs%method%classification%location%doi \\
-        --plugin SpliceVault,file=${params.data_lab_pgp}/resources/annotation/SpliceVault/SpliceVault_data_GRCh38.tsv.gz \\
-        --custom file=${params.references_dir}/genomes/Homo_sapiens/annotations/gnomAD/GRCh38/v4.1/gnomAD.v4.1.vcf.gz,short_name=gnomADv4,format=vcf,type=exact,coords=0,fields=AF_joint%AF_grpmax_joint%grpmax_joint%fafmax_faf95_max_joint%faf95_joint%AF_exomes%AF_grpmax_exomes%fafmax_faf95_max_exomes%AF_genomes%AF_grpmax_genomes%fafmax_faf95_max_genomes%AF_joint_afr%AF_joint_amr%AF_joint_asj%AF_joint_eas%AF_joint_fin%AF_joint_mid%AF_joint_nfe%AF_joint_sas%AF_joint_ami%AF_joint_remaining%faf95_joint_afr%faf95_joint_amr%faf95_joint_eas%faf95_joint_mid%faf95_joint_nfe%faf95_joint_sas%nhomalt_joint%exomes_filters%genomes_filters%AN_joint%AN_joint_afr%AN_joint_ami%AN_joint_amr%AN_joint_asj%AN_joint_eas%AN_joint_fin%AN_joint_mid%AN_joint_nfe%AN_joint_raw%AN_joint_remaining%AN_joint_sas%AN_grpmax_joint%AN_genomes%AN_exomes%AC_joint%AC_joint_afr%AC_joint_ami%AC_joint_amr%AC_joint_asj%AC_joint_eas%AC_joint_fin%AC_joint_mid%AC_joint_nfe%AC_joint_raw%AC_joint_remaining%AC_joint_sas%AC_grpmax_joint%AC_genomes%AC_exomes%nhomalt_joint%nhomalt_joint_afr%nhomalt_joint_ami%nhomalt_joint_amr%nhomalt_joint_asj%nhomalt_joint_eas%nhomalt_joint_fin%nhomalt_joint_mid%nhomalt_joint_nfe%nhomalt_joint_raw%nhomalt_joint_remaining%nhomalt_joint_sas%nhomalt_grpmax_joint%age_hist_hom_bin_freq_joint%age_hist_hom_n_smaller_joint%age_hist_hom_n_larger_joint%nhomalt_exomes%nhomalt_genomes%exomes_filters%genomes_filters
+        --plugin REVEL,${params.vep_revel} \\
+        --plugin Mastermind,${params.vep_mastermind} \\
+        --plugin LoFtool,${params.vep_loftool} \\
+        --plugin pLI,${params.vep_pli} \\
+        --plugin dbNSFP,"${params.vep_dbnsfp},ALL" \\
+        --plugin AlphaMissense,file=${params.vep_alphamissense} \\
+        --plugin MaxEntScan,${params.vep_maxentscan_dir} \\
+        --custom file=${params.splicevardb_vcf},short_name=splicevardb,format=vcf,type=exact,coords=0,fields=gene%hgvs%method%classification%location%doi \\
+        --custom file=${params.clinvar_vcf},short_name=ClinVarVCF,format=vcf,type=exact,coords=0,fields=CLNSIG%CLNSIGCONF%CLNREVSTAT%CLNDN%CLNVC%ALLELEID \\
+        --plugin SpliceVault,file=${params.splicevault_file} \\
+        --custom file=${params.gnomad_vcf},short_name=gnomADv4,format=vcf,type=exact,coords=0,fields=AF_joint%AF_grpmax_joint%grpmax_joint%fafmax_faf95_max_joint%faf95_joint%AF_exomes%AF_grpmax_exomes%fafmax_faf95_max_exomes%AF_genomes%AF_grpmax_genomes%fafmax_faf95_max_genomes%AF_joint_afr%AF_joint_amr%AF_joint_asj%AF_joint_eas%AF_joint_fin%AF_joint_mid%AF_joint_nfe%AF_joint_sas%AF_joint_ami%AF_joint_remaining%faf95_joint_afr%faf95_joint_amr%faf95_joint_eas%faf95_joint_mid%faf95_joint_nfe%faf95_joint_sas%nhomalt_joint%exomes_filters%genomes_filters%AN_joint%AN_joint_afr%AN_joint_ami%AN_joint_amr%AN_joint_asj%AN_joint_eas%AN_joint_fin%AN_joint_mid%AN_joint_nfe%AN_joint_raw%AN_joint_remaining%AN_joint_sas%AN_grpmax_joint%AN_genomes%AN_exomes%AC_joint%AC_joint_afr%AC_joint_ami%AC_joint_amr%AC_joint_asj%AC_joint_eas%AC_joint_fin%AC_joint_mid%AC_joint_nfe%AC_joint_raw%AC_joint_remaining%AC_joint_sas%AC_grpmax_joint%AC_genomes%AC_exomes%nhomalt_joint%nhomalt_joint_afr%nhomalt_joint_ami%nhomalt_joint_amr%nhomalt_joint_asj%nhomalt_joint_eas%nhomalt_joint_fin%nhomalt_joint_mid%nhomalt_joint_nfe%nhomalt_joint_raw%nhomalt_joint_remaining%nhomalt_joint_sas%nhomalt_grpmax_joint%age_hist_hom_bin_freq_joint%age_hist_hom_n_smaller_joint%age_hist_hom_n_larger_joint%nhomalt_exomes%nhomalt_genomes%exomes_filters%genomes_filters
 
     tabix ${meta.partition_id}.annVEP.vcf.gz
     """

@@ -554,3 +554,10 @@ gnomADv4_age_hist_hom_n_smaller_joint
 gnomADv4_age_hist_hom_n_larger_joint
 gnomADv4_nhomalt_exomes
 gnomADv4_nhomalt_genomes
+ClinVarVCF
+ClinVarVCF_CLNSIG
+ClinVarVCF_CLNSIGCONF
+ClinVarVCF_CLNREVSTAT
+ClinVarVCF_CLNDN
+ClinVarVCF_CLNVC
+ClinVarVCF_ALLELEID

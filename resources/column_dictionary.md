@@ -143,3 +143,21 @@ One row per variant x sample for every record of the annotated VCF, including ho
 The table also holds records the main table does not (e.g. ALT `*`, the spanning-deletion allele: 230 of 88,323 in the S223 chr22 slice).
 
 Wide view (`--genotype_wide`, Parquet only): `GT_<sample>` = `HET` (het, alt_plus_other_allele: one copy of this ALT), `HOMALT` (hom_alt, haploid_alt), `HOMREF` (hom_ref, haploid_ref), `MISSING` (no_call, partial_no_call, multiallelic_other, and rows without genotypes); `GQ_/DP_/AD_<sample>` copy the long-table values.
+
+---
+
+## 5. ClinVar custom annotation `ClinVarVCF*` (2026-10-05, `modules/local/vep.nf`)
+
+VEP `--custom` over the ClinVar GRCh38 VCF (`clinvar_vcf` in `nextflow.config`, under `/data_lab_PGP/resources/annotation/clinvar/`; the file name carries the release date, the manifest records the file). Exact allele match, so it covers SNVs and indels. A variant with no ClinVar record has every column empty; a record without a germline classification has `ClinVarVCF` filled and `ClinVarVCF_CLNSIG` empty. Independent of the older `CLIN_SIG` (VEP cache, ClinVar of the cache build) and `clinvar_*` (dbNSFP, nsSNVs only, ClinVar of the dbNSFP build).
+
+| Column | Meaning |
+|---|---|
+| `ClinVarVCF` | ClinVar Variation ID (the VCF ID column). |
+| `ClinVarVCF_CLNSIG` | Aggregate germline classification (e.g. `Pathogenic/Likely_pathogenic`, `Conflicting_classifications_of_pathogenicity`). Several values are joined with `&`. |
+| `ClinVarVCF_CLNSIGCONF` | Counts per classification for conflicting records (`Uncertain_significance_(1)&Benign_(1)`). |
+| `ClinVarVCF_CLNREVSTAT` | Review status. VEP turns the commas of ClinVar's value into `&` (`criteria_provided&_multiple_submitters&_no_conflicts`), so map known strings, do not split. |
+| `ClinVarVCF_CLNDN` | Preferred disease name(s). `|` and `,` both appear as `&`, and `;` stays percent-encoded (`%3B`): do not split on `&`. |
+| `ClinVarVCF_CLNVC` | Variant type (`single_nucleotide_variant`, `Deletion`, `Duplication`, `Indel`, ...). |
+| `ClinVarVCF_ALLELEID` | ClinVar Allele ID. |
+
+No star column is derived yet: stars come from `ClinVarVCF_CLNREVSTAT`.

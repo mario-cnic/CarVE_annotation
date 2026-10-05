@@ -100,7 +100,7 @@ add_external() { # kind (--resource|--code-repo|--env) label param
 	local v; v="$(resolve_param "$3")"
 	[[ -n "$v" ]] && EXTERNAL_ARGS+=("$1" "$2=$v")
 }
-for p in fasta pangolin_db spip_script labranchor_bed vep_dir gene_restriction_bed hgnc_table spliceai_symbol_map enst_spip_map dbnsfp_aligned_columns; do
+for p in fasta pangolin_db spip_script labranchor_bed vep_dir clinvar_vcf gnomad_vcf splicevardb_vcf splicevault_file vep_cadd vep_utrannotator vep_spliceai_snv vep_spliceai_indel vep_revel vep_mastermind vep_loftool vep_pli vep_dbnsfp vep_alphamissense vep_maxentscan_dir gene_restriction_bed hgnc_table spliceai_symbol_map enst_spip_map dbnsfp_aligned_columns; do
 	add_external --resource "$p" "$p"
 done
 add_external --code-repo shared_utils shared_utils

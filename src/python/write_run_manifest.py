@@ -204,6 +204,142 @@ def resource_identity(path_str: str) -> dict:
     return out
 
 
+# Release facts read from a database's own content. A version that only appears in a file name is
+# kept apart as `name_hint`; a reader that cannot determine a release returns None and a reason.
+NAME_HINT_RE = re.compile(r"(v\d+(?:\.\d+)*|\d{4}[.-]\d{2}[.-]\d{2}|(?<!\d)\d{8}(?!\d)|(?<![\d.])\d+\.\d+[a-z]?(?![\d.]))")
+
+
+def name_hint(path_str: str) -> list:
+    return NAME_HINT_RE.findall(Path(path_str).name)
+
+
+def read_pangolin_db(path: Path) -> dict:
+    """Release of a Pangolin gffutils annotation db: its `directives` table plus the build manifest next to it."""
+    import sqlite3
+    out = {"release": None, "directives": None, "build_manifest": None, "reason": None}
+    try:
+        con = sqlite3.connect("file:%s?mode=ro" % path, uri=True)
+        rows = [r[0] for r in con.execute("select * from directives")]
+        con.close()
+        out["directives"] = rows
+        desc = [r for r in rows if r.startswith("description:")]
+        out["release"] = desc[0][len("description:"):].strip() if desc else None
+    except Exception as e:
+        out["reason"] = "cannot read directives: %s" % e
+    stem = path.name[:-3] if path.name.endswith(".db") else path.name
+    build = path.with_name(stem + ".BUILD_MANIFEST.txt")
+    if build.is_file():
+        out["build_manifest"] = build.read_text(errors="replace")[:4000]
+    return out
+
+
+def read_vep_cache(vep_dir: str, version: str) -> dict:
+    """Source releases listed in the VEP cache's own info.txt (ClinVar, dbSNP, GENCODE, SIFT, ...)."""
+    info = Path(vep_dir) / "cache" / "homo_sapiens" / ("%s_GRCh38" % version) / "info.txt"
+    out = {"release": None, "info_txt": str(info), "values": {}, "reason": None}
+    if not info.is_file():
+        out["reason"] = "info.txt not found"
+        return out
+    for line in info.read_text(errors="replace").splitlines():
+        key, _, value = line.partition("\t")
+        if key.startswith("source_") or key in ("species", "assembly", "version", "cache_version"):
+            out["values"][key] = value
+    out["release"] = "VEP cache %s" % version if out["values"] else None
+    return out
+
+
+def read_dbnsfp(path: Path) -> dict:
+    """dbNSFP version, release date and ClinVar release from the readme in the same directory."""
+    out = {"release": None, "clinvar_release": None, "reason": None}
+    readmes = sorted(path.parent.glob("dbNSFP*.readme.txt"))
+    if not readmes:
+        out["reason"] = "readme not found"
+        return out
+    lines = readmes[0].read_text(errors="replace").splitlines()
+    out["readme"] = readmes[0].name
+    if lines and lines[0].startswith("dbNSFP version"):
+        out["release"] = lines[0].strip()
+    for i, line in enumerate(lines):
+        if line.strip() == "Release:" and i + 1 < len(lines):
+            out["release_date"] = lines[i + 1].strip()
+        m = re.search(r"clinvar release (\S+)", line)
+        if m and out["clinvar_release"] is None:
+            out["clinvar_release"] = m.group(1)
+    return out
+
+
+def read_vcf_header(path: Path, bcftools: str | None) -> dict:
+    """fileDate / source / reference from a VCF's own header (header only; nothing else is read)."""
+    out = {"release": None, "reason": None}
+    if not bcftools:
+        out["reason"] = "no bcftools given"
+        return out
+    try:
+        header = subprocess.run([bcftools, "view", "-h", str(path)], capture_output=True, text=True,
+                                check=True, timeout=120).stdout
+    except Exception as e:
+        out["reason"] = "cannot read header: %s" % e
+        return out
+    for key in ("fileDate", "source", "reference"):
+        m = re.search(r"^##%s=(.*)$" % key, header, re.M)
+        if m:
+            out[key] = m.group(1).strip()
+    out["release"] = out.get("fileDate")
+    if out["release"] is None:
+        out["reason"] = "header has no fileDate"
+    return out
+
+
+def vep_image_info(sif: str | None) -> dict:
+    """VEP container identity: SIF labels (read from the file header) and, best effort, vep's own version."""
+    out = {"labels": {}, "vep_version": None}
+    if not sif:
+        return out
+    labels = sh(["singularity", "inspect", "--labels", sif])
+    for line in (labels or "").splitlines():
+        key, _, value = line.partition(": ")
+        if key in ("org.opencontainers.image.revision", "org.opencontainers.image.created",
+                   "org.opencontainers.image.version", "org.label-schema.build-date"):
+            out["labels"][key] = value
+    try:
+        text = subprocess.run(["singularity", "exec", "--cleanenv", sif, "vep", "--help"],
+                              capture_output=True, text=True, timeout=180).stdout
+        m = re.search(r"ensembl-vep\s*:\s*(\S+)", text)
+        out["vep_version"] = m.group(1) if m else None
+    except Exception:
+        pass
+    return out
+
+
+def database_releases(resources: dict, vep_dir: str | None, vep_cache_version: str | None,
+                      bcftools: str | None) -> dict:
+    """Release facts for every resource that has a reader, plus file-name hints for all of them.
+    Never raises: a database whose release cannot be read gets release None and a reason."""
+    out = {}
+    for label, ident in resources.items():
+        path = ident.get("path")
+        if not path or ident.get("is_dir"):
+            continue
+        entry = {"path": path, "release": None, "name_hint": name_hint(path), "details": None}
+        try:
+            if label == "pangolin_db":
+                entry["details"] = read_pangolin_db(Path(path))
+            elif label == "vep_dbnsfp":
+                entry["details"] = read_dbnsfp(Path(path))
+            elif label in ("clinvar_vcf", "gnomad_vcf", "splicevardb_vcf"):
+                entry["details"] = read_vcf_header(Path(path), bcftools)
+        except Exception as e:
+            entry["details"] = {"release": None, "reason": "reader failed: %s" % e}
+        if entry["details"]:
+            entry["release"] = entry["details"].get("release")
+        out[label] = entry
+    if vep_dir and vep_cache_version:
+        cache = read_vep_cache(vep_dir, vep_cache_version)
+        out["vep_cache"] = {"path": cache["info_txt"], "release": cache["release"],
+                            "name_hint": [], "details": cache}
+    return out
+
+
 def code_repo_state(path_str: str) -> dict:
     """Commit + tracked-file modifications of a code repo outside this one (e.g. shared/utils).
     `--untracked-files=no` on purpose: that repo also contains the conda envs, and scanning them
@@ -292,6 +428,9 @@ def cmd_launch(args):
             sys.exit(f"error: working tree is dirty and the dirty-tree patch could not be written ({e}); "
                      "commit or stash first so the run's code can be reconstructed")
 
+    resources = {n: resource_identity(v) for n, v in (getattr(args, "resource", None) or [])}
+    vep_dir = (resources.get("vep_dir") or {}).get("path")
+
     manifest = {
         "schema_version": SCHEMA_VERSION,
         "module": "2 (annotation_pipeline_new)",
@@ -321,10 +460,11 @@ def cmd_launch(args):
             # Everything outside this repo that changes the output without changing this repo's
             # commit (TODO.md "Nextflow pipeline: make the run reproducible from the repo commit").
             "external_provenance": {
-                "resources": {n: resource_identity(v) for n, v in (getattr(args, "resource", None) or [])},
+                "resources": resources,
                 "code_repos": {n: code_repo_state(v) for n, v in (getattr(args, "code_repo", None) or [])},
                 "envs": {n: env_identity(v) for n, v in (getattr(args, "env", None) or [])},
             },
+            "databases": database_releases(resources, vep_dir, args.vep_cache_version, args.bcftools),
             "nextflow_version": sh([nextflow_bin, "-v"]) if nextflow_bin else None,
             # Best-effort tool versions, queried at run time rather than hardcoded — closes
             # TODO.md's Priority-0 complaint that no file anywhere records what actually ran.
@@ -337,6 +477,7 @@ def cmd_launch(args):
                 "bcftools": tool_version(args.bcftools, "--version"),
                 "vep_cache_version": args.vep_cache_version,
                 "vep_sif_sha256": sha256_of(Path(args.vep_sif)) if args.vep_sif else None,
+                "vep_image": vep_image_info(args.vep_sif),
             },
             # SpliceAI/Pangolin's -d/--distance value actually used — closes the specific
             # ambiguity TODO.md named ("the SpliceAI -D question ... there was nothing to
@@ -369,6 +510,55 @@ def read_input_check(outdir: Path) -> dict | None:
     return values
 
 
+TABLE_PATTERNS = (("tables", "*.pq"), ("genotypes", "*.genotypes.pq"))
+
+
+def table_provenance(manifest: dict, manifest_path: Path, table: Path) -> dict:
+    """Self-contained provenance summary for one published table. It is linked to the table by
+    name, size and mtime plus the full manifest's sha256; the table itself is not hashed."""
+    launch, done = manifest["launch"], manifest["completed"]
+    st = table.stat()
+    resources = launch.get("external_provenance", {}).get("resources", {})
+    envs = launch.get("external_provenance", {}).get("envs", {})
+    repo = launch.get("annotation_pipeline_repo", {})
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "table_provenance",
+        "table": {"name": table.name, "size_bytes": st.st_size,
+                  "mtime_utc": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()},
+        "run": {"run_id": launch.get("cli_flags", {}).get("run_id"), "launched_at": launch.get("generated_at"),
+                "completed_at": done["generated_at"], "exit_code": done["exit_code"],
+                "full_manifest": "%s/%s" % (manifest_path.parent.name, manifest_path.name),
+                "full_manifest_sha256": sha256_of(manifest_path)},
+        "code": {"commit": repo.get("commit"), "dirty": repo.get("dirty"),
+                 "dirty_patch_sha256": (repo.get("dirty_patch") or {}).get("sha256")},
+        "parameters": {**launch.get("cli_flags", {}), "spliceai_distance": launch.get("spliceai_distance"),
+                       "pangolin_distance": launch.get("pangolin_distance")},
+        "input": {"path": launch.get("resolved_paths", {}).get("input"),
+                  "sha256": launch.get("file_hashes_sha256", {}).get("input")},
+        "databases": launch.get("databases"),
+        "resources": {n: {k: r.get(k) for k in ("path", "size_bytes", "mtime_utc", "sha256", "hash_skipped")}
+                      for n, r in resources.items()},
+        "tools": {**launch.get("tool_versions", {}), "nextflow_version": launch.get("nextflow_version"),
+                  "envs": {n: {k: e.get(k) for k in ("binary", "fingerprint_sha256", "key_packages")}
+                           for n, e in envs.items()}},
+    }
+
+
+def write_table_provenance(outdir: Path, manifest: dict, manifest_path: Path) -> list:
+    """Write <table>.provenance.json next to each published table; never overwrites one."""
+    written = []
+    for subdir, pattern in TABLE_PATTERNS:
+        for table in run_files(outdir, subdir, pattern):
+            side = table.with_name(table.name + ".provenance.json")
+            if side.exists():
+                print("warning: %s exists; not overwritten" % side, file=sys.stderr)
+                continue
+            side.write_text(json.dumps(table_provenance(manifest, manifest_path, table), indent=2) + "\n")
+            written.append(side.name)
+    return written
+
+
 def cmd_completed(args):
     outdir = Path(args.outdir)
     manifest_path = next((p for p in (outdir / INFO_SUBDIR / "RUN_MANIFEST.json", outdir / "RUN_MANIFEST.json")
@@ -396,6 +586,9 @@ def cmd_completed(args):
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"updated {manifest_path}")
+    if args.exit_code == 0:
+        for name in write_table_provenance(outdir, manifest, manifest_path):
+            print(f"wrote {name}")
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
      - **Branchpointer**: Signal-feature model estimating branch point probability, U2 snRNA duplex free energy (kcal/mol), and motif disruption flags (`YES`/`NO`).
    - **SpliceVault**: Direct empirical RNA-seq aberrant event lookup across GTEx/SRA datasets with human-readable decoded events and sample counts.
    - **SpliceVarDB**: Direct lookup of experimentally validated splicing variants from minigene, RT-PCR, and RNA-seq assays.
+   - **ClinVar** (VEP `--custom`, `ClinVarVCF*` columns): germline classification, review status and disease names for SNVs and indels from a dated ClinVar GRCh38 VCF (`clinvar_vcf` in `nextflow.config`, stored under `/data_lab_PGP/resources/annotation/clinvar/GRCh38/`; rebuild with `resources/build_clinvar_vcf.sh`).
 
 3. **Unified Status Contracts & Data Schema**:
    - All predictors adhere to strict, unified status contracts: `scored` (valid numerical prediction), `not_covered` (outside gene model/receptive field), or `error`.
@@ -192,7 +193,8 @@ Everything is published to `nf_work/annotation_out/<run_id>/`, in sub-folders (p
 | File | Content |
 | --- | --- |
 | `reports/<run_id>.assembly_check.tsv` | Pre-flight input check result: contig-length and REF-allele comparison against `params.fasta`, record normalisation counts, genotype mode (`no_samples`, `samples_without_GT`, `single_sample`, `multi_sample`), sample names, declared FORMAT fields, plus any warnings |
-| `pipeline_info/RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
+| `pipeline_info/RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, database releases read from the databases themselves (`databases`), tool versions (VEP image and version, env fingerprints), exit code |
+| `tables/<table>.pq.provenance.json`, `genotypes/<table>.pq.provenance.json` | Written next to each published table when the run exits 0: run id, code commit, parameters, database releases, tool versions, and the full manifest's path and sha256. Never overwritten |
 | `pipeline_info/RUN_DIRTY.<timestamp>.patch` | Only for a launch from a dirty tree: the uncommitted changes. Rebuild the launch-time code with `git checkout <commit> && git apply <patch>` |
 | `predictors/<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
 | `annotation/<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
