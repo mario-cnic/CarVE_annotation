@@ -18,6 +18,10 @@ import argparse
 import sys
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
+
+from provenance_stamp import load_stamp, with_stamp
 
 
 def load_curated_mapping(path: str) -> set[str]:
@@ -45,9 +49,10 @@ def read_table(path: str) -> pd.DataFrame:
     raise ValueError(f"Unsupported table format: {path}")
 
 
-def write_table(df: pd.DataFrame, path: str) -> None:
+def write_table(df: pd.DataFrame, path: str, stamp=None) -> None:
     if path.endswith(".pq") or path.endswith(".parquet"):
-        df.to_parquet(path, index=False)
+        table = pa.Table.from_pandas(df, preserve_index=False)
+        pq.write_table(table.replace_schema_metadata(with_stamp(table.schema, stamp).metadata), path)
     elif path.endswith(".tsv"):
         df.to_csv(path, sep="\t", index=False)
     else:
@@ -78,7 +83,9 @@ def main():
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
     parser.add_argument("--gene-transcript-mapping", default="resources/gene_transcript_mapping.txt")
+    parser.add_argument("--stamp", help="Provenance stamp JSON to store in the Parquet file metadata")
     args = parser.parse_args()
+    stamp = load_stamp(args.stamp)
 
     df = read_table(args.input)
     curated = load_curated_mapping(args.gene_transcript_mapping)
@@ -88,7 +95,7 @@ def main():
     tier_counts = df["TRANSCRIPT_PRIORITY_TIER"].value_counts().sort_index()
     print(f"Tier distribution: {dict(tier_counts)}")
 
-    write_table(df, args.output)
+    write_table(df, args.output, stamp)
     print(f"Wrote {len(df)} rows to {args.output}")
 
 

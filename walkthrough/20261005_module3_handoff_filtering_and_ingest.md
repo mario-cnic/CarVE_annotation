@@ -104,3 +104,14 @@ Details and checks: `20261005_manifest_databases_and_table_provenance.md`. Modul
 1. Treat a table as valid for a predictor only when its provenance file is present and the predictor's database matches an accepted release (Pangolin: the sha256 above); no file = unknown, not valid. Existing runs (S223, F2005_union) have no provenance file.
 2. Keep the `ENSMUSG` check on the raw Pangolin columns as a hard stale flag for tables without a provenance file.
 3. Show the release (or "unknown") next to the score, instead of a bare value.
+
+## Addendum 2026-10-05T14:15:00+02:00: the stamp is also in the Parquet footer
+
+Module 2 now also writes the provenance into the file metadata of every published table, so a plain upload carries it. Details: addendum in `20261005_manifest_databases_and_table_provenance.md`. Needs a `DEC-` record in `carve-platform` (not written from here).
+
+- Key `carve.provenance`, JSON text, in the Parquet footer of `tables/<run>.parsed.clean.pq`, `tables/<run>.parsed.clean.withGT.pq` and `genotypes/<run>.genotypes.pq`. Read: `pq.ParquetFile(path).metadata.metadata[b"carve.provenance"]` (footer only) or DuckDB `parquet_kv_metadata`.
+- Fields: `run_id`, `launched_at`, `code{commit,dirty,dirty_patch_sha256}`, `parameters` (incl. `spliceai_distance`, `pangolin_distance`, `spip_tier`), `input{path,sha256}`, `databases{<name>{release,name_hint,details}}`, `resources{<name>{path,size_bytes,mtime_utc,sha256,hash_skipped}}` (Pangolin: `resources.pangolin_db.sha256`), `tools{vep_image,bcftools,nextflow_version,envs}`, `full_manifest`.
+- The stamp holds launch-time facts only. The sidecar `<table>.pq.provenance.json` adds the table's size and mtime and the run's completion (exit code, manifest sha256).
+- Absent key = unknown, not valid: runs made before this change (S223, F2005_union), runs started without `run_annotate_vcf.sh`, and the legacy per-gene path.
+- The key is plain text; anyone can copy it onto another file. It protects against mistakes, not tampering.
+- Order of trust for Module 3: footer stamp (works for uploads and by-path), else the sidecar next to the table (by-path only), else `ENSMUSG` heuristic on the raw Pangolin columns (stale flag only).

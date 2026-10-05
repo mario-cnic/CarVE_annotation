@@ -110,6 +110,7 @@ done
 
 OUTDIR="$REPO_ROOT/nf_work/annotation_out/$RUN_ID"
 INFO_DIR="$OUTDIR/pipeline_info"
+FORWARD_ARGS+=(--provenance_stamp "$INFO_DIR/TABLE_STAMP.json")
 NF_LOG="$INFO_DIR/nextflow_$(date +%Y-%m-%d_%H-%M-%S).log"
 
 RESUME_FLAG=()

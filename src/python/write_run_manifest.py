@@ -492,6 +492,10 @@ def cmd_launch(args):
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"wrote {manifest_path}")
+    # Compact stamp the table-writing processes store in the Parquet footer (--provenance_stamp).
+    stamp_path = info_dir / "TABLE_STAMP.json"
+    stamp_path.write_text(json.dumps({"kind": "table_stamp", **compact_provenance(manifest["launch"])}, indent=2) + "\n")
+    print(f"wrote {stamp_path}")
 
 
 def read_input_check(outdir: Path) -> dict | None:
@@ -513,23 +517,16 @@ def read_input_check(outdir: Path) -> dict | None:
 TABLE_PATTERNS = (("tables", "*.pq"), ("genotypes", "*.genotypes.pq"))
 
 
-def table_provenance(manifest: dict, manifest_path: Path, table: Path) -> dict:
-    """Self-contained provenance summary for one published table. It is linked to the table by
-    name, size and mtime plus the full manifest's sha256; the table itself is not hashed."""
-    launch, done = manifest["launch"], manifest["completed"]
-    st = table.stat()
+def compact_provenance(launch: dict) -> dict:
+    """Launch-time facts that identify what produced a table: run, code, parameters, input, databases,
+    resources, tools. Shared by the stamp in the Parquet footer and the provenance file next to the table."""
     resources = launch.get("external_provenance", {}).get("resources", {})
     envs = launch.get("external_provenance", {}).get("envs", {})
     repo = launch.get("annotation_pipeline_repo", {})
     return {
         "schema_version": SCHEMA_VERSION,
-        "kind": "table_provenance",
-        "table": {"name": table.name, "size_bytes": st.st_size,
-                  "mtime_utc": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()},
-        "run": {"run_id": launch.get("cli_flags", {}).get("run_id"), "launched_at": launch.get("generated_at"),
-                "completed_at": done["generated_at"], "exit_code": done["exit_code"],
-                "full_manifest": "%s/%s" % (manifest_path.parent.name, manifest_path.name),
-                "full_manifest_sha256": sha256_of(manifest_path)},
+        "run_id": launch.get("cli_flags", {}).get("run_id"),
+        "launched_at": launch.get("generated_at"),
         "code": {"commit": repo.get("commit"), "dirty": repo.get("dirty"),
                  "dirty_patch_sha256": (repo.get("dirty_patch") or {}).get("sha256")},
         "parameters": {**launch.get("cli_flags", {}), "spliceai_distance": launch.get("spliceai_distance"),
@@ -542,7 +539,30 @@ def table_provenance(manifest: dict, manifest_path: Path, table: Path) -> dict:
         "tools": {**launch.get("tool_versions", {}), "nextflow_version": launch.get("nextflow_version"),
                   "envs": {n: {k: e.get(k) for k in ("binary", "fingerprint_sha256", "key_packages")}
                            for n, e in envs.items()}},
+        "full_manifest": "%s/%s" % (INFO_SUBDIR, "RUN_MANIFEST.json"),
     }
+
+
+def table_provenance(manifest: dict, manifest_path: Path, table: Path) -> dict:
+    """Provenance file for one published table: the compact launch facts plus the table's own facts and
+    the run's completion. Linked to the table by name, size and mtime and the full manifest's sha256;
+    the table itself is not hashed."""
+    launch, done = manifest["launch"], manifest["completed"]
+    st = table.stat()
+    out = {
+        "schema_version": SCHEMA_VERSION,
+        "kind": "table_provenance",
+        "table": {"name": table.name, "size_bytes": st.st_size,
+                  "mtime_utc": datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()},
+        "run": {"run_id": launch.get("cli_flags", {}).get("run_id"), "launched_at": launch.get("generated_at"),
+                "completed_at": done["generated_at"], "exit_code": done["exit_code"],
+                "full_manifest": "%s/%s" % (manifest_path.parent.name, manifest_path.name),
+                "full_manifest_sha256": sha256_of(manifest_path)},
+    }
+    stamp = compact_provenance(launch)
+    for key in ("code", "parameters", "input", "databases", "resources", "tools"):
+        out[key] = stamp[key]
+    return out
 
 
 def write_table_provenance(outdir: Path, manifest: dict, manifest_path: Path) -> list:

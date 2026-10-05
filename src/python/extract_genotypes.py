@@ -29,6 +29,8 @@ import sys
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from provenance_stamp import load_stamp, with_stamp
+
 FORMAT_FIELDS = ("GT", "GQ", "DP", "AD", "PL", "PS", "FT")
 GT_SPLIT = re.compile(r"[/|]")
 
@@ -98,7 +100,7 @@ def batch_to_table(rows):
     return pa.table({col: pa.array([r[col] for r in rows], type=types.get(col, pa.string())) for col in rows[0]})
 
 
-def run(vcf, output, bcftools, batch_rows):
+def run(vcf, output, bcftools, batch_rows, stamp=None):
     samples, declared = header_info(bcftools, vcf)
     if not samples:
         print("Genotype mode no_samples: no genotype table written")
@@ -132,11 +134,11 @@ def run(vcf, output, bcftools, batch_rows):
                         row[f.lower()] = to_str(vals[f])
                 rows.append(row)
             if len(rows) >= batch_rows:
-                writer = write_batch(writer, rows, output, fields)
+                writer = write_batch(writer, rows, output, fields, stamp)
                 total += len(rows)
                 rows = []
         if rows:
-            writer = write_batch(writer, rows, output, fields)
+            writer = write_batch(writer, rows, output, fields, stamp)
             total += len(rows)
     finally:
         if writer is not None:
@@ -146,7 +148,8 @@ def run(vcf, output, bcftools, batch_rows):
         return 1
     if writer is None:
         # Samples declared but no records: write an empty table with the schema.
-        pq.write_table(batch_to_table([empty_row(fields)]).slice(0, 0), output)
+        empty = batch_to_table([empty_row(fields)]).slice(0, 0)
+        pq.write_table(empty.replace_schema_metadata(with_stamp(empty.schema, stamp).metadata), output)
     print(f"Genotype table: {total} rows ({len(samples)} sample(s)) -> {output}")
     return 0
 
@@ -158,10 +161,10 @@ def empty_row(fields):
     return row
 
 
-def write_batch(writer, rows, output, fields):
+def write_batch(writer, rows, output, fields, stamp=None):
     table = batch_to_table(rows)
     if writer is None:
-        writer = pq.ParquetWriter(output, table.schema)
+        writer = pq.ParquetWriter(output, with_stamp(table.schema, stamp))
     writer.write_table(table.cast(writer.schema))
     return writer
 
@@ -172,8 +175,9 @@ def main():
     p.add_argument("--output", required=True, help="Output Parquet path (not written when the input has no genotypes)")
     p.add_argument("--bcftools", default="bcftools", help="bcftools executable (default: bcftools on PATH)")
     p.add_argument("--batch-rows", type=int, default=500000, help="Rows per Parquet row group (default 500000)")
+    p.add_argument("--stamp", help="Provenance stamp JSON to store in the Parquet file metadata")
     a = p.parse_args()
-    sys.exit(run(a.vcf, a.output, a.bcftools, a.batch_rows))
+    sys.exit(run(a.vcf, a.output, a.bcftools, a.batch_rows, load_stamp(a.stamp)))
 
 
 if __name__ == "__main__":

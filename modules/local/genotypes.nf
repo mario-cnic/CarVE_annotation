@@ -17,11 +17,13 @@ process EXTRACT_GENOTYPES {
     tuple val(meta), path("${meta.partition_id}.genotypes.pq"), emit: genotypes, optional: true
 
     script:
+    def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
     ${params.datasci_python} ${params.extract_genotypes_script} \\
         --vcf ${vcf} \\
         --output ${meta.partition_id}.genotypes.pq \\
-        --bcftools ${params.bcftools}
+        --bcftools ${params.bcftools} \\
+        ${stamp_flag}
     """
 
     stub:
@@ -42,12 +44,14 @@ process ADD_WIDE_GENOTYPES {
     tuple val(meta), path("${meta.partition_id}.parsed.clean.withGT.${params.output_format}"), emit: table
 
     script:
+    def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
     ${params.datasci_python} ${params.genotypes_wide_script} \\
         --table ${table} \\
         --genotypes ${genotypes} \\
         --output ${meta.partition_id}.parsed.clean.withGT.${params.output_format} \\
-        --max-samples ${params.genotype_wide_max_samples}
+        --max-samples ${params.genotype_wide_max_samples} \\
+        ${stamp_flag}
     """
 
     stub:

@@ -30,3 +30,15 @@ Written 2026-10-05T13:10:00+02:00. Prompted by: Module 3 cannot tell a stale Pan
 - Existing run folders (S223, F2005_union) were not touched and have no provenance files. S223 would have `unknown` for every database anyway (no `external_provenance` in its manifest).
 - If a run folder is resumed and a table is rewritten, the existing provenance file is kept (not overwritten) and no longer matches; delete it to regenerate.
 - Release `null` means "not determinable from the file", not "unversioned". Module 3 should treat it as unknown.
+
+## Addendum 2026-10-05T14:10:00+02:00: stamp in the Parquet footer
+
+So the identity survives a plain copy or upload of the `.pq`, every published table now also carries the stamp in its Parquet file metadata, under the key `carve.provenance` (JSON text).
+
+- `launch` writes `pipeline_info/TABLE_STAMP.json` (the compact launch facts: run id, launch time, code commit and dirty flag, parameters incl. SpliceAI/Pangolin distance, input path and hash, `databases`, resource identities with sha256, tools and env fingerprints, path of the full manifest; about 6 KB). It holds nothing from the completion stage. `run_annotate_vcf.sh` passes it as `--provenance_stamp`; without the launcher the param is null and no stamp is written (a reader sees the key absent = unknown, never valid).
+- The three writers of published tables take `--stamp` and add the key to the file metadata, keeping `ARROW:schema` and `pandas`: `tag_transcript_priority.py` (main table), `genotypes_to_wide.py` (`withGT`), `extract_genotypes.py` (genotype table, also when empty). New helper `src/python/provenance_stamp.py`. Nothing is rewritten after the fact. An unreadable `--stamp` file stops the writer. The legacy per-gene `VCF_TO_TABLE` publication is not stamped.
+- Read it with `pq.ParquetFile(path).metadata.metadata[b"carve.provenance"]` or DuckDB `parquet_kv_metadata('file.pq')`.
+
+Checks (local): `tests/python/test_provenance_stamp.py` (10 tests: key present, existing keys kept, data identical to `df.to_parquet`, empty genotype table, wide table, stamp absent without the flag, unreadable stamp stops the writer, launch writes the stamp file); real Nextflow renders of the three processes with and without `--provenance_stamp` (flag present only when set; every rendered script passes `bash -n`); `tag_transcript_priority.py` on the real `panel8_trio` table (1015 rows x 595 columns) with a stamp from a real `launch`: data identical to the input, footer keys `ARROW:schema`, `pandas`, `carve.provenance` (3 KB there).
+
+Not verified: a cluster run; the wide and genotype writers on a full-size table; the extra time of the changed main-table writer (it now builds the Arrow table and calls `pq.write_table`, which is what `to_parquet` does internally, but the 22 M row table was not run). With `-resume`, a cached table keeps the stamp it was written with: the stamp path is the same on every launch, so a resumed run whose databases changed would keep a stale stamp for cached steps.

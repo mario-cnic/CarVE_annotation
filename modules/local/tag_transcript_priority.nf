@@ -23,11 +23,13 @@ process TAG_TRANSCRIPT_PRIORITY {
     tuple val(meta), path("${meta.partition_id}.parsed.clean.${params.output_format}"), emit: table
 
     script:
+    def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
     ${params.datasci_python} ${params.gene_transcript_priority_script} \\
         --input ${table} \\
         --output ${meta.partition_id}.parsed.clean.${params.output_format} \\
-        --gene-transcript-mapping ${projectDir}/resources/gene_transcript_mapping.txt
+        --gene-transcript-mapping ${projectDir}/resources/gene_transcript_mapping.txt \\
+        ${stamp_flag}
     """
 
     // Real run needs the same VEP-annotated-VCF dependency chain VCF_TO_TABLE does; verified for

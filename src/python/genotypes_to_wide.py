@@ -18,6 +18,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from provenance_stamp import load_stamp, with_stamp
+
 GT_CATEGORY = {
     "het": "HET", "alt_plus_other_allele": "HET", "hom_alt": "HOMALT", "haploid_alt": "HOMALT",
     "hom_ref": "HOMREF", "haploid_ref": "HOMREF",
@@ -34,7 +36,7 @@ def wide_genotypes(long_df):
     return wide
 
 
-def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000):
+def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000, stamp=None):
     if not table_path.endswith((".pq", ".parquet")) or not output_path.endswith((".pq", ".parquet")):
         print("ERROR: the wide view supports Parquet tables only (--output_format pq)", file=sys.stderr)
         return 1
@@ -62,7 +64,7 @@ def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000)
             joined[gt_cols] = joined[gt_cols].fillna("MISSING")
             table = pa.Table.from_pandas(joined, preserve_index=False)
             if writer is None:
-                writer = pq.ParquetWriter(output_path, table.schema)
+                writer = pq.ParquetWriter(output_path, with_stamp(table.schema, stamp))
             writer.write_table(table.cast(writer.schema))
             n_rows += len(joined)
     finally:
@@ -85,10 +87,11 @@ def main():
     p.add_argument("--genotypes", required=True, help="Long genotype table (.pq) from extract_genotypes.py")
     p.add_argument("--output", required=True, help="Output table path (must differ from --table)")
     p.add_argument("--max-samples", type=int, default=10, help="Fail above this many samples (default 10)")
+    p.add_argument("--stamp", help="Provenance stamp JSON to store in the Parquet file metadata")
     a = p.parse_args()
     if a.output == a.table:
         sys.exit("error: --output must differ from --table")
-    sys.exit(run(a.table, a.genotypes, a.output, a.max_samples))
+    sys.exit(run(a.table, a.genotypes, a.output, a.max_samples, stamp=load_stamp(a.stamp)))
 
 
 if __name__ == "__main__":
