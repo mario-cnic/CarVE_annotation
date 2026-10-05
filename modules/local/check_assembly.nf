@@ -13,7 +13,7 @@ process CHECK_INPUT_ASSEMBLY {
     // A failed check is a property of the input, not a transient error; retrying can't fix it.
     errorStrategy 'terminate'
     // Only the report; the VCF passes through unchanged and must not be copied.
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy', pattern: '*.assembly_check.tsv'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.reports}", mode: 'copy', pattern: '*.assembly_check.tsv'
 
     input:
     tuple val(meta), path(vcf), path(tbi)

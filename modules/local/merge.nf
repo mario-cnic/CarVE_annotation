@@ -30,7 +30,7 @@
 process MERGE_ANNOTATIONS {
     tag "${meta.partition_id}"
     label 'process_single'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.annotation}", mode: 'copy'
 
     input:
     tuple val(meta), path(vep_vcf), path(vep_tbi), path(bp_vcf), path(bp_tbi), path(pango_vcf), path(pango_tbi), path(sai_vcf), path(sai_tbi), path(spip_vcf), path(spip_tbi)

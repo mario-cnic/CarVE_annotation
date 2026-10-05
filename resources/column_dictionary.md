@@ -125,7 +125,7 @@ Existing score columns keep their names but now hold only the value of the row's
 
 ---
 
-## 4. Genotype table `<run_id>.genotypes.pq` (2026-10-02, `src/python/extract_genotypes.py`)
+## 4. Genotype table `genotypes/<run_id>.genotypes.pq` (2026-10-02, `src/python/extract_genotypes.py`)
 
 One row per variant x sample for every record of the annotated VCF, including homozygous-reference and no-call genotypes. Join to the main table on `Locus` (`CHROM:POS-REF-ALT`). A variant x sample pair that is not in the table means no evidence for that sample; it never means homozygous reference. Missing FORMAT values are null, not 0. Not written when the input has no sample columns or no `GT` field (see `genotype_mode` in `<run_id>.assembly_check.tsv`).
 

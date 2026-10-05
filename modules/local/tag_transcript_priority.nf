@@ -10,7 +10,7 @@
 process TAG_TRANSCRIPT_PRIORITY {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.tables}", mode: 'copy'
 
     // Input is staged under a name distinct from the output's, on purpose: both follow the same
     // "${meta.partition_id}.parsed.clean.${params.output_format}" convention (this process's

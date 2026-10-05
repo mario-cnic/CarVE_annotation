@@ -56,7 +56,7 @@ process SPLICEAI_ANNOTATE {
 process SPLICEAI_CONCAT {
     tag "${meta.partition_id}"
     label 'process_single'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.predictors}", mode: 'copy'
 
     input:
     tuple val(meta), path(annotated_chunks), path(orig_vcf), path(orig_tbi)

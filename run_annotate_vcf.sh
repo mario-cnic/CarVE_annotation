@@ -109,14 +109,16 @@ for p in python_spliceai pangolin_python spip_rscript bcftools vcf_parser_python
 done
 
 OUTDIR="$REPO_ROOT/nf_work/annotation_out/$RUN_ID"
+INFO_DIR="$OUTDIR/pipeline_info"
+NF_LOG="$INFO_DIR/nextflow_$(date +%Y-%m-%d_%H-%M-%S).log"
 
 RESUME_FLAG=()
 [[ $RESUME -eq 1 ]] && RESUME_FLAG=(-resume)
 
-echo "[run_annotate_vcf.sh] writing launch manifest to $OUTDIR/RUN_MANIFEST.json"
+echo "[run_annotate_vcf.sh] writing launch manifest to $INFO_DIR/RUN_MANIFEST.json"
 python3 "$MANIFEST_PY" launch \
 	--outdir "$OUTDIR" \
-	--command-line "$NEXTFLOW_BIN run annotate_vcf.nf ${FORWARD_ARGS[*]}" \
+	--command-line "$NEXTFLOW_BIN -log $NF_LOG run annotate_vcf.nf ${FORWARD_ARGS[*]}" \
 	--nextflow-main "$MAIN_NF" \
 	--nextflow-binary "$NEXTFLOW_BIN" \
 	--config "$CONFIG" \
@@ -136,18 +138,25 @@ python3 "$MANIFEST_PY" launch \
 	exit 1
 }
 
-echo "[run_annotate_vcf.sh] launching: $NEXTFLOW_BIN run annotate_vcf.nf ${FORWARD_ARGS[*]}"
-cd "$REPO_ROOT" && "$NEXTFLOW_BIN" run annotate_vcf.nf "${FORWARD_ARGS[@]}"
+echo "[run_annotate_vcf.sh] launching: $NEXTFLOW_BIN -log $NF_LOG run annotate_vcf.nf ${FORWARD_ARGS[*]}"
+cd "$REPO_ROOT" && "$NEXTFLOW_BIN" -log "$NF_LOG" run annotate_vcf.nf "${FORWARD_ARGS[@]}"
 EXIT_CODE=$?
 
 echo "[run_annotate_vcf.sh] nextflow exited $EXIT_CODE — writing completion manifest"
 python3 "$MANIFEST_PY" completed \
 	--outdir "$OUTDIR" \
 	--exit-code "$EXIT_CODE" \
-	--nextflow-log "$REPO_ROOT/.nextflow.log"
+	--nextflow-log "$NF_LOG"
 
-# The manifest (and any RUN_DIRTY patch) stays in the run folder next to the outputs; run records are
-# not added to this repository.
-echo "[run_annotate_vcf.sh] done. Manifest: $OUTDIR/RUN_MANIFEST.json"
+# Run QC report (record counts, time and memory per process, failed attempts) into <run>/reports/.
+# A failure here is reported but does not change the run's exit code.
+DATASCI_PY="$(resolve_param datasci_python)"
+"${DATASCI_PY:-python3}" "$REPO_ROOT/src/python/build_run_qc_report.py" \
+	--run-dir "$OUTDIR" --nextflow-log "$NF_LOG" --bcftools "$BCFTOOLS" ||
+	echo "warning: run QC report failed; the run itself is unaffected" >&2
+
+# The manifest, any RUN_DIRTY patch and the Nextflow log/trace/timeline/report stay in the run's
+# pipeline_info folder; run records are not added to this repository.
+echo "[run_annotate_vcf.sh] done. Manifest: $INFO_DIR/RUN_MANIFEST.json"
 
 exit $EXIT_CODE

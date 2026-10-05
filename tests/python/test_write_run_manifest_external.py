@@ -170,7 +170,7 @@ def test_launch_writes_external_provenance(tmp_path, monkeypatch):
         env=[("pangolin_python", str(py))],
     )
     wrm.cmd_launch(args)
-    ext = json.loads((out / "RUN_MANIFEST.json").read_text())["launch"]["external_provenance"]
+    ext = json.loads((out / "pipeline_info" / "RUN_MANIFEST.json").read_text())["launch"]["external_provenance"]
     assert ext["resources"]["pangolin_db"]["sha256"] == hashlib.sha256(b"db-bytes").hexdigest()
     assert ext["code_repos"]["shared_utils"]["commit"] == git(repo, "rev-parse", "HEAD").strip()
     assert ext["envs"]["pangolin_python"]["key_packages"]["pangolin"] == "pangolin-1.0.2-py_0"
@@ -188,5 +188,5 @@ def test_launch_without_external_args_still_works(tmp_path, monkeypatch):
         vep_sif=None, vep_cache_version=None, spliceai_distance=None, pangolin_distance=None,
     )
     wrm.cmd_launch(args)
-    ext = json.loads((tmp_path / "out" / "RUN_MANIFEST.json").read_text())["launch"]["external_provenance"]
+    ext = json.loads((tmp_path / "out" / "pipeline_info" / "RUN_MANIFEST.json").read_text())["launch"]["external_provenance"]
     assert ext == {"resources": {}, "code_repos": {}, "envs": {}}

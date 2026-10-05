@@ -23,7 +23,7 @@ process VEP_ANNOTATE {
     tag "${meta.partition_id}"
     label 'process_medium'
     container "${params.vep_sif}"
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.predictors}", mode: 'copy',
         saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:

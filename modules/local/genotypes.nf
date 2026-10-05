@@ -8,7 +8,7 @@
 process EXTRACT_GENOTYPES {
     tag "${meta.partition_id}"
     label 'process_low'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.genotypes}", mode: 'copy'
 
     input:
     tuple val(meta), path(vcf), path(tbi)
@@ -33,7 +33,7 @@ process EXTRACT_GENOTYPES {
 process ADD_WIDE_GENOTYPES {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.tables}", mode: 'copy'
 
     input:
     tuple val(meta), path(table, stageAs: "main_table_input.${params.output_format}"), path(genotypes)

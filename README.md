@@ -187,22 +187,27 @@ Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A mi
 
 ### Outputs
 
-Everything is published to `nf_work/annotation_out/<run_id>/`:
+Everything is published to `nf_work/annotation_out/<run_id>/`, in sub-folders (paths below are relative to it):
 
 | File | Content |
 | --- | --- |
-| `<run_id>.assembly_check.tsv` | Pre-flight input check result: contig-length and REF-allele comparison against `params.fasta`, record normalisation counts, genotype mode (`no_samples`, `samples_without_GT`, `single_sample`, `multi_sample`), sample names, declared FORMAT fields, plus any warnings |
-| `RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
-| `RUN_DIRTY.<timestamp>.patch` | Only for a launch from a dirty tree: the uncommitted changes. Rebuild the launch-time code with `git checkout <commit> && git apply <patch>` |
-| `<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
-| `<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
-| `<run_id>.parsed.clean.pq` | **Final table.** One row per variant × VEP transcript. Every transcript is kept and tagged with `TRANSCRIPT_PRIORITY_TIER`: 1 = curated 217-panel transcript, 2 = MANE Select, 3 = other |
-| `<run_id>.genotypes.pq` | Long genotype table, one row per variant × sample (every pair, incl. homozygous-reference and no-call), joinable to the final table on `Locus`. Written only when the input has samples with a `GT` field. A pair that is absent means no evidence, not homozygous reference. Columns in `resources/column_dictionary.md` §4 |
-| `<run_id>.parsed.clean.withGT.pq` | Only with `--genotype_wide`: the final table with `GT_<sample>` columns added (never replaces the final table) |
+| `reports/<run_id>.assembly_check.tsv` | Pre-flight input check result: contig-length and REF-allele comparison against `params.fasta`, record normalisation counts, genotype mode (`no_samples`, `samples_without_GT`, `single_sample`, `multi_sample`), sample names, declared FORMAT fields, plus any warnings |
+| `pipeline_info/RUN_MANIFEST.json` | Launch/completion provenance: command line, git commit and dirty-tree status, resolved binaries, input/resource hashes, tool versions, exit code |
+| `pipeline_info/RUN_DIRTY.<timestamp>.patch` | Only for a launch from a dirty tree: the uncommitted changes. Rebuild the launch-time code with `git checkout <commit> && git apply <patch>` |
+| `predictors/<run_id>.annVEP.vcf.gz`, `.annBranchpoint.vcf.gz`, `.annSpliceAI.vcf.gz`, `.annPangolin.vcf.gz`, `.annSPiP.vcf.gz` | Per-predictor annotated VCFs (+ `.tbi`) |
+| `annotation/<run_id>.annotated.vcf.gz` | All predictors merged into one VCF (+ `.tbi`) |
+| `tables/<run_id>.parsed.clean.pq` | **Final table.** One row per variant × VEP transcript. Every transcript is kept and tagged with `TRANSCRIPT_PRIORITY_TIER`: 1 = curated 217-panel transcript, 2 = MANE Select, 3 = other |
+| `genotypes/<run_id>.genotypes.pq` | Long genotype table, one row per variant × sample (every pair, incl. homozygous-reference and no-call), joinable to the final table on `Locus`. Written only when the input has samples with a `GT` field. A pair that is absent means no evidence, not homozygous reference. Columns in `resources/column_dictionary.md` §4 |
+| `tables/<run_id>.parsed.clean.withGT.pq` | Only with `--genotype_wide`: the final table with `GT_<sample>` columns added (never replaces the final table) |
+
+| `pipeline_info/execution_trace_<ts>.txt`, `execution_timeline_<ts>.html`, `execution_report_<ts>.html`, `nextflow_<ts>.log` | Nextflow's own per-task trace (duration, requested memory, peak RSS, node), timeline, report and log, one timestamped set per launch. The log is written by `run_annotate_vcf.sh`; a direct `nextflow run` leaves it in the repo's `.nextflow.log` |
+| `reports/<run_id>.run_qc.<timestamp>.html` (+ `.json`, `.processes.tsv`) | Run QC report written by `src/python/build_run_qc_report.py` (the wrapper runs it after Nextflow ends; it never overwrites an earlier report): run summary, record counts per stage (input, each predictor VCF, merged VCF, table rows, distinct `Locus`, genotype rows), predictor `*_status` and `TRANSCRIPT_PRIORITY_TIER` counts, time / memory / nodes per process, failed or retried attempts with the last error line, provenance. A figure that cannot be determined is shown as `unavailable`, never as 0 |
+
+Runs made before 2026-10-05 have every file directly in `<run_id>/`; the manifest reader, the QC script and `write_run_manifest.py` accept both layouts. The QC script also runs by hand on any run folder, with `--nextflow-log` when there is no trace: `python src/python/build_run_qc_report.py --run-dir nf_work/annotation_out/<run_id> [--nextflow-log .nextflow.log]`. Do not `-resume` a run of the flat layout with the new code: cached outputs are re-published into the sub-folders, so every large file would exist twice.
 
 For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
 
-The manifest (and any dirty-tree patch) stays inside the run folder, so it moves with the run if the folder is relocated. The wrapper does not add run records to this repository.
+The manifest (and any dirty-tree patch) stays inside the run folder (`pipeline_info/`), so it moves with the run if the folder is relocated. The wrapper does not add run records to this repository.
 
 ### Known limitations
 

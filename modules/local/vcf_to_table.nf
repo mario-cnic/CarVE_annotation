@@ -41,7 +41,7 @@
 process VCF_TO_TABLE {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy',
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.tables}", mode: 'copy',
         saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:

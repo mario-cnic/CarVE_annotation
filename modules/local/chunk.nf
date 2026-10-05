@@ -47,7 +47,7 @@ process CHUNK_VCF {
 process CONCAT_CHUNKS {
     tag "${meta.partition_id}/${suffix}"
     label 'process_single'
-    publishDir "${params.outdir}/${meta.partition_id}", mode: 'copy'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.predictors}", mode: 'copy'
 
     // Real bug caught in review: every per-chunk ANNOTATE output is named
     // "${meta.partition_id}.${suffix}.vcf.gz" (same convention the legacy per-gene path's

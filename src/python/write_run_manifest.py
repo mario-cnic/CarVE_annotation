@@ -13,7 +13,8 @@ Usage (called by run_annotate_vcf.sh, not normally invoked directly):
     write_run_manifest.py completed --outdir DIR --exit-code N \
         --nextflow-log PATH
 
-`launch` creates <outdir>/RUN_MANIFEST.json; `completed` updates the same file in
+`--outdir` is the run folder. `launch` creates <outdir>/pipeline_info/RUN_MANIFEST.json (runs made
+before the sub-folder layout have it directly in <outdir>); `completed` updates the same file in
 place (fails loudly if the launch record is missing, rather than silently
 creating a partial one).
 """
@@ -36,6 +37,12 @@ from pathlib import Path
 
 SCHEMA_VERSION = 1
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent  # annotation_pipeline_new/
+INFO_SUBDIR, REPORTS_SUBDIR, GENOTYPES_SUBDIR = "pipeline_info", "reports", "genotypes"
+
+
+def run_files(outdir: Path, subdir: str, pattern: str) -> list[Path]:
+    """Files matching `pattern` in <outdir>/<subdir>, else in <outdir> itself (runs made before the sub-folder layout)."""
+    return sorted((outdir / subdir).glob(pattern)) or sorted(outdir.glob(pattern))
 
 
 def sh(cmd: list[str], cwd: Path | None = None) -> str | None:
@@ -254,11 +261,13 @@ def env_identity(bin_path: str) -> dict:
 
 def cmd_launch(args):
     outdir = Path(args.outdir)
-    outdir.mkdir(parents=True, exist_ok=True)
-    manifest_path = outdir / "RUN_MANIFEST.json"
-    if manifest_path.exists():
+    info_dir = outdir / INFO_SUBDIR
+    info_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = info_dir / "RUN_MANIFEST.json"
+    previous = [p for p in (manifest_path, outdir / "RUN_MANIFEST.json") if p.exists()]
+    if previous:
         print(
-            f"warning: {manifest_path} already exists — this outdir was used before "
+            f"warning: {previous[0]} already exists — this outdir was used before "
             "(expected on a -resume of the same run_id; if this is meant to be a fresh "
             "run, use a different --run_id instead of overwriting history)",
             file=sys.stderr,
@@ -276,9 +285,9 @@ def cmd_launch(args):
     if repo_state["dirty"]:
         try:
             repo_state["dirty_patch"] = capture_dirty_tree(
-                REPO_ROOT, outdir, launched_at.strftime("%Y%m%dT%H%M%SZ"))
+                REPO_ROOT, info_dir, launched_at.strftime("%Y%m%dT%H%M%SZ"))
             print(f"warning: dirty working tree; launch-time changes saved to "
-                  f"{outdir / repo_state['dirty_patch']['path']}", file=sys.stderr)
+                  f"{info_dir / repo_state['dirty_patch']['path']}", file=sys.stderr)
         except Exception as e:
             sys.exit(f"error: working tree is dirty and the dirty-tree patch could not be written ({e}); "
                      "commit or stash first so the run's code can be reconstructed")
@@ -346,7 +355,7 @@ def cmd_launch(args):
 
 def read_input_check(outdir: Path) -> dict | None:
     """Genotype mode, samples and normalisation counts from the published *.assembly_check.tsv."""
-    reports = sorted(outdir.glob("*.assembly_check.tsv"))
+    reports = run_files(outdir, REPORTS_SUBDIR, "*.assembly_check.tsv")
     if not reports:
         return None
     keep = ("status", "genotype_mode", "n_samples", "sample_names", "format_fields_declared", "records_scanned",
@@ -362,7 +371,8 @@ def read_input_check(outdir: Path) -> dict | None:
 
 def cmd_completed(args):
     outdir = Path(args.outdir)
-    manifest_path = outdir / "RUN_MANIFEST.json"
+    manifest_path = next((p for p in (outdir / INFO_SUBDIR / "RUN_MANIFEST.json", outdir / "RUN_MANIFEST.json")
+                          if p.exists()), outdir / INFO_SUBDIR / "RUN_MANIFEST.json")
     if not manifest_path.exists():
         sys.exit(
             f"error: {manifest_path} not found — 'launch' stage must run first "
@@ -382,7 +392,7 @@ def cmd_completed(args):
         "exit_code": args.exit_code,
         "workflow_stats": workflow_stats,
         "input_check": read_input_check(outdir),
-        "genotype_outputs": {p.name: resource_identity(str(p)) for p in sorted(outdir.glob("*.genotypes.pq"))},
+        "genotype_outputs": {p.name: resource_identity(str(p)) for p in run_files(outdir, GENOTYPES_SUBDIR, "*.genotypes.pq")},
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n")
     print(f"updated {manifest_path}")
