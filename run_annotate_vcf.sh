@@ -146,17 +146,8 @@ python3 "$MANIFEST_PY" completed \
 	--exit-code "$EXIT_CODE" \
 	--nextflow-log "$REPO_ROOT/.nextflow.log"
 
-# Rescue the manifest past nf_work/'s default-deny .gitignore. `git add -f` is used (not a
-# .gitignore negation rule) because git cannot re-include a file whose PARENT directory is itself
-# excluded — same rationale, same fix, as sarek_pipeline/run_sarek.sh's identical comment.
-# A dirty launch also leaves RUN_DIRTY.<timestamp>.patch next to the manifest (MISC-13); stage it
-# with the manifest so the run's exact code travels with its provenance record.
-echo "[run_annotate_vcf.sh] staging the manifest (and any dirty-tree patch) with 'git add -f' (not committing)"
-shopt -s nullglob
-git -C "$REPO_ROOT" add -f "$OUTDIR/RUN_MANIFEST.json" "$OUTDIR"/RUN_DIRTY.*.patch 2>/dev/null
-shopt -u nullglob
-
-echo "[run_annotate_vcf.sh] done. Review with 'git -C $REPO_ROOT status', then commit yourself:"
-echo "  git -C $REPO_ROOT status"
+# The manifest (and any RUN_DIRTY patch) stays in the run folder next to the outputs; run records are
+# not added to this repository.
+echo "[run_annotate_vcf.sh] done. Manifest: $OUTDIR/RUN_MANIFEST.json"
 
 exit $EXIT_CODE

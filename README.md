@@ -202,7 +202,7 @@ Everything is published to `nf_work/annotation_out/<run_id>/`:
 
 For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
 
-The wrapper stages `RUN_MANIFEST.json` (and any dirty-tree patch) with `git add -f` but does not commit it. The manifest stays inside the run folder, so it moves with the run if the folder is relocated.
+The manifest (and any dirty-tree patch) stays inside the run folder, so it moves with the run if the folder is relocated. The wrapper does not add run records to this repository.
 
 ### Known limitations
 
