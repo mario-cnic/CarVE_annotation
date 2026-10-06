@@ -115,3 +115,7 @@ Module 2 now also writes the provenance into the file metadata of every publishe
 - Absent key = unknown, not valid: runs made before this change (S223, F2005_union), runs started without `run_annotate_vcf.sh`, and the legacy per-gene path.
 - The key is plain text; anyone can copy it onto another file. It protects against mistakes, not tampering.
 - Order of trust for Module 3: footer stamp (works for uploads and by-path), else the sidecar next to the table (by-path only), else `ENSMUSG` heuristic on the raw Pangolin columns (stale flag only).
+
+## Addendum 2026-10-05T16:05:00+02:00: scope is the 3-sample, 6 GB family table, not 100 WGS
+
+Mario, 2026-10-05: the near-term target is tables like `F2005_union` (2 WES + 1 WGS, 6 GB), already waiting in Module 2 for filtering and prioritisation. Measurements and plan: `20261005_family_table_candidate_funnel.md`. Short version: DuckDB queries the 6 GB file in place in 0.1-5 s at about 1 GB RAM; a candidate selection in SQL gives 5,402 rows (1,020 loci) from 23.7 M rows (illustrative thresholds); only those rows need Module 3's pandas scoring. Replaces the 100-WGS framing above for planning; the 100-WGS items stay as later design targets.

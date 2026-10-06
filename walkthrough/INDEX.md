@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-05 | [20261005_family_table_candidate_funnel.md](./20261005_family_table_candidate_funnel.md) | Working with the 6 GB family table (2 WES + 1 WGS): measured funnel and plan |
 | 2026-10-05 | [20261005_manifest_databases_and_table_provenance.md](./20261005_manifest_databases_and_table_provenance.md) | Manifest: database releases, tool versions, and a provenance file next to each table |
 | 2026-10-05 | [20261005_clinvar_custom_annotation.md](./20261005_clinvar_custom_annotation.md) | ClinVar custom annotation (`ClinVarVCF*`) |
 | 2026-10-05 | [20261005_module3_handoff_filtering_and_ingest.md](./20261005_module3_handoff_filtering_and_ingest.md) | Module 3 handoff: filtering strategy and ingest of WGS-size tables |
