@@ -399,6 +399,22 @@ def remove_columns(data: pd.DataFrame, columns: str):
     return data
 
 
+def check_coordinate_order(data: pd.DataFrame, chrom_col: str = "CHROM", pos_col: str = "POS") -> dict:
+    """Whether the rows are in coordinate order: each contig is one contiguous block and POS never
+    decreases inside a block. The order of the contigs themselves is the input's."""
+    if data.empty or chrom_col not in data.columns or pos_col not in data.columns:
+        return {"checked": False, "ordered": None, "contigs": 0, "contig_blocks": 0, "position_decreases": 0}
+    codes, uniques = pd.factorize(data[chrom_col].astype(str))
+    pos = pd.to_numeric(data[pos_col], errors="coerce").to_numpy()
+    new_block = np.empty(len(codes), dtype=bool)
+    new_block[0] = True
+    new_block[1:] = codes[1:] != codes[:-1]
+    blocks = int(new_block.sum())
+    decreases = int(((pos[1:] < pos[:-1]) & ~new_block[1:]).sum())
+    return {"checked": True, "ordered": blocks == len(uniques) and decreases == 0, "contigs": len(uniques),
+            "contig_blocks": blocks, "position_decreases": decreases}
+
+
 def sort_by(
     data: pd.DataFrame,
     by: dict[str, bool],

@@ -68,3 +68,7 @@ Later changes (same day, `f805585`, `a0c1f4f`, `05a470a`):
   (each only when the corresponding predictor columns are present).
 
 `git diff d5a915c -- src/python/parsing` shows the exact delta. The shared and Module 3 copies are unchanged.
+
+Row order (2026-10-06): `filter_variants.py` no longer sorts the table (it sorted by `NEW_IMPACT`, `SPiP_prediction`, frequency); rows keep the input's
+coordinate order, checked with `modules/io_qc.py` `check_coordinate_order` (a warning is logged when not ordered). `sort_by` stays in `io_qc.py`, unused.
+The sha256 list above describes the 2026-10-01 copy and is out of date for these two files.

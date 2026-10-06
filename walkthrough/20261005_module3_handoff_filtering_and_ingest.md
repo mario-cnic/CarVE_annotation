@@ -119,3 +119,7 @@ Module 2 now also writes the provenance into the file metadata of every publishe
 ## Addendum 2026-10-05T16:05:00+02:00: scope is the 3-sample, 6 GB family table, not 100 WGS
 
 Mario, 2026-10-05: the near-term target is tables like `F2005_union` (2 WES + 1 WGS, 6 GB), already waiting in Module 2 for filtering and prioritisation. Measurements and plan: `20261005_family_table_candidate_funnel.md`. Short version: DuckDB queries the 6 GB file in place in 0.1-5 s at about 1 GB RAM; a candidate selection in SQL gives 5,402 rows (1,020 loci) from 23.7 M rows (illustrative thresholds); only those rows need Module 3's pandas scoring. Replaces the 100-WGS framing above for planning; the 100-WGS items stay as later design targets.
+
+## Addendum 2026-10-06T09:25:00+02:00: new Module 2 tables keep coordinate order (no impact sort)
+
+Mario, 2026-10-06: the legacy sort by `NEW_IMPACT` is gone (`20261006_table_row_order.md`). Tables from runs after this change are in the input VCF's coordinate order (contig blocks, `POS` ascending), so the old clustering of `HIGH`/`MODERATE` rows in the first row group no longer exists: do not use a `NEW_IMPACT` predicate as a row-group shortcut, fetch only the needed columns instead. Existing tables (S223, F2005_union) keep the old order. Needs a `DEC-` record (row order is a contract).

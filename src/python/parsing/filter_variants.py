@@ -13,7 +13,7 @@ try:
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
         build_cDNA_MANE, build_locus, build_qc_status, filter_variant_quality,
         filter_genotype_quality, select_columns, select_samples, merge_sample_cols,
-        remove_columns, sort_by, order_columns, save_data,
+        remove_columns, check_coordinate_order, order_columns, save_data,
     )
     from .modules.splicing import (
         SPLICING_COLUMNS, NEW_SPIP_COLUMNS, NEW_PANGOLIN_COLUMNS, NEW_BRANCHPOINT_COLUMNS,
@@ -50,7 +50,7 @@ except ImportError:
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
         build_cDNA_MANE, build_locus, build_qc_status, filter_variant_quality,
         filter_genotype_quality, select_columns, select_samples, merge_sample_cols,
-        remove_columns, sort_by, order_columns, save_data,
+        remove_columns, check_coordinate_order, order_columns, save_data,
     )
     from modules.splicing import (
         SPLICING_COLUMNS, NEW_SPIP_COLUMNS, NEW_PANGOLIN_COLUMNS, NEW_BRANCHPOINT_COLUMNS,
@@ -417,6 +417,7 @@ def main(args: list[str] | None):
         logger.info("Merging sample columns")
         first_cols += sample_cols
 
+    coordinate_order = check_coordinate_order(data)
     data = remove_columns(data, columns=["CHROM", "POS", "REF", "ALT"])
 
     if pedigree is not None and isinstance(pedigree, (dict, pd.DataFrame)):
@@ -426,11 +427,13 @@ def main(args: list[str] | None):
 
     data = order_columns(data, columns=first_cols)
 
-    sorting_dict = {"NEW_IMPACT": True, "SPiP_prediction": False, args.freq_col: True}
-    if args.classification:
-        sorting_dict["Variant_rank"] = True
-
-    data = sort_by(data, by=sorting_dict)
+    # Rows stay in the input's coordinate order; ranking is left to the consumer.
+    if coordinate_order["ordered"]:
+        logger.info(f"Rows are in coordinate order ({coordinate_order['contigs']} contigs)")
+    else:
+        logger.warning(f"Rows are not in coordinate order (checked={coordinate_order['checked']}, "
+                       f"contig blocks={coordinate_order['contig_blocks']} for {coordinate_order['contigs']} contigs, "
+                       f"position decreases={coordinate_order['position_decreases']})")
     save_data(data, args.output, args.log_file)
 
 
