@@ -80,7 +80,11 @@ Completed and obsolete items (Phases 1-4, the `main.sh` provenance manifest and 
 ---
 
 ## 🧬 Phase 5: Future Predictor Integrations
-- [ ] **NMD escape: cluster check, then PVS1** (plugin + `NMD_STATUS` added 2026-10-08T16:24:42+02:00, [walkthrough](walkthrough/20261008_nmd_plugin.md)). On the next fixture run, check that VEP 111 loads `NMD.pm` and that `NMD_STATUS` is filled for stop_gained/frameshift rows. Then decide (Mario) the PVS1 wiring per the ClinGen tree: `escape_predicted` downgrades PVS1; `not_evaluated` keeps today's rule. Known limits: variant position not PTC position; first-100-coding-bases rule.
+- [ ] **NMD escape: cluster check, then PVS1** (plugin + `NMD_STATUS` added 2026-10-08T16:24:42+02:00, [walkthrough](walkthrough/20261008_nmd_plugin.md)). On the next fixture run, check that VEP 111 loads `NMD.pm` and that `NMD_STATUS` is filled for stop_gained/frameshift rows. Then decide (Mario) the PVS1 wiring per the ClinGen tree: `escape_predicted` downgrades PVS1; `not_evaluated` keeps today's rule. Fix before wiring (2026-10-08):
+  - [ ] **PTC position for frameshifts**: the plugin judges the variant position; compute the new stop position from HGVSp (`fsTer<n>`) and the transcript's exon structure, then apply the last-exon / last-50-nt rules to that position. Stop-gained rows are already correct.
+  - [ ] **Separate the start-proximal rule**: the plugin's first-100-coding-bases rule is not NMD escape in the ClinGen tree (start-proximal truncations go through the alternative-start-codon branch). Recompute which rule fired from `CDS_position` and the exon structure; only last-exon / penultimate-50-nt / intronless escape may downgrade PVS1.
+  - [ ] **Canonical splice rows**: `not_evaluated` by design; NMD depends on the splicing outcome (exon skip in/out of frame, intron retention). Candidate later: SpliceAI positions or SAI-10k-calc.
+  - Not planned, accept as limits: ~50 nt window approximate (51–52 bp in the plugin); long-exon (>400 nt) reduced NMD not modelled; per-transcript result (read the MANE Select row); prediction only, no RNA evidence.
 - [ ] **LOEUF next to pLI** (proposed 2026-10-08): `LOEUF.pm` is in the plugins folder; needs the gnomAD v4.1 constraint table.
 - [ ] **BP7 conservation** (proposed 2026-10-08): `is_bp7` ignores phyloP, which is already in the table.
 - [ ] **SAI-10k-calc Integration (SpliceAI-10k calculator, Canson et al. 2023, Bioinformatics btad179)**
