@@ -8,7 +8,7 @@ from .io_qc import _safe_numeric_series, _safe_string_series, build_qc_status
 from .splicing import _extract_spliceai_details, NEW_SPIP_COLUMNS
 from .disease_hpo import apply_disease_phenotype_curation, HPO_GENE_PANELS
 from .acmg import build_acmg_criteria, _extract_clinvar_status
-from .population import annotate_population_af, resolve_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
+from .population import annotate_population_af, resolve_population_af, rarity_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 
 def build_priority_tier(
@@ -30,6 +30,8 @@ def build_priority_tier(
     data = apply_disease_phenotype_curation(data, disease_phenotype)
 
     af_series = annotate_population_af(data, freq_col)
+    af_absent = data["POPULATION_AF_STATUS"].eq(ABSENT)
+    rarity = rarity_af(af_series, data["POPULATION_AF_STATUS"])
 
     conseq = _safe_string_series(data, "Consequence").str.lower()
     impact = _safe_string_series(data, "NEW_IMPACT").str.upper()
@@ -123,9 +125,9 @@ def build_priority_tier(
     bs1_thresh = _safe_numeric_series(data, "FAF_POPMAX_BS1") if "FAF_POPMAX_BS1" in data.columns else pd.Series(0.0001, index=data.index)
     mcaf_thresh = bs1_thresh / 2.5
 
-    is_ba1 = af_series >= ba1_thresh
-    is_bs1 = (~is_ba1) & (af_series >= bs1_thresh)
-    is_pm2 = (~is_ba1) & (~is_bs1) & (af_series < mcaf_thresh)
+    is_ba1 = rarity >= ba1_thresh
+    is_bs1 = (~is_ba1) & (rarity >= bs1_thresh)
+    is_pm2 = (~is_ba1) & (~is_bs1) & (rarity < mcaf_thresh)
 
     af_score = np.where(is_ba1, -100.0, np.where(is_bs1, -25.0, np.where(is_pm2, 15.0, 0.0)))
     score += af_score
@@ -273,7 +275,8 @@ def build_priority_tier(
         elif is_clinvar_benign.iloc[i]: parts.append("ClinVar Benign (-40.0)")
 
         af_v = af_series.iloc[i]
-        if pd.isna(af_v): parts.append("Population AF unknown (no frequency evidence)")
+        if af_absent.iloc[i]: parts.append("PM2_Supporting absent from gnomAD v4 (+15.0)")
+        elif pd.isna(af_v): parts.append("Population AF unknown (no frequency evidence)")
         elif is_ba1.iloc[i]: parts.append(f"BA1 Exceeds FAF_PopMax Threshold (Terminal Tier 4)")
         elif is_bs1.iloc[i]: parts.append(f"BS1_Strong AF > FAF_BS1 (-25.0)")
         elif is_pm2.iloc[i]: parts.append(f"PM2_Supporting AF < MCAF (+15.0)")
@@ -317,7 +320,7 @@ def build_priority_tier(
                 rat = f"High-Priority Composite Score ({final_score:.1f}/100 >= 75.0) & Ultra-Rare Population Frequency (AF < MCAF)"
         elif "Tier 2" in t_str:
             if is_lof.iloc[i]:
-                rat = "Loss-of-Function Alteration" + (f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
+                rat = "Loss-of-Function Alteration" + (" (absent from gnomAD v4)" if af_absent.iloc[i] else f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
             elif splice_max.iloc[i] >= 0.50:
                 rat = f"High Splicing Delta Score (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.50 via {splice_method.iloc[i]})"
             elif revel_score.iloc[i] >= 0.773:
@@ -423,8 +426,8 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
 
     for tool_name, candidates in tool_map.items():
         if tool_name == "gnomAD Allele Frequency":
-            af, _, _ = resolve_population_af(data)
-            count = int(af.notna().sum())
+            af, _, af_status = resolve_population_af(data)
+            count = int((af.notna() | af_status.eq(ABSENT)).sum())
             audit_results[tool_name] = {
                 "status": "Available" if count else "Unknown (no frequency evidence)",
                 "column": "custom v4 grpmax / joint",
@@ -469,10 +472,11 @@ def filter_freq(
     if not any(column in data.columns for column in expected):
         raise ValueError(f"Population frequency column(s) missing: {expected}")
     result = data.copy()
-    af = annotate_population_af(result, freq_column)
+    af = rarity_af(annotate_population_af(result, freq_column), result["POPULATION_AF_STATUS"])
     unknown = af.isna()
     new_df = result.loc[unknown | (af < freq)].copy()
-    logger.info(f"Frequency < {freq}: retained {len(new_df)} rows, including {int(unknown.sum())} with unknown AF")
+    absent = int(result["POPULATION_AF_STATUS"].eq(ABSENT).sum())
+    logger.info(f"Frequency < {freq}: retained {len(new_df)} rows, including {absent} absent from gnomAD v4 and {int(unknown.sum())} with unknown AF")
     return new_df
 
 
@@ -495,7 +499,7 @@ def classification_dominant(data: pd.DataFrame, freq_col: str, freq: float):
     def evaluate_variant(row):
         prio = row["gene_priority"]
         impact = row["NEW_IMPACT"]
-        freq_val = row["POPULATION_AF"]
+        freq_val = 0.0 if row["POPULATION_AF_STATUS"] == ABSENT else row["POPULATION_AF"]
         if pd.isna(freq_val):
             return "Unknown frequency"
         limit = thresholds.get((prio, impact))

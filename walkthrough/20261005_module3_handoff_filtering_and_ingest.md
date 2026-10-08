@@ -143,3 +143,7 @@ Both VEP/custom sources remain exported. Module 2 now defines `spliceAI_MAX` as 
 ### Row-order decision registered — 2026-10-08T10:26:41+02:00
 
 [DEC-0010](../../carve-platform/decisions/DEC-0010-table-row-order.md) records Mario's approved row-order contract: Module 2 preserves input order; coordinate ordering depends on sorted input and is checked, with unordered input warned about. Module 3 must rank explicitly and must not assume the first rows are highest priority. The earlier missing-record note is resolved; Module 3 verification and cluster validation remain pending.
+
+### Absent from gnomAD — 2026-10-08T15:36:21+02:00
+
+Correction to the population AF contract: `POPULATION_AF_STATUS` gains `absent_from_gnomad` (joint annotation present, no gnomAD v4 record for the allele). `POPULATION_AF` stays null, but the row earns PM2_Supporting and counts as rare. Module 3 should treat this status as rare, not as unknown. Details: [population-frequency walkthrough](20261007_population_frequency_missingness.md).

@@ -41,3 +41,15 @@ Module 3 and shared-utils copies remain unchanged. Module 3 needs the same avail
 ## Scope correction — 2026-10-07T16:44:06+02:00
 
 Mario clarified that legacy reporting/plotting and downstream analyses are outdated. The R plot changes and corresponding fixture update made during this AF fix have been withdrawn; existing scripts are retained. The earlier R checks above describe the inspected implementation at that time, not a current requirement. R plotting validation is removed from the active TODO. Work continues on the Nextflow annotation/parser contract; SPiP remains an active R dependency.
+
+## Correction 2026-10-08T15:36:21+02:00: absent from gnomAD is PM2 evidence
+
+FACT: the change above also treated alleles with no gnomAD v4 record as unknown. Under `type=exact` custom annotation both fields are empty for such alleles, so they lost PM2_Supporting (+15) and could not reach Tier 1 (`scoring.py` requires PM2 for Tier 1). In the existing F2005_union table, 12 of 50 Tier 1 rows (4 variants) had no gnomAD v4 value. Mario (2026-10-08): absence from controls is ACMG evidence, not unknown.
+
+Implemented in `modules/population.py`: status `absent_from_gnomad` when `gnomADv4_AF_joint` is in the table, it and `gnomADv4_AN_joint` are empty for the row, and grpmax gives no valid or invalid value. `POPULATION_AF` stays null (absence is not an observed zero). `rarity_af` maps absent rows to 0 for thresholds only: PM2_Supporting and +15 in scoring, PM2 in ACMG tags, retained by `filter_freq`, `Candidate`-eligible in `classification_dominant`. A gnomAD record with `AN_joint` 0 stays `missing_frequency`. A table without the joint column cannot show absence and stays `missing_frequency`.
+
+Read-only status counts on F2005_union (23,686,438 rows; `gnomADv4_AF_grpmax_joint`, `gnomADv4_AF_joint`, `gnomADv4_AN_joint`): `available_frequency` 23,179,961 rows; `absent_from_gnomad` 504,934 rows / 186,304 variants; `missing_frequency` 1,543 rows / 537 variants (record with `AN_joint` 0).
+
+Limitation: absence at a site gnomAD did not cover is indistinguishable from true absence. ClinGen SVI asks for adequate coverage before applying PM2; that needs a gnomAD coverage resource (TODO).
+
+Validation: `bash tests/run_all_tests.sh`: 211 passed, 1 skipped. New/updated synthetic cases: absent vs AN 0 vs no joint column vs invalid; absent scores equal to observed zero and reach Tier 1; filter retention; dominant `Candidate`; availability audit. Not run on the cluster.

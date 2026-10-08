@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from . import logger
 from .io_qc import _safe_numeric_series, _safe_string_series
-from .population import resolve_population_af, GNOMAD_GRPMAX
+from .population import resolve_population_af, rarity_af, GNOMAD_GRPMAX
 from .clinvar import annotate_clinvar, clinvar_masks
 from .splicing import build_spliceMAX, _extract_spliceai_score, NEW_SPIP_COLUMNS
 
@@ -122,7 +122,8 @@ def build_acmg_criteria(data: pd.DataFrame, freq_col=GNOMAD_GRPMAX) -> pd.DataFr
     logger.info("Computing explicit ACMG/ClinGen 2015 criteria codes...")
     conseq = _safe_string_series(data, "Consequence").str.lower()
     symbol_series = _safe_string_series(data, "SYMBOL").str.upper()
-    af_series = resolve_population_af(data, freq_col)[0]
+    af, _, af_status = resolve_population_af(data, freq_col)
+    af_series = rarity_af(af, af_status)
     pli_val = _safe_numeric_series(data, "pLI_gene_value")
 
     is_lof = conseq.str.contains("stop_gained|frameshift|splice_donor|splice_acceptor")

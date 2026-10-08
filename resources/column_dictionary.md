@@ -58,7 +58,7 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `gnomADv4_AF_grpmax_joint` / `gnomADv4_AF_joint`: custom gnomAD joint grpmax / global joint frequency (0–1).
 - `POPULATION_AF`: resolved frequency; default prefers valid grpmax, then valid joint per row. Missing remains null; reported zero is 0.
 - `POPULATION_AF_SOURCE`: original column used, empty when no valid value is available.
-- `POPULATION_AF_STATUS`: `available_frequency`, `missing_frequency`, or `invalid_frequency` (nonmissing but unparsable, nonfinite, or outside 0–1, with no valid fallback). Availability does not establish coverage. Explicit `--freq-col` overrides use only the named column.
+- `POPULATION_AF_STATUS`: `available_frequency`, `absent_from_gnomad`, `missing_frequency`, or `invalid_frequency` (nonmissing but unparsable, nonfinite, or outside 0–1, with no valid fallback). `absent_from_gnomad`: the gnomAD v4 joint annotation is in the table but the allele has no record (empty `gnomADv4_AF_joint` and `gnomADv4_AN_joint`); `POPULATION_AF` stays null, the row earns PM2_Supporting and counts as rare in filters. Site coverage is not checked. A record with `AN_joint` 0 is `missing_frequency`. Explicit `--freq-col` overrides use only the named column (except `gnomADv4_AF_joint`, which keeps the absent rule).
 - `spliceAI_MAX`: VEP-only maximum valid delta score (0–1); unknown remains null. Raw VEP `SpliceAI_pred_DS_*`/`DP_*` and custom `SpliceAI`/`spliceai_custom_*` exports are retained separately.
 - `spliceai_custom_MAX`: maximum for the custom prediction matched to the row's gene/allele; missing remains null.
 - `SPLICE_MAX_UNIFIED`: valid custom maximum first (including zero), otherwise valid VEP maximum; null when neither is available.
