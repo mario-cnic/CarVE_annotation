@@ -177,3 +177,7 @@ The active parser derives source-selected fields (2026-10-08):
 - `ClinVar_Stars`: same-source review level (0–4); unknown/unrecognized review is null. VEP cache `CLIN_SIG` has no review metadata, so its star value is unknown. Legacy aliases may retain an explicitly supplied star value.
 
 VUS, conflicting and other nonempty classifications retain their source; they do not fall back to an older pathogenic assertion. Stars follow [NCBI review status](https://www.ncbi.nlm.nih.gov/clinvar/docs/review_status/).
+
+## NMD escape (2026-10-08T16:24:42+02:00)
+
+VEP `--plugin NMD` (`NMD`: `NMD_escaping_variant` or empty) and the parser's `NMD_STATUS`: `escape_predicted`, `nmd_predicted` (stop_gained/frameshift with complete CDS position, no flag), `not_evaluated` (canonical splice or incomplete CDS position), `not_annotated` (table without `NMD`), `not_applicable`. Judged at the variant position, not the new stop codon. Annotation only; does not change PVS1, scores or tiers. Details: [walkthrough](../walkthrough/20261008_nmd_plugin.md).

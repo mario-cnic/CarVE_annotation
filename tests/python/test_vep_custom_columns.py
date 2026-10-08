@@ -51,6 +51,8 @@ def test_cached_gnomad_is_disabled_and_selector_is_unique():
         assert {"check_existing", "regulatory", "mane", "af", "af_1kg"} <= flags
         assert "--plugin Mastermind," in source
         assert "--plugin LoFtool," in source
+        assert re.search(r"--plugin NMD\s", source)
+    assert "NMD" in COLS
 
 
 def test_dbnsfp_deduplication_preserves_scores_and_population_fields():

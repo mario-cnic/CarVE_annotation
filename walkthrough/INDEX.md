@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-08 | [20261008_nmd_plugin.md](./20261008_nmd_plugin.md) | NMD escape annotation (VEP NMD plugin) |
 | 2026-10-08 | [20261008_nextflow_scratch_workdir.md](./20261008_nextflow_scratch_workdir.md) | Nextflow scratch work directory |
 | 2026-10-08 | [20261008_legacy_pipeline_cleanup.md](./20261008_legacy_pipeline_cleanup.md) | Legacy pipeline cleanup |
 | 2026-10-08 | [20261008_spliceai_missingness.md](./20261008_spliceai_missingness.md) | SpliceAI two-source missingness |

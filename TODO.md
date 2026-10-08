@@ -80,6 +80,9 @@ Completed and obsolete items (Phases 1-4, the `main.sh` provenance manifest and 
 ---
 
 ## 🧬 Phase 5: Future Predictor Integrations
+- [ ] **NMD escape: cluster check, then PVS1** (plugin + `NMD_STATUS` added 2026-10-08T16:24:42+02:00, [walkthrough](walkthrough/20261008_nmd_plugin.md)). On the next fixture run, check that VEP 111 loads `NMD.pm` and that `NMD_STATUS` is filled for stop_gained/frameshift rows. Then decide (Mario) the PVS1 wiring per the ClinGen tree: `escape_predicted` downgrades PVS1; `not_evaluated` keeps today's rule. Known limits: variant position not PTC position; first-100-coding-bases rule.
+- [ ] **LOEUF next to pLI** (proposed 2026-10-08): `LOEUF.pm` is in the plugins folder; needs the gnomAD v4.1 constraint table.
+- [ ] **BP7 conservation** (proposed 2026-10-08): `is_bp7` ignores phyloP, which is already in the table.
 - [ ] **SAI-10k-calc Integration (SpliceAI-10k calculator, Canson et al. 2023, Bioinformatics btad179)**
   - Deterministic post-processor over raw SpliceAI delta scores: predicts splicing aberration type (pseudoexonization, partial/whole intron retention, partial exon deletion, (multi)exon skipping), aberration size (bp), reading-frame effect, and predicted amino acid sequence.
   - Belongs in the annotation pipeline (per-variant, deterministic, computed once — same shape as SPiP/Pangolin/Branchpointer), not in `clinical_variant_prioritization`; the app would just read the resulting columns.

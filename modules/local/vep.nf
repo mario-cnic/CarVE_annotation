@@ -90,6 +90,7 @@ process VEP_ANNOTATE {
         --plugin REVEL,${params.vep_revel} \\
         --plugin Mastermind,${params.vep_mastermind} \\
         --plugin LoFtool,${params.vep_loftool} \\
+        --plugin NMD \\
         --plugin pLI,${params.vep_pli} \\
         --plugin dbNSFP,"${params.vep_dbnsfp},${dbnsfp_fields}" \\
         --plugin AlphaMissense,file=${params.vep_alphamissense} \\

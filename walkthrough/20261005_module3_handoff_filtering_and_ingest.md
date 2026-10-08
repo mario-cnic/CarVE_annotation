@@ -147,3 +147,7 @@ Both VEP/custom sources remain exported. Module 2 now defines `spliceAI_MAX` as 
 ### Absent from gnomAD — 2026-10-08T15:36:21+02:00
 
 Correction to the population AF contract: `POPULATION_AF_STATUS` gains `absent_from_gnomad` (joint annotation present, no gnomAD v4 record for the allele). `POPULATION_AF` stays null, but the row earns PM2_Supporting and counts as rare. Module 3 should treat this status as rare, not as unknown. Details: [population-frequency walkthrough](20261007_population_frequency_missingness.md).
+
+### NMD escape — 2026-10-08T16:24:42+02:00
+
+New columns `NMD` (VEP plugin) and `NMD_STATUS` (`escape_predicted`, `nmd_predicted`, `not_evaluated`, `not_annotated`, `not_applicable`). Annotation only, no scoring effect yet; `not_evaluated`/`not_annotated` must not be read as NMD. [NMD walkthrough](20261008_nmd_plugin.md).

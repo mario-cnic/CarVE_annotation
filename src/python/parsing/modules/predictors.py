@@ -268,3 +268,39 @@ def parse_dbnsfp(data: pd.DataFrame, transcript: str, dbnsfp_cols: str):
 
     logger.info("Finished parsing dbnsfp columns")
     return data
+
+
+NMD_ESCAPE = "escape_predicted"
+NMD_PREDICTED = "nmd_predicted"
+NMD_NOT_EVALUATED = "not_evaluated"
+NMD_NOT_ANNOTATED = "not_annotated"
+NMD_NOT_APPLICABLE = "not_applicable"
+
+
+def parse_nmd(data: pd.DataFrame) -> pd.DataFrame:
+    """Derive NMD_STATUS per row from the VEP NMD plugin flag.
+
+    The plugin only flags escape (last exon, last 50 bp of the penultimate exon, first 100
+    coding bases, intronless transcript) for stop_gained/frameshift/canonical splice rows,
+    judged at the variant position, and stays empty when it cannot place the variant in the
+    CDS. Empty therefore means NMD predicted only for stop_gained/frameshift rows with a
+    complete CDS position; canonical splice rows without a flag are not evaluated.
+    """
+    conseq = data["Consequence"].fillna("").astype(str) if "Consequence" in data.columns else pd.Series("", index=data.index)
+    truncating = conseq.str.contains(r"stop_gained|frameshift_variant")
+    in_scope = truncating | conseq.str.contains(r"splice_donor_variant|splice_acceptor_variant")
+    status = pd.Series(NMD_NOT_APPLICABLE, index=data.index, dtype=object)
+    if "NMD" not in data.columns:
+        status.loc[in_scope] = NMD_NOT_ANNOTATED
+        data["NMD_STATUS"] = status
+        logger.warning("NMD column absent: NMD_STATUS set to not_annotated for truncating/splice rows")
+        return data
+    escape = data["NMD"].fillna("").astype(str).str.contains("NMD_escaping_variant")
+    cds = data["CDS_position"].fillna("").astype(str).str.strip() if "CDS_position" in data.columns else pd.Series("", index=data.index)
+    cds_placed = ~cds.isin(["", "-", ".", "nan"]) & ~cds.str.contains("?", regex=False)
+    status.loc[in_scope] = NMD_NOT_EVALUATED
+    status.loc[truncating & cds_placed] = NMD_PREDICTED
+    status.loc[in_scope & escape] = NMD_ESCAPE
+    data["NMD_STATUS"] = status
+    logger.info(f"New column `NMD_STATUS` created with value counts: {dict(status.value_counts())}")
+    return data
