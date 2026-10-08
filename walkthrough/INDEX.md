@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-08 | [20261008_spliceai_missingness.md](./20261008_spliceai_missingness.md) | SpliceAI two-source missingness |
 | 2026-10-08 | [20261008_clinvar_source_priority.md](./20261008_clinvar_source_priority.md) | ClinVar source priority |
 | 2026-10-07 | [20261007_population_frequency_missingness.md](./20261007_population_frequency_missingness.md) | Population AF: preserve unknown, custom v4 resolution, no unsupported rarity evidence |
 | 2026-10-07 | [20261007_vep_field_usage_audit.md](./20261007_vep_field_usage_audit.md) | VEP field usage audit: redundant population annotations and oversized CSQ |

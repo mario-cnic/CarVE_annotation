@@ -28,7 +28,7 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_lv_score` | Float | Cardiac Left Ventricle specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_aa_score` | Float | Cardiac Atrial Appendage specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
-| **Objective 5 (SpliceAI -D 4999)** | *N/A (New)* | `SpliceAI_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
+| **SpliceAI VEP lookup** | *N/A (New)* | `SpliceAI_status` | String | VEP-only maximum availability: `scored`, `not_covered`, or preserved explicit `error`. |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_prob` | Float | Predicted branch point probability score. |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_U2_energy` | Float | Predicted free energy of U2 snRNA duplex binding (kcal/mol). |
 | **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpoint_disrupted` | String | Branchpoint disruption flag (`YES` / `NO`). |
@@ -59,7 +59,11 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `POPULATION_AF`: resolved frequency; default prefers valid grpmax, then valid joint per row. Missing remains null; reported zero is 0.
 - `POPULATION_AF_SOURCE`: original column used, empty when no valid value is available.
 - `POPULATION_AF_STATUS`: `available_frequency`, `missing_frequency`, or `invalid_frequency` (nonmissing but unparsable, nonfinite, or outside 0–1, with no valid fallback). Availability does not establish coverage. Explicit `--freq-col` overrides use only the named column.
-- `spliceAI_MAX`: Maximum delta score from SpliceAI (0.0 to 1.0).
+- `spliceAI_MAX`: VEP-only maximum valid delta score (0–1); unknown remains null. Raw VEP `SpliceAI_pred_DS_*`/`DP_*` and custom `SpliceAI`/`spliceai_custom_*` exports are retained separately.
+- `spliceai_custom_MAX`: maximum for the custom prediction matched to the row's gene/allele; missing remains null.
+- `SPLICE_MAX_UNIFIED`: valid custom maximum first (including zero), otherwise valid VEP maximum; null when neither is available.
+- `SPLICEAI_METHOD`: selected source (`Custom Window (-D 4999 / ~10kb)` / `VEP Standard (~50bp)`) or `Not Covered` when no score is available.
+- `SPLICEAI_STATUS`: selected-score availability: `scored`, `not_covered`, or `error` when neither source supplies a score and an explicit source error exists. Source-specific match/reason fields remain available.
 - `pLI_gene_value`: gnomAD loss-of-function intolerance score.
 
 ### C. SPiP Splicing Predictor (v2.1)

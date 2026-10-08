@@ -24,6 +24,7 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
    - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss within 4999 bp of each variant (`-d 4999`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 4999`**: Deep residual neural network predicting max delta scores within 4999 bp of each variant (the maximum the Illumina CLI accepts).
+   - **SpliceAI source selection**: VEP lookup and custom prediction fields are exported separately. A valid custom score takes precedence, including zero; valid VEP is the fallback. `SPLICE_MAX_UNIFIED` stays null when neither is available, with `SPLICEAI_METHOD = Not Covered` and availability in `SPLICEAI_STATUS`.
    - **Branch Point Predictor Pair**:
      - **LaBranchoR**: Bidirectional LSTM predicting top human catalytic branch points across GRCh38 (206,249 branch points).
      - **Branchpointer**: Signal-feature model estimating branch point probability, U2 snRNA duplex free energy (kcal/mol), and motif disruption flags (`YES`/`NO`).

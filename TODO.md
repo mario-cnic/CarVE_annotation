@@ -8,6 +8,9 @@
 
 ### Ordered improvements agreed 2026-10-07
 
+- [x] **SpliceAI two-source missingness (PRED-6): Module 2 fix** (2026-10-08T10:19:13+02:00): both exports retained; `spliceAI_MAX` is VEP-only, valid custom wins (including zero), VEP is the fallback, no score remains null/`Not Covered`. New unified `SPLICEAI_STATUS` distinguishes scored/not-covered/explicit error. Local synthetic tests passed; [details](walkthrough/20261008_spliceai_missingness.md).
+- [ ] **SpliceAI cluster validation / Module 3 alignment** — verify per-source and selected-score columns on a fresh small run; confirm absent predictions stay null and raw VEP/custom exports survive. Existing tables and independent Module 3 copy are unchanged.
+
 **Priority update 2026-10-08T10:03:28+02:00: ClinVar source precedence is TOP priority per Mario; local implementation is complete, cluster validation and Module 3 alignment remain open (2a).**
 
 - [x] **1. Preserve missing population AF — Module 2 implementation** (2026-10-07; [details](walkthrough/20261007_population_frequency_missingness.md)): explicit custom v4 grpmax → joint fallback, no arbitrary AF-column selection, missing/invalid values remain unknown, no frequency evidence/bonus from unknown AF. Filters retain unknowns with availability labels. Cover observed zero, missing columns/values, invalid values and conflicting old frequencies with synthetic tests. Local synthetic checks passed; cluster validation and Module 3 alignment remain open below.

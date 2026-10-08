@@ -43,6 +43,9 @@ def build_priority_tier(
     splice_max, splice_method = _extract_spliceai_details(data)
     data["SPLICE_MAX_UNIFIED"] = splice_max
     data["SPLICEAI_METHOD"] = splice_method
+    splice_errors = data.get("SpliceAI_status", pd.Series("", index=data.index)).eq("error")
+    splice_errors |= data.get("spliceai_custom_match", pd.Series("", index=data.index)).eq("predictor_error")
+    data["SPLICEAI_STATUS"] = np.where(splice_max.notna(), "scored", np.where(splice_errors, "error", "not_covered"))
 
     spip_col_name = NEW_SPIP_COLUMNS.get("prediction", "SPiP") if "NEW_SPIP_COLUMNS" in globals() else "SPiP"
     spip_score = _safe_numeric_series(data, spip_col_name) if spip_col_name in data.columns else _safe_numeric_series(data, "SPiP")
@@ -81,7 +84,7 @@ def build_priority_tier(
     score = np.zeros(len(data), dtype=float)
     score += np.where(is_active_lof, 35.0, 0.0)
     
-    splicing_composite = np.maximum(splice_max, np.maximum(spip_score, pangolin_score))
+    splicing_composite = np.fmax(splice_max, np.maximum(spip_score, pangolin_score))
     score += splicing_composite * 30.0
     score += np.where(sv_aberrant, 5.0, 0.0)
     score += np.where(bp_disrupt, 5.0, 0.0)
@@ -368,7 +371,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
         "ClinVarVCF_CLNSIG", "CLINVAR_DISPLAY", "clinvar_clnsig", "CLNSIG",
         "gnomADv4_AF_grpmax_joint", "MAX_AF", "af", "gnomad_af", "AF",
         "pLI_gene_value", "pLI",
-        "spliceai_custom_MAX", "spliceAI_MAX", "SPLICE_MAX_UNIFIED", "SPLICEAI_METHOD",
+        "spliceai_custom_MAX", "spliceAI_MAX", "SPLICE_MAX_UNIFIED", "SPLICEAI_METHOD", "SPLICEAI_STATUS",
         "SPiP_prediction", "SPiP", "Pangolin_max_score", "Pangolin",
         "SpliceVault_status", "Branchpoint_status",
         "am_pathogenicity", "AlphaMissense", "REVEL_score", "REVEL",

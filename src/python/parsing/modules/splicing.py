@@ -13,14 +13,14 @@ from .gene_identity import (
 )
 
 SPLICING_COLUMNS = [
-    "spliceai_custom_DS_AL",
-    "spliceai_custom_DS_AG",
-    "spliceai_custom_DS_DL",
-    "spliceai_custom_DS_DG",
     "SpliceAI_pred_DS_AL",
     "SpliceAI_pred_DS_AG",
     "SpliceAI_pred_DS_DL",
     "SpliceAI_pred_DS_DG",
+    "SpliceAI_DS_AL",
+    "SpliceAI_DS_AG",
+    "SpliceAI_DS_DL",
+    "SpliceAI_DS_DG",
 ]
 
 NEW_SPIP_COLUMNS = {
@@ -602,62 +602,46 @@ def parse_spliceai_custom(data: pd.DataFrame, identity: GeneIdentity = None) -> 
     return data
 
 
-def build_spliceMAX(
-    splicemax: pd.DataFrame,
-    splice_cols: list = [
-        "SpliceAI_pred_DS_AL",
-        "SpliceAI_pred_DS_AG",
-        "SpliceAI_pred_DS_DL",
-        "SpliceAI_pred_DS_DG",
-        "SpliceAI_DS_AL",
-        "SpliceAI_DS_AG",
-        "SpliceAI_DS_DL",
-        "SpliceAI_DS_DG",
-    ],
-):
-    avail_cols = [x for x in splice_cols if x in splicemax.columns]
-    if avail_cols:
-        splicemax["spliceAI_MAX"] = splicemax[avail_cols].max(axis=1)
-        splicemax["spliceAI_MAX"] = splicemax["spliceAI_MAX"].astype(float)
-        splicemax["SpliceAI_status"] = np.where(splicemax["spliceAI_MAX"].isna(), "not_covered", "scored")
-        splicemax["spliceAI_MAX"] = splicemax["spliceAI_MAX"].fillna(0)
-        logger.info(f"New column `spliceAI_MAX` and `SpliceAI_status` created using columns {avail_cols}")
-    else:
-        logger.info("skipping spliceAI max calculation...")
-        splicemax["SpliceAI_status"] = "not_covered"
+def _valid_spliceai_score(values: pd.Series) -> pd.Series:
+    """Keep finite delta scores in [0, 1]; preserve genuine zero."""
+    numeric = pd.to_numeric(values, errors="coerce")
+    return numeric.where(numeric.between(0, 1)).astype(float)
 
+
+def build_spliceMAX(splicemax: pd.DataFrame, splice_cols: list = SPLICING_COLUMNS):
+    """Build the VEP-only maximum without imputing uncovered predictions."""
+    avail_cols = [c for c in splice_cols if c in splicemax.columns and not c.startswith("spliceai_custom_")]
+    if avail_cols:
+        scores = pd.DataFrame({c: _valid_spliceai_score(splicemax[c]) for c in avail_cols}, index=splicemax.index)
+        maximum = scores.max(axis=1)
+    elif "spliceAI_MAX" in splicemax.columns:
+        maximum = _valid_spliceai_score(splicemax["spliceAI_MAX"])
+        if "SpliceAI_status" in splicemax.columns:
+            maximum = maximum.mask(splicemax["SpliceAI_status"].isin(["not_covered", "error"]))
+    else:
+        maximum = pd.Series(np.nan, index=splicemax.index, dtype=float)
+    errors = splicemax.get("SpliceAI_status", pd.Series("", index=splicemax.index)).eq("error")
+    splicemax["spliceAI_MAX"] = maximum
+    splicemax["SpliceAI_status"] = np.where(maximum.notna(), "scored", np.where(errors, "error", "not_covered"))
     return splicemax
 
 
 def _extract_spliceai_details(df: pd.DataFrame) -> tuple[pd.Series, pd.Series]:
-    # _safe_numeric_series fills missing values with 0, which would make "custom score absent" look like
-    # a real 0.00. Presence is decided on the raw column: custom (incl. a genuine 0.00) wins; VEP's
-    # per-transcript plugin score (gene-matched by construction) is used only when custom is absent.
-    if "spliceai_custom_MAX" in df.columns:
-        custom_present = pd.to_numeric(df["spliceai_custom_MAX"], errors="coerce").notna()
-    else:
-        custom_present = pd.Series(False, index=df.index)
-    splice_custom = _safe_numeric_series(df, "spliceai_custom_MAX")
-    splice_vep = _safe_numeric_series(df, "spliceAI_MAX")
-    final_scores = np.where(custom_present, splice_custom, splice_vep)
-    
-    methods = []
-    has_custom = "spliceai_custom_MAX" in df.columns
-    has_vep = "spliceAI_MAX" in df.columns or "SpliceAI_pred_DS_AG" in df.columns or "SpliceAI_DS_AG" in df.columns
+    """Prefer a valid custom score, then VEP; neither available remains unknown."""
+    def score(column):
+        if column not in df.columns:
+            return pd.Series(np.nan, index=df.index, dtype=float)
+        return _valid_spliceai_score(df[column])
 
-    for idx in range(len(df)):
-        c_s = splice_custom.iloc[idx]
-        v_s = splice_vep.iloc[idx]
-        if custom_present.iloc[idx]:
-            methods.append("Custom Window (-D 4999 / ~10kb)")
-        elif v_s > 0 or has_vep:
-            methods.append("VEP Standard (~50bp)")
-        elif has_custom:
-            methods.append("Custom Window (-D 4999 / ~10kb)")
-        else:
-            methods.append("Not Covered")
-
-    return pd.Series(final_scores, index=df.index), pd.Series(methods, index=df.index)
+    custom = score("spliceai_custom_MAX")
+    vep = score("spliceAI_MAX")
+    if "SpliceAI_status" in df.columns:
+        vep = vep.mask(df["SpliceAI_status"].isin(["not_covered", "error"]))
+    selected = custom.combine_first(vep)
+    methods = pd.Series("Not Covered", index=df.index, dtype=object)
+    methods.loc[custom.notna()] = "Custom Window (-D 4999 / ~10kb)"
+    methods.loc[custom.isna() & vep.notna()] = "VEP Standard (~50bp)"
+    return selected, methods
 
 
 def _extract_spliceai_score(df: pd.DataFrame) -> pd.Series:
