@@ -1,0 +1,428 @@
+{
+  "created": "2026-10-08T11:53:30+02:00",
+  "trash_root": "trash/legacy_pipeline_20261008_115330",
+  "method": "same-filesystem rename; no removal; size/inode checked after move",
+  "git_commit_before": "107498d460de7a4b7f6f96aff9b77f93d98ba3f6",
+  "moved_paths": [
+    "main.sh",
+    "config",
+    "src/hpc",
+    "src/R",
+    "src/downstream",
+    "resources/containers",
+    "src/python/batch_generate_clinical_reports.py",
+    "src/python/filter_and_summarize.py",
+    "src/python/generate_clinical_prioritization_report.py",
+    "src/python/generate_cohort_master_dashboard.py",
+    "src/python/generate_interactive_report.py",
+    "src/tools/pre_run_readiness_audit.py",
+    "tests/R",
+    "tests/bash",
+    "tests/python/test_filter_and_summarize.py",
+    "tests/python/test_generate_clinical_prioritization_report.py",
+    "tests/python/test_generate_cohort_master_dashboard.py",
+    "tests/python/test_generate_interactive_report.py",
+    "tests/python/test_multigene_plotting.py",
+    "tests/python/test_multisample_trio.py"
+  ],
+  "files": [
+    {
+      "original": "main.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/main.sh",
+      "bytes": 26667,
+      "mtime_ns": 1789067493604360000,
+      "inode": 1099603352446,
+      "tracked": true
+    },
+    {
+      "original": "config/env.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/config/env.sh",
+      "bytes": 5702,
+      "mtime_ns": 1788531746177480000,
+      "inode": 1099589322004,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/annotate_branchpointer_vars.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/annotate_branchpointer_vars.sh",
+      "bytes": 2596,
+      "mtime_ns": 1786959765506267000,
+      "inode": 1099589322187,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/annotate_pangolin_vars.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/annotate_pangolin_vars.sh",
+      "bytes": 3442,
+      "mtime_ns": 1790756627294910000,
+      "inode": 1099603412064,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/annotate_spip_vars.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/annotate_spip_vars.sh",
+      "bytes": 2681,
+      "mtime_ns": 1786609462006335000,
+      "inode": 1099589322189,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/annotate_spliceai_vars.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/annotate_spliceai_vars.sh",
+      "bytes": 6448,
+      "mtime_ns": 1787926392648908000,
+      "inode": 1099589322190,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/annotate_vep_vars.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/annotate_vep_vars.sh",
+      "bytes": 5632,
+      "mtime_ns": 1791378912093059372,
+      "inode": 1099589322191,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/build_container.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/build_container.sh",
+      "bytes": 1648,
+      "mtime_ns": 1788531728328419000,
+      "inode": 1099589322192,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/gene_coords.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/gene_coords.sh",
+      "bytes": 1823,
+      "mtime_ns": 1785944386460085000,
+      "inode": 1099589322193,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/logger.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/logger.sh",
+      "bytes": 7898,
+      "mtime_ns": 1785944386472428000,
+      "inode": 1099589322194,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/merge_vep_spip.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/merge_vep_spip.sh",
+      "bytes": 4616,
+      "mtime_ns": 1786959459550351000,
+      "inode": 1099589322195,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/run_python_hpc.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/run_python_hpc.sh",
+      "bytes": 599,
+      "mtime_ns": 1787228940218520000,
+      "inode": 1099589322196,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/variant_converter.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/variant_converter.sh",
+      "bytes": 4598,
+      "mtime_ns": 1787236749113880000,
+      "inode": 1099589322197,
+      "tracked": true
+    },
+    {
+      "original": "src/hpc/vcf2parsed.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/hpc/vcf2parsed.sh",
+      "bytes": 4090,
+      "mtime_ns": 1788530464525808000,
+      "inode": 1099589322198,
+      "tracked": true
+    },
+    {
+      "original": "src/R/plot_annotation_results.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/R/plot_annotation_results.R",
+      "bytes": 4483,
+      "mtime_ns": 1791384280311509476,
+      "inode": 1099589322015,
+      "tracked": true
+    },
+    {
+      "original": "src/R/statsJPO.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/R/statsJPO.R",
+      "bytes": 54071,
+      "mtime_ns": 1788173193392907000,
+      "inode": 1099589322016,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/01_build_master.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/01_build_master.R",
+      "bytes": 9313,
+      "mtime_ns": 1785944386814848000,
+      "inode": 1099589322017,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/01_build_master.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/01_build_master.sh",
+      "bytes": 462,
+      "mtime_ns": 1787129091002807000,
+      "inode": 1099589322018,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/02_cohort_enrich.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/02_cohort_enrich.R",
+      "bytes": 12294,
+      "mtime_ns": 1785944386829011000,
+      "inode": 1099589322019,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/02_cohort_enrich.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/02_cohort_enrich.sh",
+      "bytes": 464,
+      "mtime_ns": 1787129096949665000,
+      "inode": 1099589322020,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/03_burden.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/03_burden.R",
+      "bytes": 12714,
+      "mtime_ns": 1785944386843860000,
+      "inode": 1099589322021,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/03_burden.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/03_burden.sh",
+      "bytes": 443,
+      "mtime_ns": 1787129099188863000,
+      "inode": 1099589322022,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/04_forest_plot.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/04_forest_plot.R",
+      "bytes": 7592,
+      "mtime_ns": 1785944386858844000,
+      "inode": 1099589322023,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/04_forest_plot.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/04_forest_plot.sh",
+      "bytes": 458,
+      "mtime_ns": 1787129104202101000,
+      "inode": 1099589322024,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/05_missense_predictors.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/05_missense_predictors.R",
+      "bytes": 7164,
+      "mtime_ns": 1785944386877468000,
+      "inode": 1099589322025,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/06_missense_spatial_burden.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/06_missense_spatial_burden.R",
+      "bytes": 7388,
+      "mtime_ns": 1785944386895968000,
+      "inode": 1099589322026,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/07_domain_burden.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/07_domain_burden.R",
+      "bytes": 11352,
+      "mtime_ns": 1785944386910943000,
+      "inode": 1099589322027,
+      "tracked": true
+    },
+    {
+      "original": "src/downstream/08_describe_ttn_results.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/downstream/08_describe_ttn_results.R",
+      "bytes": 6101,
+      "mtime_ns": 1785944386933154000,
+      "inode": 1099589322028,
+      "tracked": true
+    },
+    {
+      "original": "resources/containers/annotation_pipeline.def",
+      "trash": "trash/legacy_pipeline_20261008_115330/resources/containers/annotation_pipeline.def",
+      "bytes": 2452,
+      "mtime_ns": 1788532372953011000,
+      "inode": 1099589322013,
+      "tracked": true
+    },
+    {
+      "original": "resources/containers/annotation_pipeline.sif",
+      "trash": "trash/legacy_pipeline_20261008_115330/resources/containers/annotation_pipeline.sif",
+      "bytes": 2003025920,
+      "mtime_ns": 1788533186319587000,
+      "inode": 1099589322014,
+      "tracked": false
+    },
+    {
+      "original": "src/python/batch_generate_clinical_reports.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/python/batch_generate_clinical_reports.py",
+      "bytes": 2280,
+      "mtime_ns": 1787214870118938000,
+      "inode": 1099589322202,
+      "tracked": true
+    },
+    {
+      "original": "src/python/filter_and_summarize.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/python/filter_and_summarize.py",
+      "bytes": 12319,
+      "mtime_ns": 1791380283013912657,
+      "inode": 1099603352889,
+      "tracked": true
+    },
+    {
+      "original": "src/python/generate_clinical_prioritization_report.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/python/generate_clinical_prioritization_report.py",
+      "bytes": 74195,
+      "mtime_ns": 1791380283042021156,
+      "inode": 1099589322205,
+      "tracked": true
+    },
+    {
+      "original": "src/python/generate_cohort_master_dashboard.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/python/generate_cohort_master_dashboard.py",
+      "bytes": 15732,
+      "mtime_ns": 1788530545269172000,
+      "inode": 1099589322206,
+      "tracked": true
+    },
+    {
+      "original": "src/python/generate_interactive_report.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/python/generate_interactive_report.py",
+      "bytes": 7172,
+      "mtime_ns": 1791380359474686727,
+      "inode": 1099589322207,
+      "tracked": true
+    },
+    {
+      "original": "src/tools/pre_run_readiness_audit.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/src/tools/pre_run_readiness_audit.py",
+      "bytes": 6520,
+      "mtime_ns": 1790935309500237097,
+      "inode": 1099603412070,
+      "tracked": true
+    },
+    {
+      "original": "tests/R/test_plot_annotation_results.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/R/test_plot_annotation_results.R",
+      "bytes": 1249,
+      "mtime_ns": 1791384280333815174,
+      "inode": 1099589323332,
+      "tracked": true
+    },
+    {
+      "original": "tests/R/test_statsJPO.R",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/R/test_statsJPO.R",
+      "bytes": 1675,
+      "mtime_ns": 1786092250477186000,
+      "inode": 1099589323333,
+      "tracked": true
+    },
+    {
+      "original": "tests/bash/test_cli_args_main.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/bash/test_cli_args_main.sh",
+      "bytes": 1222,
+      "mtime_ns": 1787064222454223000,
+      "inode": 1099589323334,
+      "tracked": true
+    },
+    {
+      "original": "tests/bash/test_container_sif.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/bash/test_container_sif.sh",
+      "bytes": 2660,
+      "mtime_ns": 1788533121901309000,
+      "inode": 1099589323335,
+      "tracked": true
+    },
+    {
+      "original": "tests/bash/test_logger.sh",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/bash/test_logger.sh",
+      "bytes": 863,
+      "mtime_ns": 1786092376415420000,
+      "inode": 1099589323336,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_filter_and_summarize.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_filter_and_summarize.py",
+      "bytes": 1408,
+      "mtime_ns": 1791380121559190224,
+      "inode": 1099589323347,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_generate_clinical_prioritization_report.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_generate_clinical_prioritization_report.py",
+      "bytes": 2521,
+      "mtime_ns": 1787052501717512000,
+      "inode": 1099589323349,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_generate_cohort_master_dashboard.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_generate_cohort_master_dashboard.py",
+      "bytes": 1987,
+      "mtime_ns": 1788530549105454000,
+      "inode": 1099589323350,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_generate_interactive_report.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_generate_interactive_report.py",
+      "bytes": 1062,
+      "mtime_ns": 1791380359534627163,
+      "inode": 1099589323351,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_multigene_plotting.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_multigene_plotting.py",
+      "bytes": 3825,
+      "mtime_ns": 1788176832126548000,
+      "inode": 1099589323352,
+      "tracked": true
+    },
+    {
+      "original": "tests/python/test_multisample_trio.py",
+      "trash": "trash/legacy_pipeline_20261008_115330/tests/python/test_multisample_trio.py",
+      "bytes": 4894,
+      "mtime_ns": 1788530428609427000,
+      "inode": 1099589323353,
+      "tracked": true
+    }
+  ],
+  "total_bytes": 2003382695,
+  "verification": {
+    "checked": "2026-10-08T11:57:54+02:00",
+    "moved_files": 47,
+    "retained_test_modules": 28,
+    "tests_passed": 208,
+    "tests_skipped": 1,
+    "runner": "bash tests/run_all_tests.sh",
+    "shell_syntax": "bash -n tests/run_all_tests.sh passed",
+    "git_diff_check": "passed"
+  },
+  "retained_mixed_test_snapshot": "trash/legacy_pipeline_20261008_115330/_snapshots/tests/python/test_population_frequency.py",
+  "preserved_scope": [
+    "work/",
+    ".nextflow/",
+    "nf_work/",
+    "RUNS/",
+    "test_data/",
+    "src/external/Pangolin-main/",
+    "_tmp/pangolin/genes.gtf",
+    "references and raw data"
+  ]
+}

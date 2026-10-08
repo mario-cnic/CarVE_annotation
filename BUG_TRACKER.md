@@ -80,3 +80,7 @@ Living index of every defect/finding surfaced during the [2026-09-10 full techni
 ### MISC-1 update — 2026-10-07T15:41:00+02:00
 
 Module 2 implementation now centralizes custom gnomADv4 grpmax → joint AF resolution, preserves unknown/invalid values, and removes automatic old/generic-AF substitution from scoring, filters and reports. Unknown AF receives no rarity evidence/bonus. Local Python regressions passed; R syntax passed but plot execution lacks local `ggplot2`. Cluster validation and Module 3 alignment remain pending. Historical entry above is retained; current details: [population AF walkthrough](walkthrough/20261007_population_frequency_missingness.md), [TODO item 1a](TODO.md).
+
+### Legacy execution scope correction — 2026-10-08T11:53:30+02:00
+
+`main.sh`, `config/`, `src/hpc/`, legacy plotting/reporting and downstream analyses were moved to `trash/legacy_pipeline_20261008_115330/` with their tests/container. Historical bugs tied exclusively to these wrappers describe retired behavior, not active Nextflow defects; they were not fixed by this move. Current Nextflow calls predictor tools and parser scripts directly. [Move manifest](reports/legacy_cleanup_20261008/manifest.json).

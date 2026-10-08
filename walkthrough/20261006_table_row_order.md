@@ -26,3 +26,7 @@ Written 2026-10-06T09:20:00+02:00. Decision (Mario, 2026-10-06): the legacy sort
 - The gain for gene / region / locus fetches is expected, not measured. It needs numeric `chrom` / `pos` columns (`PLT-023`) before row-group statistics can prune by position; with only the string `Locus` they cannot.
 - Existing tables (S223, F2005_union) keep the old order until re-run.
 - The file's row order is a contract with Module 3: a `DEC-` record in `carve-platform` is needed (not written from here). Module 3 should not rely on `NEW_IMPACT` clustering (it no longer exists in new tables).
+
+## Decision-record follow-up — 2026-10-08T10:26:41+02:00
+
+The missing cross-module record is now registered as [DEC-0010](../../carve-platform/decisions/DEC-0010-table-row-order.md). The approved contract preserves input order rather than guaranteeing a new sort: coordinate-sorted input remains coordinate-sorted; unordered input is warned about. Cluster validation and Module 3 verification remain open.

@@ -55,3 +55,7 @@ nf_work/
 .idea/
 .vscode/
 *.swp
+
+# Preliminary VEP audit snapshots; the authoritative _final report stays tracked.
+/reports/vep_field_audit_20261007/
+/reports/vep_field_audit_20261007_v2/

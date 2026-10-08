@@ -78,3 +78,5 @@ Population AF update (2026-10-07): new `modules/population.py` centralizes custo
 ClinVar source priority (2026-10-08T10:03:28+02:00): new `modules/clinvar.py` and updates to `acmg.py`/`scoring.py` prefer custom VCF per row, then dbNSFP/cache and legacy aliases; review stars stay with the selected source. See `walkthrough/20261008_clinvar_source_priority.md`. Shared-utils and Module 3 copies are unchanged.
 
 SpliceAI missingness (2026-10-08T10:19:13+02:00): `modules/splicing.py` keeps the VEP-only maximum distinct from custom and preserves unknown selected scores; `modules/scoring.py` exposes selected-score availability and retains other predictor contributions. See `walkthrough/20261008_spliceai_missingness.md`. Shared-utils and Module 3 copies remain unchanged.
+
+Legacy cleanup (2026-10-08T11:53:30+02:00): `src/hpc/vcf2parsed.sh` and `config/env.sh` are now retained only under `trash/legacy_pipeline_20261008_115330/`. Active Nextflow continues to use this vendored parser. Historical source/copy statements above remain evidence of their dates.

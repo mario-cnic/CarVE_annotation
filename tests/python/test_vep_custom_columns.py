@@ -40,15 +40,12 @@ def test_gnomad_requests_are_unique_and_keep_homozygote_counts():
     assert not any("age_hist_hom" in c for c in columns + COLS)
     for field in ("joint", "joint_nfe", "joint_afr", "grpmax_joint", "exomes", "genomes"):
         assert f"gnomADv4_nhomalt_{field}" in columns
-    bash = (REPO / "src/hpc/annotate_vep_vars.sh").read_text()
-    fields = re.search(r"short_name=gnomADv4,.*?fields=(\S+)", bash).group(1).split("%")
-    assert columns[1:] == [f"gnomADv4_{f}" for f in fields]
 
 
 def test_cached_gnomad_is_disabled_and_selector_is_unique():
     assert len(COLS) == len(set(COLS))
     assert not any(c.startswith(("gnomADe_", "gnomADg_")) or c in ("MAX_AF", "MAX_AF_POPS") for c in COLS)
-    for source in (VEP_NF, (REPO / "src/hpc/annotate_vep_vars.sh").read_text()):
+    for source in (VEP_NF,):
         flags = set(re.findall(r"--([a-z_0-9]+)", source.split("--no_stats")[0]))
         assert not flags & {"everything", "af_gnomad", "af_gnomade", "af_gnomadg", "max_af"}
         assert {"check_existing", "regulatory", "mane", "af", "af_1kg"} <= flags

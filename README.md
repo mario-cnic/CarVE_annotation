@@ -2,7 +2,7 @@
 
 The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annotate_vcf.nf)), which annotates GRCh38 panel, WES and WGS VCFs. See [Nextflow Whole-VCF Pipeline](#-nextflow-whole-vcf-pipeline) below.
 
-> **Scope update — 2026-10-07, Mario:** legacy reporting/plotting and the analyses in `src/downstream/` are outdated. Their scripts and historical usage instructions are retained, but they are outside active annotation development. Static R plots are not part of the Nextflow workflow. SPiP still uses R for active splicing annotation. The `main.sh` usage and visualization sections below describe the older workflow.
+> **Legacy cleanup — 2026-10-08T11:53:30+02:00:** the old Bash pipeline, report/dashboard scripts, downstream R analyses, their tests and the old general-purpose container were moved to `trash/legacy_pipeline_20261008_115330/`. Nothing was deleted. [Move manifest](./reports/legacy_cleanup_20261008/manifest.json) records original and current paths. Active annotation uses Nextflow; SPiP remains an R dependency.
 
 > [!WARNING]
 > **Every Pangolin score produced before 2026-09-30 is invalid.** The old shared database `shared/utils/pangolin_db/pangolin_grch38.db` is a mouse annotation (GENCODE M23), not human GRCh38 (`BUG_TRACKER.md` `MISC-12`, `carve-platform` `PLT-139`). It controls both gene assignment and exon masking. Both pipelines now expect a GENCODE 45 rebuild, `shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db`, and fail at the Pangolin step until it is deployed. Re-run Pangolin on earlier results before using them ([walkthrough](./walkthrough/20260930_pangolin_db_gencode_v45_rebuild.md)).
@@ -20,7 +20,7 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
 2. **State-of-the-Art Splicing & Functional Annotation Matrix**:
    - **Ensembl VEP 111 (GRCh38)**: CADD (v1.6), REVEL, AlphaMissense, UTRAnnotator, MaxEntScan, and gnomAD v4.1 population frequencies (`AF_joint`).
    - **Population fields**: custom gnomAD v4 frequencies, allele counts/denominators and alternate-homozygote counts (`gnomADv4_nhomalt_*`) are retained. Cached gnomAD v2/v3, VEP `MAX_AF*` and homozygote age histograms are excluded from new runs. 1000 Genomes fields remain. Mastermind and LoFtool remain enabled; dbNSFP requests all 4.8a fields except duplicate `TSL`/`APPRIS`, which come from VEP ([field list](./resources/vep_dbnsfp_fields.txt)).
-   - **Population AF interpretation**: custom `gnomADv4_AF_grpmax_joint` falls back per row to `gnomADv4_AF_joint`. Unknown or invalid AF earns no frequency evidence or rarity bonus; reported zero stays distinct. Tables expose `POPULATION_AF`, `POPULATION_AF_SOURCE` and `POPULATION_AF_STATUS`. Rarity filters retain unknowns for review; they do not establish adequate population coverage. Older or generic AF columns are used only through an explicit frequency-column override (`--freq-col` in the standalone filter; `--freq_col` in the parser).
+   - **Population AF interpretation**: custom `gnomADv4_AF_grpmax_joint` falls back per row to `gnomADv4_AF_joint`. Unknown or invalid AF earns no frequency evidence or rarity bonus; reported zero stays distinct. Tables expose `POPULATION_AF`, `POPULATION_AF_SOURCE` and `POPULATION_AF_STATUS`. Rarity filters retain unknowns for review; they do not establish adequate population coverage. Older or generic AF columns are used only through an explicit frequency-column override (`--freq_col` in the parser; the standalone filter is archived).
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
    - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss within 4999 bp of each variant (`-d 4999`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 4999`**: Deep residual neural network predicting max delta scores within 4999 bp of each variant (the maximum the Illumina CLI accepts).
@@ -37,8 +37,8 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
    - All predictors adhere to strict, unified status contracts: `scored` (valid numerical prediction), `not_covered` (outside gene model/receptive field), or `error`.
    - For complete column documentation, see [resources/column_dictionary.md](./resources/column_dictionary.md).
 
-4. **Customizable Filtering Module**:
-   - Customizable command-line thresholds for gnomAD AF (`--max-af`), REVEL (`--min-revel`), AlphaMissense (`--min-alphamissense`), SPiP (`--min-spip`), CADD (`--min-cadd`), and VEP consequences (`--consequences`).
+4. **Parser Filtering and Annotation Interpretation**:
+   - The retained parser supports explicit frequency filtering (`--freq`, `--freq_col`). The former standalone multi-predictor filter and its CLI are archived; these are not Nextflow launch options.
 
 5. **Legacy Visualization & Clinical Report Suite (outdated)**:
    - **Static Publication Plots (R ggplot2)**: Consequence breakdown barplots, REVEL vs AlphaMissense correlation scatter plots, and AF spectrum histograms saved as PDF and PNG.
@@ -46,16 +46,12 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
      - **Multi-Track SVG Transcript Visualizer & Variant Position Map**: Interactive Plotly multi-track diagram mapping genomic/cDNA positions and amino acid coordinates across exon-intron boundaries, displaying priority tiers, SpliceAI Δ, and AlphaMissense scores.
      - **gnomAD v4.1 Joint PopMax Frequencies**: Full extraction of `gnomADv4_AF_grpmax_joint` with population ancestry labels (`AFR`, `AMR`, `EAS`, `NFE`, `SAS`, etc.).
 
-6. **Standalone Clinical Reporting Web Application ([run_web_app.sh](./run_web_app.sh))**:
-   - Drag-and-drop web UI built with Streamlit for clinicians and researchers.
-   - Upload any variant file (`.vcf`, `.vcf.gz`, `.parquet`, `.pq`, `.xlsx`, `.csv`, `.tsv`).
-   - Automated ACMG/ClinGen priority tiering, live interactive filtering, Plotly charts, embedded 4-tab clinical report preview, and export center (`.html`, `.xlsx`, `.pq`).
 
 ---
 
 ## 📁 Repository Architecture & Codebase Organization
 
-### Execution Directory (`RUNS/<RUN_NAME>/`)
+### Historical Execution Directory (`RUNS/<RUN_NAME>/`)
 All execution outputs, intermediate files, logs, and figures are organized within a dedicated, isolated run folder inside `RUNS/`:
 
 ```
@@ -69,81 +65,15 @@ RUNS/<RUN_NAME>/
 └── _log/                                     # Standard error and stdout logs per step and gene
 ```
 
-### Source Modules (`src/`)
-The codebase is organized into clean, functional modules:
+### Active Source Modules
 
-```
-src/
-├── python/                                   # Core active Python pipeline modules (Step 1-6)
-├── hpc/                                      # Core SGE cluster drivers & execution wrappers
-├── R/                                        # Core plotting & statistical libraries
-├── downstream/                               # Cohort burden & association analysis scripts
-├── tools/                                    # Reference builders, backfills, & exploratory utilities
-└── external/                                 # Third-party source dependencies (Pangolin-main)
+- `src/python/parsing/`: versioned VCF-to-table parser and annotation interpretation.
+- `src/python/`: predictor runners, schema/provenance, genotype extraction and reference builders.
+- `src/tools/`: retained audit, reference and analysis utilities.
+- `src/external/`: required third-party Pangolin code and model weights.
+- `modules/`, `workflows/`, `annotate_vcf.nf`, `nextflow.config`: Nextflow orchestration.
 
-config/
-└── env.sh                                    # Centralized shell environment & binary auto-detection
-
-archive/
-└── deprecated_scripts/                       # Safely archived legacy & superseded scripts
-```
-
----
-
-## 💻 Usage & CLI Parameters
-
-### Basic Run
-Process all variant tables inside your target directory. Outputs are stored in `RUNS/<RUN_NAME>/`:
-
-```bash
-bash main.sh --raw-dir /data_lab_PGP/raw_data/my_cohort/
-```
-
-### Custom Timestamped Run (Preserving Past Runs)
-Specify a custom, isolated run folder inside `RUNS/` (e.g. `RUNS/run_20260813_1100/`):
-
-```bash
-bash main.sh \
-  --raw-dir RUNS/predictors_050826/input/by_gene \
-  --run-name "run_$(date +%Y%m%d_%H%M)" \
-  --build GRCh38 \
-  --output-format pq
-```
-
-### Advanced Usage with Filtering & Build Options
-
-```bash
-bash main.sh \
-  --raw-dir RUNS/predictors_050826/input/by_gene \
-  --run-name cohort_valencia_hg19 \
-  --build hg19 \
-  --gene SCN5A \
-  --output-format pq \
-  --max-af 0.001 \
-  --min-revel 0.75 \
-  --min-alphamissense 0.80 \
-  --min-spip 0.50 \
-  --consequences "missense_variant,stop_gained,frameshift_variant,splice_acceptor_variant,splice_donor_variant"
-```
-
-### CLI Parameters:
-
-| Flag | Type | Description |
-| --- | --- | --- |
-| `--raw-dir <DIR>` | Directory | **(Required for custom runs)** Path to input variant directory containing `.xlsx`, `.csv`, `.tsv`, `.pq`, or `.vcf` files |
-| `--run-name <NAME>`| String | Custom run folder name in `RUNS/` (default: folder name of `--raw-dir`) |
-| `--test` | Flag | Run end-to-end test suite on 50-variant test dataset into `test_data/test_run/` with `--overwrite-all` |
-| `--audit-run <DIR>`| String | Run master auditor to inspect quality, completeness %, and schema consistency of a run folder |
-| `--gene <GENE>` | String | Filter execution to specific gene (case-insensitive) |
-| `--build <BUILD>` | String | Input assembly build: `hg19` or `GRCh38` (default: `GRCh38`) |
-| `--output-format <FMT>` | String | Output format: `pq` (Parquet), `tsv`, or `xlsx` |
-| `--max-af <FLOAT>` | Float | Maximum custom gnomADv4 AF; retain and label unknown AF |
-| `--min-revel <FLOAT>` | Float | Minimum REVEL pathogenicity score |
-| `--min-alphamissense <FLOAT>` | Float | Minimum AlphaMissense score |
-| `--min-spip <FLOAT>` | Float | Minimum SPiP splicing score |
-| `--min-cadd <FLOAT>` | Float | Minimum CADD phred score |
-| `--consequences <LIST>` | String | Comma-separated list of target VEP consequences |
-| `--overwrite-all` | Flag | Overwrite intermediate files and re-run all steps |
+Legacy code is retained under the dated trash directory listed above. Its scripts expect their original paths; use the move manifest to restore them before attempting any historical reproduction. Existing `RUNS/` outputs and prior `archive/` content remain in place.
 
 ---
 
@@ -168,6 +98,8 @@ bash run_annotate_vcf.sh -profile standard \
 ```
 
 - **Where to launch:** from a host that can submit SGE jobs. The `nextflow` head process stays alive for the entire run; `S223` (WGS) took about 4 days (2026-09-25 → 2026-09-29), so use a session that survives disconnection.
+- **Work directory:** new `standard` launches use `/mnt/scratch/mruizp/annotation_pipeline_new/work`. Published results remain under `nf_work/annotation_out/`; `local_dev` retains its default work location. The scratch path must be writable and visible to the cluster execution nodes. Existing work directories are not migrated.
+- **Resuming older runs:** use the original launch directory and add `-work-dir /data_lab_PGP/pipelines/annotation_pipeline_new/work -resume` for runs whose tasks are stored in the project’s old `work/`. Preserve both the corresponding work files and `.nextflow/cache`.
 - **Finding Nextflow:** the wrapper uses `nextflow` from `PATH`, falling back to `/opt/nextflow/nextflow`.
 
 | Argument | Default | Description |
@@ -179,7 +111,8 @@ bash run_annotate_vcf.sh -profile standard \
 | `--genotypes` | `auto` | `auto` writes the long genotype table when the input has samples with GT; `off` skips it |
 | `--genotype_wide` | `false` | Also write `<run_id>.parsed.clean.withGT.<fmt>`: the main table plus `GT_<sample>` (HET/HOMALT/HOMREF/MISSING) and `GQ_/DP_/AD_<sample>` columns. Parquet only; joined in batches; fails above `--genotype_wide_max_samples` (default 10) or if any table row has no genotype row. On a WGS table (S223: 22.6 M rows × 591 columns) the output is as large as the final table |
 | `-profile` | `standard` | `standard` = SGE + Singularity (production). `local_dev` = local miniforge environments, for `-stub-run` testing only |
-| `-resume` | off | Reuse cached tasks from Nextflow's `work/` directory |
+| `-work-dir <PATH>` | scratch under `standard` | Override the task work directory; use the original directory when resuming an older run |
+| `-resume` | off | Reuse cached tasks from the selected work directory and launch-directory cache |
 
 ### Two predictor tiers
 
@@ -236,27 +169,15 @@ The manifest (and any dirty-tree patch) stays inside the run folder (`pipeline_i
 
 All output tables contain standardized, clean columns. For the full column dictionary, renamed field mappings, and status contracts (`scored`, `not_covered`, `error`), see [resources/column_dictionary.md](./resources/column_dictionary.md).
 
-Output files are organized into structured subdirectories under `results/`:
-
-- **Parsed Clean Annotations**: `results/<GENE>.parsed.clean.pq` (or `.tsv`, `.xlsx`)
-- **Filtered Variant Tables**: `filtered/filtered_variants.pq`
-- **Filtering Metrics Summary**: `filtered/filtering_summary_metrics.tsv`
-- **Static Publication Plots**: `plots/consequence_distribution.pdf`, `pathogenicity_correlation.pdf`, `allele_frequency_spectrum.pdf`
-- **Interactive HTML Dashboard**: `reports/<GENE>_interactive_dashboard.html`
+Current runs publish beneath `nf_work/annotation_out/<run_id>/` into `annotation/`, `predictors/`, `tables/`, `genotypes/`, `reports/` and `pipeline_info/`. See the Nextflow Outputs section above. Historical `RUNS/` outputs remain in place.
 
 ---
 
 ## 📜 HPC Environment & Container Options
 
-### Option 1: Apptainer / Singularity SIF Container (Recommended for HPC)
-Eliminates NFS I/O latency and provides a single immutable execution image:
+### Active VEP Container
 
-- **Container Definition**: [`resources/containers/annotation_pipeline.def`](./resources/containers/annotation_pipeline.def)
-- **Build Container Image**:
-  ```bash
-  qsub src/hpc/build_container.sh
-  ```
-- **Architecture Guide**: [walkthrough/20260812_apptainer_container_architecture_guide.md](./walkthrough/20260812_apptainer_container_architecture_guide.md)
+Nextflow uses `params.vep_sif` from `nextflow.config` (the separate VEP image under `/data_lab_PGP/resources/sif_images/vep.sif`). The former general-purpose image and definition are archived in the dated trash directory; they are not the active VEP container.
 
 ### Option 2: Conda Environments (`/data_lab_PGP/shared/utils/conda_envs/`)
 - **Data Science & Post-Processing**: `datasci/`
@@ -270,29 +191,13 @@ Eliminates NFS I/O latency and provides a single immutable execution image:
 
 ## 🧪 Master Unit Testing Suite
 
-The repository retains Python, R and Bash tests, including outdated legacy components. `tests/run_all_tests.sh` also invokes legacy R plotting/statistics tests; its results are not an active Nextflow-only validation gate.
+Run retained Python test modules independently with the local-compatible runner:
 
-- **Run all unit tests**:
-  ```bash
-  bash tests/run_all_tests.sh
-  ```
+```bash
+bash tests/run_all_tests.sh
+```
 
-- **Run Python unit tests directly (`pytest`)**:
-  ```bash
-  python3 -m pytest -v tests/python/
-  ```
-
-- **Historical R plotting/statistics tests (outdated; not active annotation checks)**:
-  ```bash
-  Rscript tests/R/test_statsJPO.R
-  Rscript tests/R/test_plot_annotation_results.R
-  ```
-
-- **Run Bash unit tests directly (`sh`)**:
-  ```bash
-  bash tests/bash/test_logger.sh
-  bash tests/bash/test_cli_args_main.sh
-  ```
+The runner isolates each module's Python imports to avoid the existing `modules` package collision. It no longer invokes retired R plotting or Bash launcher/container tests. A single test module can be run with `python3 -m pytest -q tests/python/<test_file>.py`. This checks retained Python logic; real annotation still needs the small cluster fixture run.
 
 ---
 
@@ -346,4 +251,4 @@ See [BUG_TRACKER.md](./BUG_TRACKER.md) for the current status of every known def
 ## ✉️ Contact
 @Mario Ruiz - Lab PGP
 
-The standalone `src/python/filter_and_summarize.py` accepts `--freq-col` (default `gnomADv4_AF_grpmax_joint`, with per-row joint fallback). A requested AF filter fails if its expected columns are absent; all-missing values are retained and labelled unknown.
+The standalone legacy filter and its CLI tests are archived. The active parser retains `--freq_col` and the population availability contract described above.

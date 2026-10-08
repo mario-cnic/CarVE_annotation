@@ -139,3 +139,7 @@ Module 2 now prefers custom `ClinVarVCF_CLNSIG` per row, then dbNSFP `clinvar_cl
 ### SpliceAI missingness — 2026-10-08T10:19:13+02:00
 
 Both VEP/custom sources remain exported. Module 2 now defines `spliceAI_MAX` as VEP-only, selects valid custom first (including zero), then VEP, and keeps two unavailable sources null with `SPLICEAI_METHOD = Not Covered`. `SPLICEAI_STATUS` gives selected-score availability/error. Module 3 remains unchanged and should preserve the same contract. [Implementation and local checks](20261008_spliceai_missingness.md).
+
+### Row-order decision registered — 2026-10-08T10:26:41+02:00
+
+[DEC-0010](../../carve-platform/decisions/DEC-0010-table-row-order.md) records Mario's approved row-order contract: Module 2 preserves input order; coordinate ordering depends on sorted input and is checked, with unordered input warned about. Module 3 must rank explicitly and must not assume the first rows are highest priority. The earlier missing-record note is resolved; Module 3 verification and cluster validation remain pending.

@@ -8,8 +8,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules.population import resolve_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
 from parsing.modules.acmg import build_acmg_criteria
 from parsing.modules import scoring
-from filter_and_summarize import filter_dataframe
-from generate_clinical_prioritization_report import _extract_gnomadv4_af_grpmax
 
 
 def test_resolution_per_row_and_raw_preservation():
@@ -38,7 +36,7 @@ def test_legacy_is_only_used_when_explicitly_requested():
     assert resolve_population_af(df)[0].isna().all()
     assert resolve_population_af(df, 'MAX_AF')[0].iloc[0] == .1
     with pytest.raises(ValueError):
-        filter_dataframe(df, max_af=.001)
+        scoring.filter_freq(df, .001)
 
 
 def test_acmg_missing_zero_common_and_joint_fallback():
@@ -64,23 +62,9 @@ def test_score_has_no_unknown_rarity_bonus(monkeypatch):
 
 def test_filters_retain_unknown_without_zero_imputation():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, .001, .1, 'bad']})
-    result, stats = filter_dataframe(df, max_af=.001)
-    assert result.index.tolist() == [0, 1, 2, 4]
-    assert result.POPULATION_AF.isna().sum() == 2
-    assert stats.AF_unknown_count.iloc[0] == 2
     strict = scoring.filter_freq(df, .001)
     assert strict.index.tolist() == [0, 1, 4]
     assert strict.POPULATION_AF.isna().sum() == 2
-
-
-def test_report_preserves_zero_and_uses_joint_without_old_af():
-    df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None], GNOMAD_JOINT: [None, .3, .1], 'MAX_AF': [0] * 3})
-    display, af, absent = _extract_gnomadv4_af_grpmax(df)
-    assert display.iloc[0] == '-'
-    assert display.iloc[1] == '0'
-    assert 'joint AF; grpmax undefined' in display.iloc[2]
-    assert pd.isna(af.iloc[0]) and not absent
-    assert _extract_gnomadv4_af_grpmax(pd.DataFrame({'AF': [0]}))[2]
 
 
 def test_unknown_cannot_promote_to_tier_one(monkeypatch):
