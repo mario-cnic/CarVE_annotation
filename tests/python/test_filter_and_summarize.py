@@ -11,7 +11,7 @@ def test_filter_dataframe():
     df = pd.DataFrame({
         'CHROM': ['11', '11', '14'],
         'POS': [47353297, 47353400, 23354000],
-        'gnomAD_AF_joint': [0.0001, 0.005, 0.01],
+        'gnomADv4_AF_joint': [0.0001, 0.005, 0.01],
         'REVEL': [0.85, 0.50, None],
         'AlphaMissense': [0.90, 0.30, 0.95],
         'SPiP_score': [0.10, 0.80, 0.05],

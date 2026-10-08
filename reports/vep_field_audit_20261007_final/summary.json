@@ -1,0 +1,83 @@
+{
+  "csq_slots": 664,
+  "csq_unique_fields": 659,
+  "no_explicit_code_reference_fields": 506,
+  "selector_slots": 563,
+  "selector_unique_fields": 559,
+  "selector_duplicates": {
+    "TSL": 2,
+    "APPRIS": 2,
+    "Mastermind_MMID3": 2,
+    "Mastermind_counts": 2
+  },
+  "csq_duplicates": {
+    "TSL": 2,
+    "APPRIS": 2,
+    "gnomADv4_nhomalt_joint": 2,
+    "gnomADv4_exomes_filters": 2,
+    "gnomADv4_genomes_filters": 2
+  },
+  "dbnsfp_header_fields": 456,
+  "dbnsfp_fields_in_csq": 456,
+  "table_rows": 23686438,
+  "table_columns": 614,
+  "table_row_groups": 23,
+  "total_column_compressed_bytes": 6013193867,
+  "groups": {
+    "other": {
+      "csq_fields": 248,
+      "table_fields": 340,
+      "compressed_bytes": 3071321619,
+      "no_code_token_reference": 130
+    },
+    "cache_1000genomes": {
+      "csq_fields": 6,
+      "table_fields": 6,
+      "compressed_bytes": 107259081,
+      "no_code_token_reference": 5
+    },
+    "cache_gnomad": {
+      "csq_fields": 20,
+      "table_fields": 20,
+      "compressed_bytes": 297975128,
+      "no_code_token_reference": 18
+    },
+    "cache_max_af": {
+      "csq_fields": 2,
+      "table_fields": 2,
+      "compressed_bytes": 30163434,
+      "no_code_token_reference": 0
+    },
+    "clinical_existing_variation": {
+      "csq_fields": 20,
+      "table_fields": 13,
+      "compressed_bytes": 11832098,
+      "no_code_token_reference": 7
+    },
+    "dbnsfp_legacy_population": {
+      "csq_fields": 228,
+      "table_fields": 106,
+      "compressed_bytes": 16286667,
+      "no_code_token_reference": 228
+    },
+    "dbnsfp_rankscore": {
+      "csq_fields": 57,
+      "table_fields": 49,
+      "compressed_bytes": 6714335,
+      "no_code_token_reference": 52
+    },
+    "custom_gnomadv4": {
+      "csq_fields": 78,
+      "table_fields": 78,
+      "compressed_bytes": 2471641505,
+      "no_code_token_reference": 66
+    }
+  },
+  "custom_gnomad_requested_slots": 80,
+  "custom_gnomad_unique_fields": 77,
+  "custom_gnomad_duplicate_requests": {
+    "nhomalt_joint": 2,
+    "exomes_filters": 2,
+    "genomes_filters": 2
+  }
+}

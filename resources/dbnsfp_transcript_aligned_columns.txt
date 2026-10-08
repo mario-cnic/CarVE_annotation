@@ -1,4 +1,3 @@
-APPRIS
 AlphaMissense_pred
 AlphaMissense_score
 DEOGEN2_pred
@@ -49,7 +48,6 @@ SIFT4G_pred
 SIFT4G_score
 SIFT_pred
 SIFT_score
-TSL
 Uniprot_acc
 Uniprot_entry
 VARITY_ER_LOO_score

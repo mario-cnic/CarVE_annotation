@@ -242,6 +242,15 @@ def dbn(feature, **cols):
 ALIGNED = ["Ensembl_transcriptid", "SIFT_score", "AlphaMissense_score", "MetaRNN_score"]
 
 
+def test_vep_transcript_metadata_survives_dbnsfp_transcript_mismatch():
+    resource = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../resources/dbnsfp_transcript_aligned_columns.txt"))
+    df = pd.DataFrame([dbn("ENST00000000099", TSL="1", APPRIS="P1")])
+    out = pr.parse_dbnsfp_by_row_transcript(df, pr.load_aligned_columns(resource))
+    assert out.loc[0, "TSL"] == "1"
+    assert out.loc[0, "APPRIS"] == "P1"
+    assert pd.isna(out.loc[0, "SIFT_score"])
+
+
 def test_dbnsfp_row_keeps_its_own_transcript_value():
     df = pd.DataFrame([dbn("ENST00000000003.5"), dbn("ENST00000000001"), dbn("ENST00000000002"), dbn("ENST00000999999")])
     out = pr.parse_dbnsfp_by_row_transcript(df, ALIGNED)

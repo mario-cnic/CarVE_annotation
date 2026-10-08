@@ -72,3 +72,7 @@ Later changes (same day, `f805585`, `a0c1f4f`, `05a470a`):
 Row order (2026-10-06): `filter_variants.py` no longer sorts the table (it sorted by `NEW_IMPACT`, `SPiP_prediction`, frequency); rows keep the input's
 coordinate order, checked with `modules/io_qc.py` `check_coordinate_order` (a warning is logged when not ordered). `sort_by` stays in `io_qc.py`, unused.
 The sha256 list above describes the 2026-10-01 copy and is out of date for these two files.
+
+Population AF update (2026-10-07): new `modules/population.py` centralizes custom v4 grpmax → joint per-row resolution; `modules/acmg.py` and `modules/scoring.py` preserve unknown AF rather than assigning zero. Unknown AF earns no frequency evidence/bonus and is retained with availability labels by rarity filters. Source columns remain unchanged. The shared-utils and Module 3 copies remain unchanged; see `walkthrough/20261007_population_frequency_missingness.md`.
+
+ClinVar source priority (2026-10-08T10:03:28+02:00): new `modules/clinvar.py` and updates to `acmg.py`/`scoring.py` prefer custom VCF per row, then dbNSFP/cache and legacy aliases; review stars stay with the selected source. See `walkthrough/20261008_clinvar_source_priority.md`. Shared-utils and Module 3 copies are unchanged.

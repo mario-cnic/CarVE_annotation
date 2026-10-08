@@ -16,7 +16,7 @@ def test_generate_report(tmp_path):
         'ALT': ['A', 'T'],
         'GENE': ['MYBPC3', 'MYH7'],
         'Consequence': ['missense_variant', 'stop_gained'],
-        'gnomAD_AF_joint': [0.0001, 0.00005],
+        'gnomADv4_AF_joint': [0.0001, 0.00005],
         'REVEL': [0.85, 0.95],
         'AlphaMissense': [0.90, 0.98],
         'SPiPv2_1_probability': [0.10, 0.05],

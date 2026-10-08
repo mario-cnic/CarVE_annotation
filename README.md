@@ -1,8 +1,8 @@
 # Universal Genomic Variant Annotation, Filtering, and Visualization Pipeline
 
-This repository contains a production-ready, modular HPC bash and Python pipeline ([main.sh](./main.sh)) for parsing, annotating, filtering, and visualizing human genomic variants. It accepts diverse input formats (cDNA ENST/NM notation, hg19 or GRCh38 genomic coordinates, direct VCFs, Excel, TSV, CSV, or Parquet), standardizes all variants to **GRCh38**, runs state-of-the-art functional and splicing predictor ensembles (**Ensembl VEP 111, CADD v1.6, REVEL, AlphaMissense, SPiPv2.1, Pangolin, Local SpliceAI at `-D 10000`, Branchpointer, LaBranchoR, and SpliceVault empirical RNA evidence**), applies customizable variant filtering strategies, and generates both publication-grade static plots (PDF/PNG) and interactive HTML dashboards.
+The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annotate_vcf.nf)), which annotates GRCh38 panel, WES and WGS VCFs. See [Nextflow Whole-VCF Pipeline](#-nextflow-whole-vcf-pipeline) below.
 
-A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annotate_vcf.nf)), annotates one arbitrary-size GRCh38 VCF (panel, WES or WGS) in a single run. See [Nextflow Whole-VCF Pipeline](#-nextflow-whole-vcf-pipeline) below. It does not replace `main.sh`, which is unchanged.
+> **Scope update — 2026-10-07, Mario:** legacy reporting/plotting and the analyses in `src/downstream/` are outdated. Their scripts and historical usage instructions are retained, but they are outside active annotation development. Static R plots are not part of the Nextflow workflow. SPiP still uses R for active splicing annotation. The `main.sh` usage and visualization sections below describe the older workflow.
 
 > [!WARNING]
 > **Every Pangolin score produced before 2026-09-30 is invalid.** The old shared database `shared/utils/pangolin_db/pangolin_grch38.db` is a mouse annotation (GENCODE M23), not human GRCh38 (`BUG_TRACKER.md` `MISC-12`, `carve-platform` `PLT-139`). It controls both gene assignment and exon masking. Both pipelines now expect a GENCODE 45 rebuild, `shared/utils/pangolin_db/gencode.v45.ensembl_canonical.grch38.db`, and fail at the Pangolin step until it is deployed. Re-run Pangolin on earlier results before using them ([walkthrough](./walkthrough/20260930_pangolin_db_gencode_v45_rebuild.md)).
@@ -19,6 +19,8 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
 
 2. **State-of-the-Art Splicing & Functional Annotation Matrix**:
    - **Ensembl VEP 111 (GRCh38)**: CADD (v1.6), REVEL, AlphaMissense, UTRAnnotator, MaxEntScan, and gnomAD v4.1 population frequencies (`AF_joint`).
+   - **Population fields**: custom gnomAD v4 frequencies, allele counts/denominators and alternate-homozygote counts (`gnomADv4_nhomalt_*`) are retained. Cached gnomAD v2/v3, VEP `MAX_AF*` and homozygote age histograms are excluded from new runs. 1000 Genomes fields remain. Mastermind and LoFtool remain enabled; dbNSFP requests all 4.8a fields except duplicate `TSL`/`APPRIS`, which come from VEP ([field list](./resources/vep_dbnsfp_fields.txt)).
+   - **Population AF interpretation**: custom `gnomADv4_AF_grpmax_joint` falls back per row to `gnomADv4_AF_joint`. Unknown or invalid AF earns no frequency evidence or rarity bonus; reported zero stays distinct. Tables expose `POPULATION_AF`, `POPULATION_AF_SOURCE` and `POPULATION_AF_STATUS`. Rarity filters retain unknowns for review; they do not establish adequate population coverage. Older or generic AF columns are used only through an explicit frequency-column override (`--freq-col` in the standalone filter; `--freq_col` in the parser).
    - **SPiP v2.1**: Multi-threaded empirical and machine learning splicing impact predictor (up to 12 cores) with decoded mechanisms (`Exon_skipping`, `Donor_disruption`, etc.).
    - **Pangolin Splicing Predictor**: PyTorch deep learning ensemble predicting splice site gain/loss within 4999 bp of each variant (`-d 4999`), with GENCODE 45 Ensembl_canonical gene models. Output produced before 2026-09-30 is invalid: see the warning above (`MISC-12`). Pangolin has one generic heart model, not separate left-ventricle/atrial-appendage models, so the downstream `heart_lv`/`heart_aa` columns are not subtissue-specific (`PRED-1`, `PLT-138`).
    - **Local SpliceAI at `-D 4999`**: Deep residual neural network predicting max delta scores within 4999 bp of each variant (the maximum the Illumina CLI accepts).
@@ -28,6 +30,7 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
    - **SpliceVault**: Direct empirical RNA-seq aberrant event lookup across GTEx/SRA datasets with human-readable decoded events and sample counts.
    - **SpliceVarDB**: Direct lookup of experimentally validated splicing variants from minigene, RT-PCR, and RNA-seq assays.
    - **ClinVar** (VEP `--custom`, `ClinVarVCF*` columns): germline classification, review status and disease names for SNVs and indels from a dated ClinVar GRCh38 VCF (`clinvar_vcf` in `nextflow.config`, stored under `/data_lab_PGP/resources/annotation/clinvar/GRCh38/`; rebuild with `resources/build_clinvar_vcf.sh`).
+   - **ClinVar source priority**: interpretation prefers a nonmissing `ClinVarVCF_CLNSIG`, then `clinvar_clnsig` (dbNSFP), then `CLIN_SIG` (VEP cache), then legacy aliases. Selection is per row; VUS/conflicting classifications do not trigger fallback. `CLINVAR_SOURCE`, `CLINVAR_SELECTED_CLNSIG`, `CLINVAR_SELECTED_REVIEW` and `ClinVar_Stars` expose the selected evidence. Review metadata is never borrowed from another release.
 
 3. **Unified Status Contracts & Data Schema**:
    - All predictors adhere to strict, unified status contracts: `scored` (valid numerical prediction), `not_covered` (outside gene model/receptive field), or `error`.
@@ -36,7 +39,7 @@ A second entry point, the Nextflow whole-VCF pipeline ([annotate_vcf.nf](./annot
 4. **Customizable Filtering Module**:
    - Customizable command-line thresholds for gnomAD AF (`--max-af`), REVEL (`--min-revel`), AlphaMissense (`--min-alphamissense`), SPiP (`--min-spip`), CADD (`--min-cadd`), and VEP consequences (`--consequences`).
 
-5. **Automated Visualization & Clinical Report Suite**:
+5. **Legacy Visualization & Clinical Report Suite (outdated)**:
    - **Static Publication Plots (R ggplot2)**: Consequence breakdown barplots, REVEL vs AlphaMissense correlation scatter plots, and AF spectrum histograms saved as PDF and PNG.
    - **Interactive 4-Tab Clinical Prioritization Dashboards (`generate_clinical_prioritization_report.py`)**:
      - **Multi-Track SVG Transcript Visualizer & Variant Position Map**: Interactive Plotly multi-track diagram mapping genomic/cDNA positions and amino acid coordinates across exon-intron boundaries, displaying priority tiers, SpliceAI Δ, and AlphaMissense scores.
@@ -133,7 +136,7 @@ bash main.sh \
 | `--gene <GENE>` | String | Filter execution to specific gene (case-insensitive) |
 | `--build <BUILD>` | String | Input assembly build: `hg19` or `GRCh38` (default: `GRCh38`) |
 | `--output-format <FMT>` | String | Output format: `pq` (Parquet), `tsv`, or `xlsx` |
-| `--max-af <FLOAT>` | Float | Maximum gnomAD allele frequency threshold |
+| `--max-af <FLOAT>` | Float | Maximum custom gnomADv4 AF; retain and label unknown AF |
 | `--min-revel <FLOAT>` | Float | Minimum REVEL pathogenicity score |
 | `--min-alphamissense <FLOAT>` | Float | Minimum AlphaMissense score |
 | `--min-spip <FLOAT>` | Float | Minimum SPiP splicing score |
@@ -266,7 +269,7 @@ Eliminates NFS I/O latency and provides a single immutable execution image:
 
 ## 🧪 Master Unit Testing Suite
 
-The repository includes a comprehensive unit testing suite covering Python, R, and Bash CLI components:
+The repository retains Python, R and Bash tests, including outdated legacy components. `tests/run_all_tests.sh` also invokes legacy R plotting/statistics tests; its results are not an active Nextflow-only validation gate.
 
 - **Run all unit tests**:
   ```bash
@@ -278,7 +281,7 @@ The repository includes a comprehensive unit testing suite covering Python, R, a
   python3 -m pytest -v tests/python/
   ```
 
-- **Run R unit tests directly (`Rscript`)**:
+- **Historical R plotting/statistics tests (outdated; not active annotation checks)**:
   ```bash
   Rscript tests/R/test_statsJPO.R
   Rscript tests/R/test_plot_annotation_results.R
@@ -341,3 +344,5 @@ See [BUG_TRACKER.md](./BUG_TRACKER.md) for the current status of every known def
 
 ## ✉️ Contact
 @Mario Ruiz - Lab PGP
+
+The standalone `src/python/filter_and_summarize.py` accepts `--freq-col` (default `gnomADv4_AF_grpmax_joint`, with per-row joint fallback). A requested AF filter fails if its expected columns are absent; all-missing values are retained and labelled unknown.

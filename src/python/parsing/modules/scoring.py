@@ -8,6 +8,7 @@ from .io_qc import _safe_numeric_series, _safe_string_series, build_qc_status
 from .splicing import _extract_spliceai_details, NEW_SPIP_COLUMNS
 from .disease_hpo import apply_disease_phenotype_curation, HPO_GENE_PANELS
 from .acmg import build_acmg_criteria, _extract_clinvar_status
+from .population import annotate_population_af, resolve_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 
 def build_priority_tier(
@@ -28,14 +29,7 @@ def build_priority_tier(
 
     data = apply_disease_phenotype_curation(data, disease_phenotype)
 
-    if freq_col in data.columns:
-        af_series = _safe_numeric_series(data, freq_col)
-    else:
-        freq_candidates = [c for c in data.columns if "af" in c.lower() or "freq" in c.lower()]
-        if freq_candidates:
-            af_series = _safe_numeric_series(data, freq_candidates[0])
-        else:
-            af_series = pd.Series(0.0, index=data.index)
+    af_series = annotate_population_af(data, freq_col)
 
     conseq = _safe_string_series(data, "Consequence").str.lower()
     impact = _safe_string_series(data, "NEW_IMPACT").str.upper()
@@ -82,7 +76,7 @@ def build_priority_tier(
         utr_disrupt = utr_disrupt | utr_5prime_mask
 
     is_clinvar_path, is_clinvar_benign = _extract_clinvar_status(data)
-    clinvar_stars = _safe_numeric_series(data, "ClinVar_Stars") if "ClinVar_Stars" in data.columns else pd.Series(0.0, index=data.index)
+    clinvar_stars = pd.to_numeric(data["ClinVar_Stars"], errors="coerce")
 
     score = np.zeros(len(data), dtype=float)
     score += np.where(is_active_lof, 35.0, 0.0)
@@ -185,7 +179,7 @@ def build_priority_tier(
     score = np.clip(score, 0.0, 100.0).round(1)
     data["VARIANT_PRIORITY_SCORE"] = score
 
-    data = build_acmg_criteria(data)
+    data = build_acmg_criteria(data, freq_col=freq_col)
 
     has_functional_signal = (
         (splice_max >= 0.20) |
@@ -271,12 +265,13 @@ def build_priority_tier(
         if utr_disrupt.iloc[i]: parts.append("UTR (+20.0)")
         if pli_val.iloc[i] >= 0.9: parts.append("LoF-Intolerant (+10.0)")
         
-        if vcep_path_mask.iloc[i]: parts.append("ClinVar VCEP Pathogenic (+50.0)")
+        if vcep_path_mask.iloc[i]: parts.append("ClinVar Expert Panel / Practice Guideline Pathogenic (+50.0)")
         elif concordant_path_mask.iloc[i]: parts.append("ClinVar Pathogenic (+45.0)")
         elif is_clinvar_benign.iloc[i]: parts.append("ClinVar Benign (-40.0)")
 
         af_v = af_series.iloc[i]
-        if is_ba1.iloc[i]: parts.append(f"BA1 Exceeds FAF_PopMax Threshold (Terminal Tier 4)")
+        if pd.isna(af_v): parts.append("Population AF unknown (no frequency evidence)")
+        elif is_ba1.iloc[i]: parts.append(f"BA1 Exceeds FAF_PopMax Threshold (Terminal Tier 4)")
         elif is_bs1.iloc[i]: parts.append(f"BS1_Strong AF > FAF_BS1 (-25.0)")
         elif is_pm2.iloc[i]: parts.append(f"PM2_Supporting AF < MCAF (+15.0)")
 
@@ -319,7 +314,7 @@ def build_priority_tier(
                 rat = f"High-Priority Composite Score ({final_score:.1f}/100 >= 75.0) & Ultra-Rare Population Frequency (AF < MCAF)"
         elif "Tier 2" in t_str:
             if is_lof.iloc[i]:
-                rat = f"Loss-of-Function Alteration in Rare Variant (AF = {af_v:.4f})"
+                rat = "Loss-of-Function Alteration" + (f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
             elif splice_max.iloc[i] >= 0.50:
                 rat = f"High Splicing Delta Score (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.50 via {splice_method.iloc[i]})"
             elif revel_score.iloc[i] >= 0.773:
@@ -327,12 +322,12 @@ def build_priority_tier(
             elif am_score.iloc[i] >= 0.750:
                 rat = f"Moderate Pathogenic Missense (AlphaMissense = {am_score.iloc[i]:.3f} >= 0.750, PP3_Moderate)"
             else:
-                rat = f"Strong Priority Composite Score ({final_score:.1f}/100 >= 50.0) & Rare Population Frequency"
+                rat = f"Strong Priority Composite Score ({final_score:.1f}/100 >= 50.0)"
         elif "Tier 3" in t_str:
             if has_splice_effect.iloc[i]:
                 rat = f"Moderate Splicing Delta Alteration (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.20 via {splice_method.iloc[i]})"
             else:
-                rat = f"Moderate Priority Composite Score ({final_score:.1f}/100 >= 25.0) & Rare Population Frequency"
+                rat = f"Moderate Priority Composite Score ({final_score:.1f}/100 >= 25.0)"
         else:
             if is_ba1.iloc[i]:
                 rat = f"Stand-Alone Benign: AF ({af_v:.4f}) Exceeds FAF_PopMax Threshold ({ba1_thresh.iloc[i]:.4f})"
@@ -369,7 +364,8 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
     ]
     
     evidence_cols = [
-        "CLINVAR_DISPLAY", "clinvar_clnsig", "CLNSIG",
+        "CLINVAR_SELECTED_CLNSIG", "CLINVAR_SOURCE", "CLINVAR_SELECTED_REVIEW", "ClinVar_Stars",
+        "ClinVarVCF_CLNSIG", "CLINVAR_DISPLAY", "clinvar_clnsig", "CLNSIG",
         "gnomADv4_AF_grpmax_joint", "MAX_AF", "af", "gnomad_af", "AF",
         "pLI_gene_value", "pLI",
         "spliceai_custom_MAX", "spliceAI_MAX", "SPLICE_MAX_UNIFIED", "SPLICEAI_METHOD",
@@ -405,7 +401,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
 def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
     """Audits which bioinformatic tools, annotators, and predictors are present vs missing in the dataset."""
     tool_map = {
-        "gnomAD Allele Frequency": ["gnomADv4_AF_grpmax_joint", "MAX_AF", "af", "gnomad_af", "AF"],
+        "gnomAD Allele Frequency": [GNOMAD_GRPMAX, GNOMAD_JOINT],
         "SpliceAI Custom Window (-D 4999 / ~10kb)": ["spliceai_custom_MAX", "SpliceAI_custom_MAX", "spliceai_custom_DS_AG", "SpliceAI_custom_DS_AG", "SpliceAI_D10000", "SpliceAI_10k"],
         "SpliceAI VEP Standard (~50bp)": ["spliceAI_MAX", "SpliceAI_pred_DS_AG", "SpliceAI_DS_AG", "SpliceAI"],
         "SPiP Deep Splicing": ["SPiP_prediction", "SPiP"],
@@ -414,7 +410,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
         "REVEL Missense Ensemble": ["REVEL_score", "REVEL"],
         "SpliceVault RNA-Seq Cohort": ["SpliceVault_status", "SpliceVault"],
         "Branchpoint Disruption": ["Branchpoint_status", "Branchpoint"],
-        "ClinVar Pathogenicity": ["clinvar_clnsig", "CLINVAR_DISPLAY", "CLNSIG", "ClinVar"],
+        "ClinVar Pathogenicity": ["ClinVarVCF_CLNSIG", "clinvar_clnsig", "CLIN_SIG", "CLNSIG", "CLINVAR_DISPLAY", "ClinVar"],
         "pLI Gene LoF Intolerance": ["pLI_gene_value", "pLI"],
         "5'/3' UTR & Kozak Regulatory": ["lost_stop_codon", "5UTR_consequence", "utr_num_kozak_gainedOrLost", "mrl_gainedOrLost"]
     }
@@ -423,6 +419,16 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
     cols_lower = {c.lower(): c for c in data.columns}
 
     for tool_name, candidates in tool_map.items():
+        if tool_name == "gnomAD Allele Frequency":
+            af, _, _ = resolve_population_af(data)
+            count = int(af.notna().sum())
+            audit_results[tool_name] = {
+                "status": "Available" if count else "Unknown (no frequency evidence)",
+                "column": "custom v4 grpmax / joint",
+                "coverage": f"{count:,}/{len(data):,} ({count/max(1, len(data))*100:.1f}%)",
+                "is_present": any(c in data.columns for c in candidates),
+            }
+            continue
         matched_col = None
         for cand in candidates:
             if cand in data.columns:
@@ -456,26 +462,14 @@ def filter_freq(
     freq,
     freq_column: str = "gnomADv4_AF_grpmax_joint",
 ):
-    if data[freq_column].isnull().sum() == data.shape[0]:
-        logger.debug(f"Values for {freq_column}: {data[freq_column].unique()}")
-        logger.error(
-            f"All values in {freq_column} are NaN, please check the column"
-        )
-        raise ValueError(f"All values in {freq_column} are NaN, please check the column")
-    try:
-        data[freq_column] = data[freq_column].replace(".", np.nan)
-    except KeyError as e:
-        logger.error(f"Column {freq_column} not found in data")
-        freq_similar = [
-            col for col in data.columns if freq_column.lower() in col.lower()
-        ]
-        logger.warning(f"Maybe you meant {freq_similar}")
-        raise e
-    data[freq_column] = data[freq_column].fillna(0)
-    data[freq_column] = data[freq_column].astype(float)
-    logger.info(f"NA values filled with 0 in column {freq_column}")
-    new_df = data[data[freq_column] < freq]
-    logger.info(f"Dataframe shape after frequency [{freq}] filtering {new_df.shape[0]}")
+    expected = [GNOMAD_GRPMAX, GNOMAD_JOINT] if freq_column == GNOMAD_GRPMAX else [freq_column]
+    if not any(column in data.columns for column in expected):
+        raise ValueError(f"Population frequency column(s) missing: {expected}")
+    result = data.copy()
+    af = annotate_population_af(result, freq_column)
+    unknown = af.isna()
+    new_df = result.loc[unknown | (af < freq)].copy()
+    logger.info(f"Frequency < {freq}: retained {len(new_df)} rows, including {int(unknown.sum())} with unknown AF")
     return new_df
 
 
@@ -492,10 +486,15 @@ def classification_dominant(data: pd.DataFrame, freq_col: str, freq: float):
         ("candidate", "MODERATE"): 1e-4,
     }
 
+    data = data.copy()
+    annotate_population_af(data, freq_col)
+
     def evaluate_variant(row):
         prio = row["gene_priority"]
         impact = row["NEW_IMPACT"]
-        freq_val = row[freq_col]
+        freq_val = row["POPULATION_AF"]
+        if pd.isna(freq_val):
+            return "Unknown frequency"
         limit = thresholds.get((prio, impact))
         if limit and freq_val < limit:
             return "Candidate"

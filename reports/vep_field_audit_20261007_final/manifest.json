@@ -1,0 +1,875 @@
+{
+  "timestamp": "2026-10-07T14:59:43.516270+02:00",
+  "command": [
+    "src/tools/audit_vep_field_usage.py",
+    "--vcf",
+    "nf_work/annotation_out/panel8_trio_layout/annotation/panel8_trio_layout.annotated.vcf.gz",
+    "--table",
+    "nf_work/annotation_out/F2005_union/F2005_union.parsed.clean.pq",
+    "--dbnsfp",
+    "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a_grch38.gz",
+    "--cache-info",
+    "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/cache/homo_sapiens/111_GRCh38/info.txt",
+    "--consumer",
+    "../clinical_variant_prioritization",
+    "--outdir",
+    "reports/vep_field_audit_20261007_final"
+  ],
+  "script_sha256": "0ed1920f014ceea1851babd52a1cf176b80cba42b9ebb3bde76977698c7de9f8",
+  "selector_sha256": "4fd10751e4392792f76d1428c28b819bb5354dd61f92b3cc6a86f6ba9e9f6fe8",
+  "alignment_list_sha256": "ca87e9c8aa53390fe4ab8ca749359d820202255f31b4c966f0821986e37b7eab",
+  "git_commit": "08c7bbeef751276eabec60368ee4849941fe3819",
+  "git_status": "?? reports/\n?? src/tools/audit_vep_field_usage.py",
+  "consumer_commit": "74877f852d55e6b7d501480d57f8716b84d8273e",
+  "consumer_status": "M README.md\n M TODO.md\n M app.py\n M docs/CLINGEN_RESEARCH_PRIORITIZATION_STRATEGY.md\n M frontend/src/App.tsx\n M frontend/src/components/ExecutiveSummary.tsx\n M frontend/src/components/ManhattanPlot.tsx\n M frontend/src/components/PedigreeTree.tsx\n M frontend/src/components/RunSourcePanel.tsx\n M frontend/src/components/Sidebar.tsx\n M frontend/src/components/VariantGrid.tsx\n M frontend/src/index.css\n M frontend/src/types.ts\n M src/api/routers/reports.py\n M src/api/routers/variants.py\n M src/clinical_report.py\n M src/engine/candidate_set.py\n M src/engine/column_sets.py\n M src/engine/duckdb_manager.py\n M src/modules/acmg.py\n M src/modules/disease_hpo.py\n M src/modules/features.py\n M src/modules/io_qc.py\n M src/modules/pedigree.py\n M src/modules/scoring.py\n M src/report_generator.py\n M src/report_templates/clinical_report.html.j2\n M tests/test_api.py\n M tests/test_clinical_report.py\n M tests/test_genotype_source.py\n M tests/test_modules_disease_hpo.py\n M tests/test_modules_pedigree.py\n M tests/test_modules_scoring.py\n M tests/test_source_candidates.py\n M walkthrough/20261006_clinician_case_report.md\n M walkthrough/INDEX.md\n?? frontend/src/caseStorage.ts\n?? frontend/src/components/CaseBar.tsx\n?? frontend/src/components/FilterMenu.tsx\n?? frontend/src/components/setup/\n?? frontend/src/frequency.ts\n?? uploads/\n?? walkthrough/20261006_frontend_case_setup.md\n?? walkthrough/20261007_gnomad_af_without_max_af.md\n?? walkthrough/20261007_parent_genotype_unknown_segregation.md",
+  "versions": {
+    "pyarrow": "20.0.0",
+    "pysam": "0.23.3"
+  },
+  "inputs": [
+    {
+      "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/nf_work/annotation_out/panel8_trio_layout/annotation/panel8_trio_layout.annotated.vcf.gz",
+      "size": 90542,
+      "mtime_ns": 1791205576774848277
+    },
+    {
+      "path": "/data_lab_PGP/pipelines/annotation_pipeline_new/nf_work/annotation_out/F2005_union/F2005_union.parsed.clean.pq",
+      "size": 6015046219,
+      "mtime_ns": 1791146664887326016
+    },
+    {
+      "path": "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/plugins/dbNSFP/dbNSFP4.8a_grch38.gz",
+      "size": 39089443420,
+      "mtime_ns": 1725281430724258000
+    },
+    {
+      "path": "/home/mruizp/data_references/genomes/Homo_sapiens/annotations/VEP/GRCh38/cache/homo_sapiens/111_GRCh38/info.txt",
+      "size": 2126,
+      "mtime_ns": 1727953410248424000
+    }
+  ],
+  "cache_info": "species\thomo_sapiens\nassembly\tGRCh38\nsift\tb\npolyphen\tb\nsource_polyphen\t2.2.3\nsource_sift\t6.2.1\nsource_genebuild\t2014-07\nsource_gencode\tGENCODE 45\nsource_assembly\tGRCh38.p14\nvariation_cols\tchr,variation_name,failed,somatic,start,end,allele_string,strand,clin_sig,phenotype_or_disease,clin_sig_allele,pubmed,var_synonyms,AF,AFR,AMR,EAS,EUR,SAS,gnomADe,gnomADe_AFR,gnomADe_AMR,gnomADe_ASJ,gnomADe_EAS,gnomADe_FIN,gnomADe_NFE,gnomADe_OTH,gnomADe_SAS,gnomADg,gnomADg_AFR,gnomADg_AMI,gnomADg_AMR,gnomADg_ASJ,gnomADg_EAS,gnomADg_FIN,gnomADg_MID,gnomADg_NFE,gnomADg_OTH,gnomADg_SAS\nsource_COSMIC\t98\nsource_HGMD-PUBLIC\t20204\nsource_ClinVar\t202306\nsource_dbSNP\t156\nsource_1000genomes\tphase3\nsource_gnomADe\tr2.1.1\nsource_gnomADg\tv3.1.2\nvar_type\ttabix\nregulatory\t1\ncell_types\tA549,A673,B,B_(PB),CD14+_monocyte_(PB),CD14+_monocyte_1,CD4+_CD25+_ab_Treg_(PB),CD4+_ab_T,CD4+_ab_T_(PB)_1,CD4+_ab_T_(PB)_2,CD4+_ab_T_(Th),CD4+_ab_T_(VB),CD8+_ab_T_(CB),CD8+_ab_T_(PB),CMP_CD4+_1,CMP_CD4+_2,CMP_CD4+_3,CM_CD4+_ab_T_(VB),DND-41,EB_(CB),EM_CD4+_ab_T_(PB),EM_CD8+_ab_T_(VB),EPC_(VB),GM12878,H1-hESC_2,H1-hESC_3,H9_1,HCT116,HSMM,HUES48,HUES6,HUES64,HUVEC,HUVEC-prol_(CB),HeLa-S3,HepG2,K562,M0_(CB),M0_(VB),M1_(CB),M1_(VB),M2_(CB),M2_(VB),MCF-7,MM.1S,MSC,MSC_(VB),NHLF,NK_(PB),NPC_1,NPC_2,NPC_3,PC-3,PC-9,SK-N.,T_(PB),Th17,UCSF-4,adrenal_gland,aorta,astrocyte,bipolar_neuron,brain_1,cardiac_muscle,dermal_fibroblast,endodermal,eosinophil_(VB),esophagus,foreskin_fibroblast_2,foreskin_keratinocyte_1,foreskin_keratinocyte_2,foreskin_melanocyte_1,foreskin_melanocyte_2,germinal_matrix,heart,hepatocyte,iPS-15b,iPS-20b,iPS_DF_19.11,iPS_DF_6.9,keratinocyte,kidney,large_intestine,left_ventricle,leg_muscle,lung_1,lung_2,mammary_epithelial_1,mammary_epithelial_2,mammary_myoepithelial,monocyte_(CB),monocyte_(VB),mononuclear_(PB),myotube,naive_B_(VB),neuron,neurosphere_(C),neurosphere_(GE),neutro_myelocyte,neutrophil_(CB),neutrophil_(VB),osteoblast,ovary,pancreas,placenta,psoas_muscle,right_atrium,right_ventricle,sigmoid_colon,small_intestine_1,small_intestine_2,spleen,stomach_1,stomach_2,thymus_1,thymus_2,trophoblast,trunk_muscle\nsource_regbuild\t1.0\n",
+  "code_files": [
+    {
+      "repo": "M2",
+      "path": "modules/local/branchpointer.nf",
+      "sha256": "da3eb5d3459c895f7902496e7da9e0ea5b364e8ba19d9f9e305364014d5788ac"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/check_assembly.nf",
+      "sha256": "d18f4564c1b21938bb42735244213cd02e62a597773ce1017ba126d4c920358d"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/chunk.nf",
+      "sha256": "ed336818ecfa0df5d6cc49ed60aa12eb7119f8ea45a45de0b4bf811ba251b82a"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/gene_subset.nf",
+      "sha256": "1918732f0d1e27b8d44e319d974a40c4ec01c0d6a00f617f341592cd80f1affb"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/genotypes.nf",
+      "sha256": "ad5d2297151c71099f89de0596b3c40f4dcb937db1dc136a172bd26c4f24e28b"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/merge.nf",
+      "sha256": "eb518f29c51a1ae361ce6741a95287756b20918fe1b388521377a166ae60ee86"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/pangolin.nf",
+      "sha256": "6e245406384c365bbb302a14e8ec3cbcac8f46269342a052f16d892f93e60755"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/spip.nf",
+      "sha256": "89676a97deb5ac4c1e9cac059a4c38c495da01aab971b69c17b1ccfba30ef4ad"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/spliceai.nf",
+      "sha256": "fac5a83c5cd0feb8d93f13060a5cda67df05fb54c7f93b8cd6feca71b7f8f522"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/tag_transcript_priority.nf",
+      "sha256": "c15a05de2576f9c15c730d40ee2f21ab2988bf310c6e286989a63309686c4576"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/vcf_to_table.nf",
+      "sha256": "5988316d89bb5e18169bdfd152a1841d4ae631af234949b473cff6edc0ff05d6"
+    },
+    {
+      "repo": "M2",
+      "path": "modules/local/vep.nf",
+      "sha256": "3ce8cbb33ab5485ebd57b41d68b764d0a45ed371aebe31f92905dd2964a0aebf"
+    },
+    {
+      "repo": "M2",
+      "path": "src/R/plot_annotation_results.R",
+      "sha256": "926fc040c7745887df5c267f0ff8ac373a4d41187b2f9de0c495d941e25feb62"
+    },
+    {
+      "repo": "M2",
+      "path": "src/R/statsJPO.R",
+      "sha256": "1986a9c7c74ce3f02508f5e2350dfcea539122f5657a2b5635828459d4250a60"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/01_build_master.R",
+      "sha256": "d263eb5c6d102da5b2d11de590a8f1e9c0fa5996ac81eb80cafc3290f3be44bb"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/01_build_master.sh",
+      "sha256": "5c7293bf205d986aaa43b38dbda09e0b97f45925e5ac2632c67bbd80dc872c50"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/02_cohort_enrich.R",
+      "sha256": "5e34c64bc0f330decb442f240e306a33b62a57cafbe05c2d4967c7e9a2c904de"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/02_cohort_enrich.sh",
+      "sha256": "b71aae3b4734009e864993b4e3971c73bf919f9bcc3bfc73f1ef25a71fa091f4"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/03_burden.R",
+      "sha256": "8a6a109a669d7579fc7ccdc1ab151d24a3b3ea03ce0369d14d8c5b0fda024e53"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/03_burden.sh",
+      "sha256": "083b7f4d6a3c59615796b646c1827e845c821edda9306bff0a191b6b641dd6da"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/04_forest_plot.R",
+      "sha256": "51f223bbfdf769bdb83ec920a58bbbf2f353edad814aadafa0f4b180fbcb4d6c"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/04_forest_plot.sh",
+      "sha256": "8485c9b3b71cf3450ba310a30cf898c4fd557cb0d3a26f9bc3e137eeecfbf8a2"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/05_missense_predictors.R",
+      "sha256": "9adaa5ba11421090f3c45fc43bc977251f5c4e239f35e5b4379b4543364e24b5"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/06_missense_spatial_burden.R",
+      "sha256": "abef1fe5d9c75364f71fc30d7cad673c34792204cebd06aa34bab588c15f9900"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/07_domain_burden.R",
+      "sha256": "3f9f61ef40ec1db1b54e26deba9eb7ea7776f395df74d45d3ca2edf0ddd708c6"
+    },
+    {
+      "repo": "M2",
+      "path": "src/downstream/08_describe_ttn_results.R",
+      "sha256": "88979b2f000b78eb2712f87b75bcd425a486d3bf209373b64e1b71cea7fef707"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/annotate_branchpointer_vars.sh",
+      "sha256": "c8f4f725bb87716a6c246eab8a86f1b35230b2f2eb4a814bf53bc89c5afb59ed"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/annotate_pangolin_vars.sh",
+      "sha256": "0994c8940952797477d15679858967c5b1b4bf1a77d24a090b15cc308a7f40ab"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/annotate_spip_vars.sh",
+      "sha256": "91a6132643f5747c0ff329e6b526b9cca7fee8d79b870255e13bc31008fc4a72"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/annotate_spliceai_vars.sh",
+      "sha256": "c02c1313a8ef55063f4327934b946b4c011f62a8465b439b3d4c01766ffaa363"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/annotate_vep_vars.sh",
+      "sha256": "f6488b3fdbaa4b1e522ae1b645f59273d8151955514d444e7a9c157f8a1ad8e2"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/build_container.sh",
+      "sha256": "27c16ebcf6a7c096effbc10d257230c116eb1c95add9da0b03efcca0b33c0a65"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/gene_coords.sh",
+      "sha256": "3252125d57f7a49362ac1a98390bece517524a211c45650eca511efa22b7a8e6"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/logger.sh",
+      "sha256": "513208a4232c1658326a8218838adfbfdd8b35ff9b323a22b8f70448bbd99750"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/merge_vep_spip.sh",
+      "sha256": "a1d3a0d2f151fcebddeff7e31644ec9bc5e393ff33b508171e269f3dfa382750"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/run_python_hpc.sh",
+      "sha256": "572b9ba7b965703227cc9f4a57d59ceaef20a8650c62771cc584caee3415eca3"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/variant_converter.sh",
+      "sha256": "55e8ea8c6640153e2494baae59fcd4ad35c9d9037a71be9655a14b4b5226c69a"
+    },
+    {
+      "repo": "M2",
+      "path": "src/hpc/vcf2parsed.sh",
+      "sha256": "633a078094964cd3ee293adad04d70774bf5d491c4ec298b88657205ee6af9a3"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/annotate_branchpointer.py",
+      "sha256": "2eb5789ae48517a29f9f83e6a2a9bdb07bb88d76a8b663c0fa6895670f438f1b"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/annotate_spliceai.py",
+      "sha256": "97edc873b9596391243bd4dff6c2a16c0e23360cf37d354555fa25806e93a06f"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/audit_run_results.py",
+      "sha256": "520039bfc7e8103cfa6663ba9fb5d619349f932a5f1e320230f65da2491b92d5"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/batch_generate_clinical_reports.py",
+      "sha256": "fa148642fc31a1655037684f30630e79e089f806d337d3871b5331e1bf52943f"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/build_enst_spip_map.py",
+      "sha256": "b7ac8456674b2965e1b007bf984ba116711f54c6adc86f586d5ce031ac8c9032"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/build_gene_identity_tables.py",
+      "sha256": "36e4fe2cfcf3aefaa66e7ce61b40c24c397f709ea4b9381e9d0301fdfd32a517"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/build_gene_restriction_bed.py",
+      "sha256": "59881b3b6b2599ce08dc13a253714329d79f76b90fef4ac5d4ec220eb8e03f5d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/build_run_qc_report.py",
+      "sha256": "1b57efb29e1f301ca635a7b683bd7576dbee252752388d011dadc4fb25b58dbb"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/check_vcf_assembly.py",
+      "sha256": "2a2e371822204473394477d1b4fe3b30152690169efeed88eaec520a80f42813"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/config.py",
+      "sha256": "e75e18024eb2a5766ed68f6304d02c0b8bc770de5e0c48a4fe11b3269b6e406f"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/extract_genotypes.py",
+      "sha256": "f63aea915fcdf08248d56d6c23d690d031b2fd78832f31da7787cca4ce1201f0"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/filter_and_summarize.py",
+      "sha256": "1902d475c283ebc63dfe5a45f44fa04736262472626567862155edd954f85dc0"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/generate_clinical_prioritization_report.py",
+      "sha256": "30fbcddbf10a47c595493b57ce50b292a4f679451f527c18265f577f2f8f028e"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/generate_cohort_master_dashboard.py",
+      "sha256": "4207837b5762deea6b124f6959d9dc8dc9a9996582e9dadb347892bb5647f4d3"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/generate_interactive_report.py",
+      "sha256": "f95695f589b93fa2aeeae355712f28a5a05b99e335171cb9a20da3b39f54e05d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/genotypes_to_wide.py",
+      "sha256": "fc5da0c472dc1912cc74d25eb47440be0f7a237d0d55cf801ea0e1d6679a5c8a"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/filter_variants.py",
+      "sha256": "7085ac8808eb1ab888264ee7e27c895a4395b59c7b8e48ecfa66248c3d0c4271"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/logger.py",
+      "sha256": "8d0a8163ae1e13830d8459004ac35dcb2a08ca78c76d1b7fd2ec07aaef79db32"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/__init__.py",
+      "sha256": "5a94fa72ffe6063d5cc20f1cb90ade6e5beeb34e0015cf5c29ecc9af3cb90d12"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/acmg.py",
+      "sha256": "5e26b95dd42883462ed633489271aaec34cec04e5d17d596672424acce85ab6e"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/disease_hpo.py",
+      "sha256": "daf6044d4fc9510898dc76e7a0de501ac58edeb5bda425eeb232190e06ddf811"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/gene_identity.py",
+      "sha256": "1885a92a6938e81cd0d14bb5b43cdfd2b7685e3e520ca49946b00517f2dc4cd3"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/io_qc.py",
+      "sha256": "ea392141b173ba1977e99e0d413a85d6c0bca55962381602e8a2a0a971807d5a"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/pedigree.py",
+      "sha256": "1bf4de98537edbdca2f3f8a7e55f3f685e358a3a3007e9645b0261eb6663627d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/predictors.py",
+      "sha256": "4df53fda3b3776ee595c5a01fb234cb9b7a0b3418450056bc0381217ef02e7d0"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/scoring.py",
+      "sha256": "5f867c274fec883ec603bcdaa5dcc154ead84e972299fd96359e9c125eb976b1"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/modules/splicing.py",
+      "sha256": "00c5fdbabc271f00d3d8f2d87a69b9bcc1f466af4c155533196f3ca8a74fff81"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/parsing/vcf_parser_pysam.py",
+      "sha256": "0ceb26767750ce22f0cf779260e010c1269b6427484fc1bdb838edc1d295ccb7"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/provenance_stamp.py",
+      "sha256": "cb626ff7eccdb4528689860a07a562d3c713d08a7de458d6adce0896869ac86d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/query_new_transcripts.py",
+      "sha256": "4b962b473e66072438eab16f4166f89004d218ff93d54e0a9dbd648174f38b42"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/split_vcf_chunks.py",
+      "sha256": "f9c8b0aa41c3e9ed19053cf5756d4cefd27e57ce0a6932206c775f14bd73c1fd"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/tag_transcript_priority.py",
+      "sha256": "4561328195f6c57d05a0cf7ec3840ceba13d547d3e0964578f0b613fc000f6dc"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/universal_variant_converter.py",
+      "sha256": "90c733bfba24074c41b357456f40c3091de1a2efc42ada9be463d65eea430fa5"
+    },
+    {
+      "repo": "M2",
+      "path": "src/python/write_run_manifest.py",
+      "sha256": "4b24d56de136b722494db882d4f9d638fff5d6412a7dbf35272f435706d2c3c2"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/analyze_misc17_qacct.py",
+      "sha256": "208f51519eaff4db3fa8ea573f54e7a4b8486be3ccb288ee48eb73c1a885811b"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/analyze_nextflow_tasks.py",
+      "sha256": "077e7f0e5f7a80d4ae26dd9c17b08783b5f0508ab522398be62cb4d9a124b50e"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/analyze_pangolin_chunk_runtime.py",
+      "sha256": "a89d589695d4fbc391f748d06b757bf4db0cf841510eca988191b12db34f8269"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/audit_alias_resolution.py",
+      "sha256": "9a26743e3e9d1c13b30579e2e23ed0ad8a2fd2fc65d14e9b0b5a8ed3b1bc33a4"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/audit_gene_attribution.py",
+      "sha256": "84a90a80cf9694a9292c0e30b8b5ddf35f7505b0cc610e443e7630032288968c"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/backfill_spliceai_custom_columns.py",
+      "sha256": "7837230a6392c1c573bb524b0e3b295436d08a7adb322e92ebc50a350144ccb9"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/backfill_variant_prioritization.py",
+      "sha256": "cc8c9ae828a32b82aba1200ebffa31adf39005b0df50b94b1b9a793636bf333f"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/build_labranchor_grch38.py",
+      "sha256": "52fb1fc7914f57c37483c126ed014c8d9794974dc003fc333e0cdb7d7707358d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/build_labranchor_ism_grch38.py",
+      "sha256": "8b6b8a20a1e327da362056de6e83920f622731e69df37bd8591a51b44c66ca45"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/build_panel8_trio.py",
+      "sha256": "c8a08483828d586725b1c324184cdef9065103ebfc100987a48ae26465838c55"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/candidate_funnel_duckdb.py",
+      "sha256": "6ff5c3435246be8abe333abafa6d98d173d2e26771905c70f5f5afaf2e401477"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/combine_valencia_hic.py",
+      "sha256": "e47ca6daaac7245259a443e23f86ba4d4e91fea6760c6213cb11b2f11025581d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/combine_valencia_hic.sh",
+      "sha256": "8d4f7ad61781a59147ca36b9d1014e28993dfc55be3bcf4b574af6a4b38845ab"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/compare_spliceai_predictions.py",
+      "sha256": "e827241ca5c59087f6168d24f277215a0a9084e4fe3e2168da0ebc390b55e79d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/derive_dbnsfp_dependency.py",
+      "sha256": "e9b4fd6cd53ed76bea0aed434d08c8597547829b02aed15a283d72b5dc81c355"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/eda_parsed_pq.py",
+      "sha256": "1962098771561262ae979e26a6187491635520d627d8327d91bb9ccdb2b4acd6"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/make_refcorrected_fixture.py",
+      "sha256": "d78bc0e77f5e2e7de49ec903ce45c229ac7c8d309f3192fc304734039eaeb9ea"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/noonan_string_audit.py",
+      "sha256": "6a6628999557690c56d94e41e612f2db1650d0b4caa922b462fe235405ef9dbf"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/parse_raw_hic.py",
+      "sha256": "64d85afc84f97843a8e36dd42eecc280b975916f227f294f95108c30111f140a"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/pre_run_readiness_audit.py",
+      "sha256": "095d49dea8a00743108ee9512fa7e16741f2ee811ba834c8b8eb2f4d6024e6b2"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/prepare_family_union.sh",
+      "sha256": "529a5cdfa9f3e54539a77951eb8ae74a925d351e74d902b3bcf4bc8997a4081d"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/row_funnel.py",
+      "sha256": "1a21f90a0aa3c04644b818091d1a8f86d8f481b84bfd87d24ccb608788bd9bca"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/split_input_by_gene.py",
+      "sha256": "b5a469e82c7e1627cfde7b746d625f4b96859ab5bab5d621ddbdb5d59de38c12"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/store_tsv_as_parquet.py",
+      "sha256": "6a5b3f8f2914b0888930587b52e163693f2ae8f68f5f1366679e0f2db4c9eca0"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/update_mappings_to_grch38.py",
+      "sha256": "af07ba9352fb717c826ade46e671982028474f02dc8dcaa55bfe3dfecef5be89"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/validate_enst_spip_map.py",
+      "sha256": "0425d6af1fa28a842b037374df52ae1c1c2c55ce76ec68202dec5fe3b8cb2f69"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/validate_output.py",
+      "sha256": "7fbc06a76edfeca0feb65eea5985a75d10a23b66a80dfde4037a5ee139455f7b"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/validate_pangolin_db.py",
+      "sha256": "ae4f5ab05c7c969ba839371f7ae6431d1cf252ea33a19e9679b7c7d086f637ab"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/validate_reparse_checks.py",
+      "sha256": "54222b72ab5307af789736cfd6b558920de53beded49fb24dd73e7e1a3ad2dc7"
+    },
+    {
+      "repo": "M2",
+      "path": "src/tools/validate_reparse_sample.py",
+      "sha256": "f5c3a14b454a78cf2f22af44104c3f6b8bc6461c41fd2f6b54de4a99abe42348"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/broad_pass.nf",
+      "sha256": "340d38d227b76c8a1790bb096374467bb9bedabee21c467442d355235d3fd90a"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/broad_pass_whole.nf",
+      "sha256": "d2e69dee92f514cbb3a293aa5c5e6ca70aadcf631afe959b5bd9e1cbe30150d0"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/chunk_fan_concat.nf",
+      "sha256": "b943a370a3e658df10520849bd58cb5538c8751af1f5b6513d58919809e70220"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/gene_restricted.nf",
+      "sha256": "a8f7fe7d5e362b265ce295a59de51e01ec6d1d4e91da3a481b284e009cdbb9c1"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/gene_restricted_whole.nf",
+      "sha256": "7140812f18a6157d01ca61963dacc4978206aa5675127b7aa39575ffbb54eac5"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/merge_subworkflow.nf",
+      "sha256": "ce5445a99f4c5f5161b985e8196e2b4b69249a13947790fb9611fa9d71368533"
+    },
+    {
+      "repo": "M2",
+      "path": "workflows/spliceai_spike.nf",
+      "sha256": "14800167575623412b2e3d7c203efbfe91167d682806426846532fb629ec76c9"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/App.tsx",
+      "sha256": "1eb16f5dedcf20a5606b18043aa5625112d81315fd62d3a2d0de7da7a292ae0c"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/ErrorBoundary.tsx",
+      "sha256": "0f5984a26ba0c023e6daf1e1b4ffce39a2679555ab28e7d8bd80adeac074203c"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/apiClient.ts",
+      "sha256": "eae923576dc577fe3ec54d905e14e4908dcd6e536dd01067ce9e947a9598d535"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/AlignmentsViewer.tsx",
+      "sha256": "57ae8ea238696be0b6a3857004f3488328a132a0bd0f0b93ef02a9c24adebf9b"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/BioinformaticsHub.tsx",
+      "sha256": "d8a978a4cac4b6be2c560c6f0e3eeb03a513bcdad068fcd3f51580d49d059b61"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/ExecutiveSummary.tsx",
+      "sha256": "4ecff29bf1159ff829d2c6f82c501ea464959cbd956b2b9b2dd15a7976116988"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/ExportCenter.tsx",
+      "sha256": "f127ce30b362b3142308876ba55718693794c91ee413bc70ee9f64361c533136"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/FormattedCells.tsx",
+      "sha256": "4d74cf4bea50712eb0aa95ed3b4ca936e6a20b49cbd0b79823857b1152902e8b"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/GeneCuration.tsx",
+      "sha256": "cab4eaad534b8efe766d0f244185a13f57b117cd6f1fca42a3b7c6e4d533aaca"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/Header.tsx",
+      "sha256": "414b42eaa9410083cc219f3fd6befed766740c2a6afd1cc024cd3893b9c5ae82"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/LocusCell.tsx",
+      "sha256": "ab407c19736f6bbd8296380f5d7dbd78979f42bf3d4952424df3e9c89818554f"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/ManhattanPlot.tsx",
+      "sha256": "d2026cda025588457823c3ee608e2377f91890a22af00004d80d72931e2f46b2"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/MetricCards.tsx",
+      "sha256": "b73707c3ec9072ad212481048234ce5f0fa38791e75e5f3ec2b3f03f4d7c796b"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/PedigreeTree.tsx",
+      "sha256": "1ec635c2cbf70ee42efa0c93f6e041634e0e8bca12ac21fd4b5275c2085bec61"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/PipelineHelp.tsx",
+      "sha256": "c92d80310612370e810cf3bbffa5be2ccf677cfd1d80d4a96a5c4acfccaf6a75"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/RunSourcePanel.tsx",
+      "sha256": "8b437135f487d1750e149eb4997e13cd68727e8d8ff70d29293d692f2430a36d"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/Sidebar.tsx",
+      "sha256": "06d6994cf2d8fe5afa53584943cb5435f87749012ece235ac0aae65b34757112"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/components/VariantGrid.tsx",
+      "sha256": "b0b4e6327ef7130eb6bbef602229896370c4f2cf19e5eb2c23fa0ec19dcb2546"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/main.tsx",
+      "sha256": "56119e54dc293c9c27f7ae4f18443e8461ea8563bc9af27639c56be7c18ac13b"
+    },
+    {
+      "repo": "M3",
+      "path": "frontend/src/types.ts",
+      "sha256": "48afc8c4003f394b132bed38a1e9d00096ff22075d7b859c65042fcb919a95c3"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/__init__.py",
+      "sha256": "9d1cb3fde359a0f15fad72433ffad8942eb96dd441b32132d421c44bb01bef40"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/auth.py",
+      "sha256": "29c932ef82baab6fb4bd534f1c2b5de011dcec4986778b6806dc551ce46fa4d3"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/main.py",
+      "sha256": "646b7944a510cf606d4e797c4a0854275c65f942d37cf54d1b28f7ba69a46117"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/__init__.py",
+      "sha256": "33924bd27a99a1ea9834c73962e5d13dfde9c63accd00622891f996e2db92dab"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/alignments.py",
+      "sha256": "7317cb1927237690381858acebeed89549182105821b38109f85c7fb0a34179e"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/curation.py",
+      "sha256": "1be73e8738b234627abe65250cd815963ac31effc1feb30eb056840cca7b2c4f"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/reports.py",
+      "sha256": "36cce79836067d7287f92e06cbe3de584861080243c8e683dc453419fadab6c3"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/sources.py",
+      "sha256": "bb7c4d6e760d04b426707bcccb4a6822e96005c95056f657f34b5eb8d4c01338"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/routers/variants.py",
+      "sha256": "edaa1fd0cd94b4bcc0eb5bf9a25bb7c269b61644db777ff1c673026b04384d73"
+    },
+    {
+      "repo": "M3",
+      "path": "src/api/session_manager.py",
+      "sha256": "abf48543bdb472b1beb865a0b7946283eb965c341748461b8cdf9a396e0d1664"
+    },
+    {
+      "repo": "M3",
+      "path": "src/clinical_report.py",
+      "sha256": "5d323cfe06bddd64ccc2a04eb3b345071e7222bef8cdea8c4f8a6bd99d849bba"
+    },
+    {
+      "repo": "M3",
+      "path": "src/config.py",
+      "sha256": "4acf5bf0f69243ee55763b9680a5163cc97c323e792a49586711dc425e944baa"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/__init__.py",
+      "sha256": "96e475f20232f9a05fded1879c97e1135ffb242ba5d44d27237f8c954e10ea60"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/candidate_cache.py",
+      "sha256": "194777b0b77cb0385a39244c3a8d8f5636b6ed6901aad542c4177414b1b8d4df"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/candidate_set.py",
+      "sha256": "2ee1b6f2715dec5c924b3d32cbd4def9b025a7e5c33958908cecac59c77a4724"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/column_sets.py",
+      "sha256": "177d5c2f3412c260b09bf865182787c61b45c1e77a1793af2385521fbd45adab"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/duckdb_manager.py",
+      "sha256": "f774701598b95ea2260a63857acf1b50306beb34e06c6a82cb1dc951b9727f2e"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/genotype_source.py",
+      "sha256": "c059f38553ee84f7985f50b6a50be4572adfcc228c284334ab58da71d70ba636"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/parquet_converter.py",
+      "sha256": "d37efd8b814bd188b424d6f7b84079256d3b03f05b51984be99ad9a58f9a5525"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/path_guard.py",
+      "sha256": "420a90b4d4fee7605566ffacdf8f561ce5630ab900997eb9b2a5e4925e97c2e4"
+    },
+    {
+      "repo": "M3",
+      "path": "src/engine/source_table.py",
+      "sha256": "bf0b95571609e1dbc9afa7f408e3e165edecedbbd1e40ab750c234c0bd59efaa"
+    },
+    {
+      "repo": "M3",
+      "path": "src/filter_variants.py",
+      "sha256": "f0e040ceb682b2de919c342a5748c76e846e6ce16440c58932b0c684d311cd63"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/__init__.py",
+      "sha256": "c8c684a58c90241c288ae84f9c23fbf1a3cdecf9c31977e342d86e0053af6caf"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/acmg.py",
+      "sha256": "7b74c196b6d56bad0437dfbbba7af52c877532d5badde9dc77b26e5d38dee3a1"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/disease_hpo.py",
+      "sha256": "a28db5a269953e930f2e61d1328606dec6177e8d80959d114c75b835cdeec61c"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/features.py",
+      "sha256": "246d16dd3f89546d4980df2ea861cdd854016da6d634914dc05657f3b992edef"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/io_qc.py",
+      "sha256": "84eda60121c64a1b7edd583532c52cde20da1f68bfa57c05b01f7bb38a200a93"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/pedigree.py",
+      "sha256": "0b19f8b816446155db299b24c09faa7548855de47585a20b955dae2e3571db3f"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/predictors.py",
+      "sha256": "82dfe5a83c7a9c2f2e2b5059652381b1469b9abcc68b8c01a823ffa5e2ba3dbe"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/provenance.py",
+      "sha256": "f6ed20954c2cdcefa3f81f9b6697a69638bd816e07b77b469665ca6525a4678e"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/scoring.py",
+      "sha256": "76783fa6caa8f4e0e62ea9ee1ba7b1ea06869e74beb4ea98f0ef5706a98f9d95"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/scoring_context.py",
+      "sha256": "0dcea5f7eaf402f2114ddf395a023abc5bd8a6443fd55330c192f389a4487211"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/splicing.py",
+      "sha256": "056947b9ba17e0444bd39594cd230a9e1550f81bf3ec64fa1260ef3b9f7ba5dc"
+    },
+    {
+      "repo": "M3",
+      "path": "src/modules/transcripts.py",
+      "sha256": "55d2a868e90a159208915fb4dd6416efc715d95492d9a7b7bdfdcd89bc6c36cf"
+    },
+    {
+      "repo": "M3",
+      "path": "src/report_generator.py",
+      "sha256": "3a1a0959c7d4015677f965854988974893109a3a7469988bb6018fe0a312adbe"
+    }
+  ],
+  "method": "VCF and dbNSFP headers; Parquet footer only; code token references include comments and plumbing, not proof of functional use. No patient rows read or exported."
+}

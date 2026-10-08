@@ -76,3 +76,7 @@ Living index of every defect/finding surfaced during the [2026-09-10 full techni
 
 ---
 **How to use this file**: when you fix something, flip its Status cell and fill in "Where"/"Fix summary" with the real file(s) touched and a one-line description of the fix (link the commit hash once committed). When you find something new, add a row with a fresh ID before you start fixing it. Full narrative/evidence always goes in a dated `walkthrough/*.md` entry — this table only ever holds the current status and a one-line pointer to it.
+
+### MISC-1 update — 2026-10-07T15:41:00+02:00
+
+Module 2 implementation now centralizes custom gnomADv4 grpmax → joint AF resolution, preserves unknown/invalid values, and removes automatic old/generic-AF substitution from scoring, filters and reports. Unknown AF receives no rarity evidence/bonus. Local Python regressions passed; R syntax passed but plot execution lacks local `ggplot2`. Cluster validation and Module 3 alignment remain pending. Historical entry above is retained; current details: [population AF walkthrough](walkthrough/20261007_population_frequency_missingness.md), [TODO item 1a](TODO.md).

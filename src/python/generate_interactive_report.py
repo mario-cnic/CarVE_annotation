@@ -21,6 +21,7 @@ import argparse
 import logging
 import pandas as pd
 import numpy as np
+from parsing.modules.population import resolve_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("generate_interactive_report")
@@ -103,10 +104,9 @@ def main():
             fig_list.append(("Pathogenicity Correlation", fig_patho.to_html(full_html=False, include_plotlyjs=False)))
 
     # 3. AF Spectrum
-    af_col = intersect_col(['AF', 'gnomAD_AF', 'gnomAD_AF_joint', 'AF_joint'], df)
-    if af_col:
+    if any(c in df.columns for c in [GNOMAD_GRPMAX, GNOMAD_JOINT]):
         af_df = df.copy()
-        af_df['AF_num'] = pd.to_numeric(af_df[af_col], errors='coerce')
+        af_df['AF_num'] = resolve_population_af(af_df)[0]
         af_df = af_df[af_df['AF_num'] > 0]
         if len(af_df) > 0:
             fig_af = px.histogram(
@@ -114,7 +114,7 @@ def main():
                 x='AF_num',
                 log_x=True,
                 nbins=40,
-                title='gnomAD Allele Frequency Spectrum (Log Scale)',
+                title='Custom gnomADv4 AF Spectrum (Log Scale; positive AF only)',
                 color_discrete_sequence=['#2ecc71']
             )
             fig_list.append(("Allele Frequency Spectrum", fig_af.to_html(full_html=False, include_plotlyjs=False)))

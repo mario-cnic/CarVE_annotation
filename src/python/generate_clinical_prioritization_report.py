@@ -28,6 +28,7 @@ import argparse
 import logging
 import pandas as pd
 import numpy as np
+from parsing.modules.population import resolve_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -70,39 +71,22 @@ def _extract_clinvar_display(df):
     return pd.Series("-", index=df.index)
 
 def _extract_gnomadv4_af_grpmax(df):
-    """
-    Extracts gnomADv4 AF grpmax with graceful fallback.
-    Returns: (formatted_series, numeric_series, is_fallback_used)
-    """
-    has_gnomadv4 = ("gnomADv4_AF_grpmax_joint" in df.columns) and (df["gnomADv4_AF_grpmax_joint"].notna().sum() > 0)
-    
-    if has_gnomadv4:
-        af_series = pd.to_numeric(df["gnomADv4_AF_grpmax_joint"], errors="coerce")
-        pop_series = df.get("gnomADv4_grpmax_joint", pd.Series("", index=df.index)).fillna("").astype(str)
-        is_fallback = False
-    else:
-        # Fallback to MAX_AF -> gnomADg_AF -> gnomADe_AF -> AF
-        af_series = pd.Series(np.nan, index=df.index)
-        for c in ["MAX_AF", "gnomADg_AF", "gnomADe_AF", "AF"]:
-            if c in df.columns:
-                s = pd.to_numeric(df[c], errors="coerce")
-                af_series = af_series.fillna(s)
-        pop_series = df.get("MAX_AF_POPS", pd.Series("", index=df.index)).fillna("").astype(str)
-        is_fallback = True
-
+    """Format custom v4 frequencies, preserving zero and unknown separately."""
+    af_series, source, _ = resolve_population_af(df)
+    pop_series = df.get("gnomADv4_grpmax_joint", pd.Series("", index=df.index)).fillna("").astype(str).copy()
+    pop_series.loc[source == GNOMAD_JOINT] = "joint AF; grpmax undefined"
     formatted = []
     for idx, val in af_series.items():
-        if pd.isna(val) or val == 0:
+        if pd.isna(val):
             formatted.append("-")
+        elif val == 0:
+            formatted.append("0")
         else:
-            raw_pop = str(pop_series.get(idx, "")).replace("gnomADe_", "").replace("gnomADg_", "").strip()
-            pop_tag = f" ({raw_pop})" if raw_pop and raw_pop not in ["nan", "None", ""] else ""
-            if val < 0.001:
-                formatted.append(f"{val:.2e}{pop_tag}")
-            else:
-                formatted.append(f"{val:.4f}{pop_tag}")
-
-    return pd.Series(formatted, index=df.index), af_series, is_fallback
+            raw_pop = str(pop_series.get(idx, "")).strip()
+            pop_tag = f" ({raw_pop})" if raw_pop not in ["nan", "None", "", ".", "-"] else ""
+            formatted.append((f"{val:.2e}" if val < 0.001 else f"{val:.4f}") + pop_tag)
+    missing_columns = not any(c in df.columns for c in [GNOMAD_GRPMAX, GNOMAD_JOINT])
+    return pd.Series(formatted, index=df.index), af_series, missing_columns
 
 def _build_gnomad_variant_link(r):
     loc_val = str(r.get("Locus", ""))
@@ -694,9 +678,9 @@ def generate_gene_report(pq_path, out_html_path):
 
     # gnomADv4 AF grpmax Provenance / Fallback Disclaimer
     if is_af_fallback:
-        disclaimers.append(('warning', '⚠️ <strong>gnomADv4 Joint grpmax</strong>: Column not present or unindexed for this dataset; fallback applied to VEP global PopMax AF (MAX_AF).'))
+        disclaimers.append(('warning', '⚠️ <strong>gnomADv4 Joint grpmax</strong>: Custom gnomADv4 frequency columns absent; population AF remains unknown.'))
     else:
-        disclaimers.append(('provenance', '📊 <strong>gnomAD v4.1 Active</strong>: PopMax allele frequencies extracted from joint exomes + genomes callset (AF_grpmax_joint).'))
+        disclaimers.append(('provenance', '📊 <strong>gnomAD v4.1 Active</strong>: Custom joint exomes + genomes grpmax AF, with per-row joint AF fallback when grpmax is undefined. Missing frequencies remain unknown; reported zero is shown as 0.'))
 
     # Tool checks
     tool_status_checks = [

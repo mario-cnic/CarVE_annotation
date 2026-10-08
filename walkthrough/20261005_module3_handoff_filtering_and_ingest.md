@@ -123,3 +123,15 @@ Mario, 2026-10-05: the near-term target is tables like `F2005_union` (2 WES + 1 
 ## Addendum 2026-10-06T09:25:00+02:00: new Module 2 tables keep coordinate order (no impact sort)
 
 Mario, 2026-10-06: the legacy sort by `NEW_IMPACT` is gone (`20261006_table_row_order.md`). Tables from runs after this change are in the input VCF's coordinate order (contig blocks, `POS` ascending), so the old clustering of `HIGH`/`MODERATE` rows in the first row group no longer exists: do not use a `NEW_IMPACT` predicate as a row-group shortcut, fetch only the needed columns instead. Existing tables (S223, F2005_union) keep the old order. Needs a `DEC-` record (row order is a contract).
+
+## Addendum 2026-10-07T15:15:12+02:00: VEP population-field cleanup
+
+New runs exclude cached `gnomADe_*`/`gnomADg_*`, VEP `MAX_AF*` and `gnomADv4_age_hist_hom_*`. Custom v4 frequencies, counts/denominators and all requested `gnomADv4_nhomalt_*` counts remain; Mastermind and LoFtool remain. Other dbNSFP fields are pending review, except duplicate `TSL`/`APPRIS` now come exclusively from VEP. Requests/selector entries are unique. Existing results retain their schemas; labelled legacy-table fallbacks can remain, but new output should use custom v4 and preserve missingness. Local checks passed; cluster value parity pending. See [audit and implementation](20261007_vep_field_usage_audit.md). Module 3 itself was not edited from this repo.
+
+### Population AF contract — 2026-10-07T15:41:00+02:00
+
+Module 2 now resolves valid custom v4 grpmax then joint per row and emits `POPULATION_AF`, `POPULATION_AF_SOURCE`, `POPULATION_AF_STATUS`. Missing/invalid AF stays unknown; it earns no rarity points or frequency evidence. Rarity filtering retains labelled unknowns; zero stays distinct. Module 3's independent implementation has not been changed and must align before recomputing these derived results. Details and local checks: [population-frequency walkthrough](20261007_population_frequency_missingness.md).
+
+### ClinVar priority — 2026-10-08T10:03:28+02:00
+
+Module 2 now prefers custom `ClinVarVCF_CLNSIG` per row, then dbNSFP `clinvar_clnsig`, then cache `CLIN_SIG`, then legacy aliases. Only missing classification triggers fallback; VUS/conflicting calls stay authoritative. Selected-source review/stars cannot borrow another release. New source-selected fields and validation: [ClinVar priority](20261008_clinvar_source_priority.md). Module 3 is unchanged and needs this contract before recomputing derived interpretation.

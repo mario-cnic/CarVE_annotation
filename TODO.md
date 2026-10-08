@@ -1,8 +1,27 @@
 # 📋 Master Annotation Pipeline & Clinical Dashboard Roadmap
 
+- [ ] **VEP field cleanup: cluster verification pending** (implemented 2026-10-07 per Mario). [Audit and implementation](walkthrough/20261007_vep_field_usage_audit.md): cached gnomAD v2/v3 and `MAX_AF*` generation/selection removed; homozygote age histograms removed, all `nhomalt_*` counts retained; requests/selector deduplicated. Mastermind/LoFtool retained. dbNSFP keeps all fields except duplicate `TSL`/`APPRIS` (VEP owns them); further dbNSFP pruning awaits Mario's review. Local checks passed; validate retained values/schema on a NEW cluster fixture run and hand off the contract to Module 3. Existing results are untouched.
+
 ---
 
 ## 🔴 Priority 0: Foundational Fixes (block further predictor/parameter changes until done)
+
+### Ordered improvements agreed 2026-10-07
+
+**Priority update 2026-10-08T10:03:28+02:00: ClinVar source precedence is TOP priority per Mario; local implementation is complete, cluster validation and Module 3 alignment remain open (2a).**
+
+- [x] **1. Preserve missing population AF — Module 2 implementation** (2026-10-07; [details](walkthrough/20261007_population_frequency_missingness.md)): explicit custom v4 grpmax → joint fallback, no arbitrary AF-column selection, missing/invalid values remain unknown, no frequency evidence/bonus from unknown AF. Filters retain unknowns with availability labels. Cover observed zero, missing columns/values, invalid values and conflicting old frequencies with synthetic tests. Local synthetic checks passed; cluster validation and Module 3 alignment remain open below.
+- [ ] **1a. Validate AF contract on the cluster and align Module 3** — use a fresh small run/output directory; verify availability columns, unknown/zero distinction and no PM2/rarity bonus for unknown. Module 3 still needs the same contract.
+- [x] **2. TOP priority: dated custom ClinVar first — Module 2 implementation** (2026-10-08, Mario): per-row custom VCF → dbNSFP → VEP cache → legacy aliases; fall back only when classification is missing, never override VUS/conflicting/benign calls. Review status/stars stay with the selected source. Synthetic regressions passed; [implementation](walkthrough/20261008_clinvar_source_priority.md).
+- [ ] **2a. ClinVar cluster validation and Module 3 alignment** — verify source labels, same-source stars and custom classifications on a fresh fixture run; agree the contract with Module 3 before it recomputes derived interpretation. Outdated report/downstream scripts remain out of scope.
+- [ ] **3. Batch large-table processing** — first vectorize/batch `tag_transcript_priority.py` while preserving all rows, order, schema and provenance; then evaluate removing the parser's intermediate TSV. Measure memory/runtime with bounded fixtures before WGS validation.
+- [ ] **4. Repair gene-restriction coverage** — resolve stable gene IDs/aliases and prefer validated primary-assembly coordinates; ORAI1 and SHANK3 currently have only fix-contig BED entries. Emit missing/unsupported coverage explicitly; verify assembly/coordinates before rebuilding.
+- [ ] **5. Validate variant identities through reassembly/merge** — extend count parity to normalized CHROM/POS/REF/ALT multiset identity and verify merged output against VEP, with predictor transfer-coverage checks. Related: MISC-6.
+- [ ] **6. Make resource changes invalidate the correct cached tasks** — include per-annotator resource/code/config identities as task inputs, pin environments and verify resume behavior when resource contents change at fixed paths. Keep provenance consistent with reused outputs; foundation for incremental reannotation.
+
+Further dbNSFP pruning requires Mario's field review; Mastermind and LoFtool stay enabled.
+
+Scope correction (2026-10-07T16:44:06+02:00, Mario): legacy reporting/plotting and `src/downstream/` analyses are outdated and outside active improvement work. R plotting validation is not an active blocker. SPiP remains an active R-based annotation dependency.
 
 Completed and obsolete items (Phases 1-4, the `main.sh` provenance manifest and `ORCH-10` sizing items, finished steps of the 2026-10-01/02 checklist) are in [TODO_ARCHIVE.md](./TODO_ARCHIVE.md).
 

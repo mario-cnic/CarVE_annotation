@@ -4,6 +4,9 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-08 | [20261008_clinvar_source_priority.md](./20261008_clinvar_source_priority.md) | ClinVar source priority |
+| 2026-10-07 | [20261007_population_frequency_missingness.md](./20261007_population_frequency_missingness.md) | Population AF: preserve unknown, custom v4 resolution, no unsupported rarity evidence |
+| 2026-10-07 | [20261007_vep_field_usage_audit.md](./20261007_vep_field_usage_audit.md) | VEP field usage audit: redundant population annotations and oversized CSQ |
 | 2026-10-06 | [20261006_table_row_order.md](./20261006_table_row_order.md) | Table row order: coordinate order instead of the legacy impact sort |
 | 2026-10-05 | [20261005_family_table_candidate_funnel.md](./20261005_family_table_candidate_funnel.md) | Working with the 6 GB family table (2 WES + 1 WGS): measured funnel and plan |
 | 2026-10-05 | [20261005_manifest_databases_and_table_provenance.md](./20261005_manifest_databases_and_table_provenance.md) | Manifest: database releases, tool versions, and a provenance file next to each table |

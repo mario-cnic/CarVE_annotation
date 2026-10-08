@@ -22,6 +22,7 @@ import sys
 import argparse
 import logging
 import pandas as pd
+from parsing.modules.population import annotate_population_af, GNOMAD_GRPMAX, GNOMAD_JOINT
 import numpy as np
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -31,6 +32,7 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Customizable Variant Filtering Engine")
     parser.add_argument("--input", required=True, help="Input .pq, .tsv file, or directory containing parsed files")
     parser.add_argument("--output-dir", required=True, help="Directory to save filtered results and summaries")
+    parser.add_argument("--freq-col", default=GNOMAD_GRPMAX, help="Population AF column; default uses custom gnomADv4 grpmax with per-row joint fallback")
     parser.add_argument("--max-af", type=float, default=None, help="Maximum gnomAD allele frequency threshold (e.g. 0.001)")
     parser.add_argument("--min-revel", type=float, default=None, help="Minimum REVEL pathogenicity score threshold (e.g. 0.75)")
     parser.add_argument("--min-alphamissense", type=float, default=None, help="Minimum AlphaMissense score threshold (e.g. 0.80)")
@@ -64,7 +66,7 @@ def load_data(input_path):
     else:
         raise ValueError(f"Unsupported input file format: {input_path}")
 
-def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None, min_cadd=None, min_qual=None, pass_qc_only=False, consequences=None):
+def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None, min_cadd=None, min_qual=None, pass_qc_only=False, consequences=None, freq_col=GNOMAD_GRPMAX):
     total_start = len(df)
     logger.info(f"Starting filtering on dataset with {total_start} variants...")
     filtered_df = df.copy()
@@ -125,19 +127,15 @@ def filter_dataframe(df, max_af=None, min_revel=None, min_am=None, min_spip=None
 
     # 1. gnomAD Allele Frequency Filter
     if max_af is not None:
-        af_col = None
-        for col in ['AF', 'gnomAD_AF', 'gnomAD_AF_joint', 'gnomad_af', 'AF_joint']:
-            if col in filtered_df.columns:
-                af_col = col
-                break
-        if af_col:
-            af_vals = pd.to_numeric(filtered_df[af_col], errors='coerce').fillna(0.0)
-            mask = af_vals <= max_af
-            filtered_df = filtered_df[mask]
-            logger.info(f"Filter max_af <= {max_af}: Retained {len(filtered_df)} / {total_start} variants.")
-            stats[f"AF_<=_{max_af}"] = len(filtered_df)
-        else:
-            logger.warning("Allele frequency column not found in dataset. Skipping AF filter.")
+        expected = [GNOMAD_GRPMAX, GNOMAD_JOINT] if freq_col == GNOMAD_GRPMAX else [freq_col]
+        if not any(column in filtered_df.columns for column in expected):
+            raise ValueError(f"Population frequency column(s) missing: {expected}")
+        af_vals = annotate_population_af(filtered_df, freq_col)
+        unknown = af_vals.isna()
+        stats["AF_unknown_count"] = int(unknown.sum())
+        filtered_df = filtered_df.loc[unknown | (af_vals <= max_af)].copy()
+        logger.info(f"Filter max_af <= {max_af}: Retained {len(filtered_df)} / {total_start} variants, including {stats['AF_unknown_count']} with unknown AF.")
+        stats[f"AF_<=_{max_af}"] = len(filtered_df)
 
     # 2. REVEL Score Filter
     if min_revel is not None:
@@ -225,7 +223,8 @@ def main():
         min_cadd=args.min_cadd,
         min_qual=args.min_qual,
         pass_qc_only=args.pass_qc_only,
-        consequences=args.consequences
+        consequences=args.consequences,
+        freq_col=args.freq_col
     )
 
     out_ext = "pq" if args.output_format in ("pq", "parquet") else args.output_format
