@@ -145,6 +145,8 @@ Everything is published to `nf_work/annotation_out/<run_id>/`, in sub-folders (p
 
 Runs made before 2026-10-05 have every file directly in `<run_id>/`; the manifest reader, the QC script and `write_run_manifest.py` accept both layouts. The QC script also runs by hand on any run folder, with `--nextflow-log` when there is no trace: `python src/python/build_run_qc_report.py --run-dir nf_work/annotation_out/<run_id> [--nextflow-log .nextflow.log]`. Do not `-resume` a run of the flat layout with the new code: cached outputs are re-published into the sub-folders, so every large file would exist twice.
 
+`nf_work/annotation_out/` is temporary execution storage. Accepted outputs are copied (SHA-256-verified, never moved) to the family folder on LAB_PGP, `Families_project/families/<FAMILY>/results/<stage>/<result-set-ID>/`, following `Families_project/docs/RESULT_PROMOTION.md` (carve-platform `DEC-0011`). Module 3 exports go to its `results/prioritization/`, not into the run folder.
+
 For scale: on `S223` the final table was 5.0 GB and the merged VCF 2.7 GB. Intermediate task files live in Nextflow's `work/` directory. On a WGS run this directory holds days of compute; deleting it forces a full recompute.
 
 The manifest (and any dirty-tree patch) stays inside the run folder (`pipeline_info/`), so it moves with the run if the folder is relocated. The wrapper does not add run records to this repository.
