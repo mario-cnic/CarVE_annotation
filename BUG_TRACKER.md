@@ -84,3 +84,8 @@ Module 2 implementation now centralizes custom gnomADv4 grpmax → joint AF reso
 ### Legacy execution scope correction — 2026-10-08T11:53:30+02:00
 
 `main.sh`, `config/`, `src/hpc/`, legacy plotting/reporting and downstream analyses were moved to `trash/legacy_pipeline_20261008_115330/` with their tests/container. Historical bugs tied exclusively to these wrappers describe retired behavior, not active Nextflow defects; they were not fixed by this move. Current Nextflow calls predictor tools and parser scripts directly. [Move manifest](reports/legacy_cleanup_20261008/manifest.json).
+
+### CONCAT_CHUNKS sort temp dir — 2026-10-08T16:49:59+02:00
+
+Two cluster runs at HEAD `1bcf165` (16:39 relaunch of `panel8_trio_20261008_annotation_fixes`, 16:44 `panel8_trio_20261008_NMD`) failed: every `CONCAT_VEP`/`CONCAT_BRANCHPOINT`/`CONCAT_SPIP_RESTRICTED` attempt exited 255 in ~10 ms with `mkdtemp(/data_tmp/<job>.1.BIG_NEW.q/bcftools.XXXXXX) failed: Permission denied` from `bcftools sort` (Nextflow logs in each run's `pipeline_info/`). The 10:27 run with the same `TMPDIR=/data_tmp` setting succeeded, so the SGE per-job temp dir is not reliably writable (cause on the cluster side not established; Python steps silently fall back to another temp dir). Fix: `modules/local/chunk.nf` sorts with `-T ./bcftools-sort.XXXXXX` (temp files in the task directory; reproduced locally with an unusable TMPDIR, bcftools 1.21 via pysam). Not the NMD plugin: `VEP_ANNOTATE` exited 0 and Branchpoint/SPiP concat failed the same way. Cluster re-run pending.
+The run folders cited above were moved on 2026-10-08 to `trash/test_runs_20261008_173048/` (Mario; manifest `MANIFEST.json` there, restore by `mv`).

@@ -102,7 +102,8 @@ process CONCAT_CHUNKS {
         ${params.tabix} -f -p vcf "\$f"
     done
     ${params.bcftools} concat -a ${chunk_list.join(' ')} -Oz -o unsorted.vcf.gz
-    ${params.bcftools} sort unsorted.vcf.gz -Oz -o ${final_vcf}
+    # Sort temp files go in the task directory, not the node's TMPDIR.
+    ${params.bcftools} sort -T ./bcftools-sort.XXXXXX unsorted.vcf.gz -Oz -o ${final_vcf}
     ${params.tabix} -p vcf ${final_vcf}
 
     orig_count=\$(${params.bcftools} view -H ${orig_vcf} | wc -l)

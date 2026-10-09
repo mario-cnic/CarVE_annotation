@@ -2,7 +2,7 @@
 
 - [ ] **VEP field cleanup: cluster verification pending** (implemented 2026-10-07 per Mario). [Audit and implementation](walkthrough/20261007_vep_field_usage_audit.md): cached gnomAD v2/v3 and `MAX_AF*` generation/selection removed; homozygote age histograms removed, all `nhomalt_*` counts retained; requests/selector deduplicated. Mastermind/LoFtool retained. dbNSFP keeps all fields except duplicate `TSL`/`APPRIS` (VEP owns them); further dbNSFP pruning awaits Mario's review. Local checks passed; validate retained values/schema on a NEW cluster fixture run and hand off the contract to Module 3. Existing results are untouched.
 
-- [ ] **Scratch work-directory cluster verification** (configured 2026-10-08T13:26:19+02:00): new `standard` launches use `/mnt/scratch/mruizp/annotation_pipeline_new/work`; verify writable shared storage and task/container execution on the next fixture. Published outputs and existing work remain in place. [Details](walkthrough/20261008_nextflow_scratch_workdir.md).
+- [ ] **Scratch work-directory cluster verification** (configured 2026-10-08T13:26:19+02:00): new `standard` launches use `/mnt/scratch/mruizp/annotation_pipeline_new/work`; verify writable shared storage and task/container execution on the next fixture. Published outputs and existing work remain in place. [Details](walkthrough/20261008_nextflow_scratch_workdir.md). First runs on scratch (2026-10-08T16:49:59+02:00) failed in CONCAT_* on `bcftools sort` temp dir (`/data_tmp` per-job dir not writable), fixed in `chunk.nf`; see BUG_TRACKER. Re-run `panel8_trio` to verify scratch, NMD and `absent_from_gnomad`.
 
 ---
 
