@@ -81,3 +81,26 @@ def test_legacy_alias_and_missing_sources():
     assert df.ClinVar_Stars.iloc[0] == 3
     assert pd.isna(df.ClinVar_Stars.iloc[1])
     assert not _extract_clinvar_status(pd.DataFrame(index=[0]))[0].iloc[0]
+
+
+def test_fallback_source_shared_across_rows_of_a_variant():
+    df = pd.DataFrame({
+        'Locus': ['v1', 'v1', 'v1', 'v2', 'v2', 'v3', 'v3'],
+        'ClinVarVCF_CLNSIG': ['', '', '', 'Pathogenic', 'Pathogenic', '', ''],
+        'clinvar_clnsig': ['Pathogenic', '', '', 'Benign', '', '', ''],
+        'clinvar_review': ['criteria_provided,_single_submitter', '', '', 'x', '', '', ''],
+        'CLIN_SIG': ['pathogenic', 'benign', '', '', '', '', ''],
+    })
+    classification, source, review, stars = resolve_clinvar(df)
+    assert classification.tolist() == ['Pathogenic'] * 3 + ['Pathogenic'] * 2 + [''] * 2
+    assert source.tolist() == ['clinvar_clnsig'] * 3 + ['ClinVarVCF_CLNSIG'] * 2 + [''] * 2
+    assert stars.iloc[:3].tolist() == [1, 1, 1]
+    assert review.iloc[:3].tolist() == ['criteria_provided,_single_submitter'] * 3
+
+
+def test_cache_only_variant_keeps_empty_stars_on_every_row():
+    df = pd.DataFrame({'Locus': ['v1', 'v1'], 'CLIN_SIG': ['protective', ''], 'ClinVar_Stars': [float('nan')] * 2})
+    classification, source, _, stars = resolve_clinvar(df)
+    assert classification.tolist() == ['protective'] * 2
+    assert source.tolist() == ['CLIN_SIG'] * 2
+    assert stars.isna().all()

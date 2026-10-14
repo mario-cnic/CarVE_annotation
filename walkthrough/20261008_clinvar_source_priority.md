@@ -32,3 +32,9 @@ Local synthetic checks: source precedence, row-wise fallback, opposing older cal
 - `git diff --check`: passed.
 
 No HPC annotation was run. Verify custom lookup and derived source/review columns on a fresh small cluster run. Module 3 has an independent copy and needs this contract before recomputing interpretation. Existing results retain their previous interpretation until deliberately regenerated. TODO items 2 and 2a track implementation and remaining validation.
+
+## Addendum 2026-10-14T15:32:53+02:00: fallback source decided per variant
+
+FACT: on `clinvar_af_fixture_20261014`, `chr16:27362859-T-C` took `clinvar_clnsig` (stars 0) on its 3 missense rows and `CLIN_SIG` (no stars) on its other 5, because dbNSFP is transcript-aligned.
+Change: `resolve_clinvar` now gives all rows of a `Locus` the classification, source, review text and stars of the variant's best-ranked source (`_share_best_source_per_variant`). Custom-covered variants are unchanged (already uniform); tables without a `Locus` column keep the per-row result. Fallback sources still never override a nonempty classification of a higher-ranked source.
+Checks (local): 21 ClinVar tests pass (2 new); applied read-only to the fixture table only those 5 rows change (all to `clinvar_clnsig`, stars 0); 10M synthetic rows resolve in about 21 s. Not yet run on the cluster. Where one variant has different values within the same source, the first row is kept.
