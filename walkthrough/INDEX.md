@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-14 | [20261014_performance_review.md](./20261014_performance_review.md) | Performance review of `annotate_vcf.nf`: where the wall-clock goes |
 | 2026-10-08 | [20261008_nmd_plugin.md](./20261008_nmd_plugin.md) | NMD escape annotation (VEP NMD plugin) |
 | 2026-10-08 | [20261008_nextflow_scratch_workdir.md](./20261008_nextflow_scratch_workdir.md) | Nextflow scratch work directory |
 | 2026-10-08 | [20261008_legacy_pipeline_cleanup.md](./20261008_legacy_pipeline_cleanup.md) | Legacy pipeline cleanup |
