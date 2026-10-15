@@ -1,16 +1,7 @@
 #!/bin/bash
-# Provenance-wrapped launch for the Nextflow whole-VCF entry point (annotate_vcf.nf) — writes a
-# run-provenance manifest before/after the real `nextflow` invocation, closing TODO.md's
-# Priority-0 item and BUG_TRACKER.md's MISC-7 (no reliable way to reconstruct what a past run
-# actually used). Mirrors sarek_pipeline/run_sarek.sh's launch/run/completed pattern (PLT-012) —
-# same schema, own copy per DEC-0002 (repos stay separate, no shared import).
-#
-# This does not change what gets run — every argument is passed to `nextflow` unmodified, with one
-# deliberate exception: --run_id is always resolved here first (filename-derived if you don't pass
-# one) and forwarded explicitly, so this script's own $RUN_ID — which is what it uses to compute
-# RUN_MANIFEST.json's location — is guaranteed to be the same value Nextflow actually uses, rather
-# than two independent derivations (bash here, Groovy in annotate_vcf.nf) that could disagree on
-# an input filename shape neither was tested against.
+# Launches annotate_vcf.nf and writes the run-provenance manifest before and after it. Every argument
+# is passed to `nextflow` unchanged, except that --run_id is always resolved here and forwarded, so
+# the manifest location and Nextflow's output folder use the same value.
 #
 # Usage (same arguments you'd already pass to `nextflow run annotate_vcf.nf` directly):
 #   ./run_annotate_vcf.sh -profile standard --input_vcf sample.vcf.gz [--run_id label] \
@@ -60,16 +51,7 @@ if [[ -z "$INPUT" ]]; then
 	exit 2
 fi
 
-# Same input-filename-derived default as annotate_vcf.nf's own run_id fallback (BUG_TRACKER.md
-# MISC-7). Computed in bash here (not left to annotate_vcf.nf's own Groovy fallback) because this
-# script needs the value up front, to know where to write RUN_MANIFEST.json — and re-implementing
-# the same rule in two languages is exactly the kind of thing that silently diverges on an input
-# filename shape neither rule was tested against (found in review: Groovy's `.baseName` strips
-# only the last extension, so e.g. "sample.vcf.bgz" resolves differently under each rule). Rather
-# than trust the two derivations to agree, this script's own $RUN_ID is made AUTHORITATIVE by
-# always passing --run_id explicitly to the real `nextflow run` call below — Nextflow's own
-# fallback logic in annotate_vcf.nf never actually fires for a wrapper-launched run; it only
-# matters for someone invoking `nextflow run annotate_vcf.nf` directly, without this wrapper.
+# run_id defaults to the input file name without .gz/.vcf; passed to Nextflow explicitly below.
 if [[ -z "$RUN_ID" ]]; then
 	RUN_ID="$(basename "$INPUT")"
 	RUN_ID="${RUN_ID%.gz}"
