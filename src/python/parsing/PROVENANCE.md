@@ -80,3 +80,7 @@ ClinVar source priority (2026-10-08T10:03:28+02:00): new `modules/clinvar.py` an
 SpliceAI missingness (2026-10-08T10:19:13+02:00): `modules/splicing.py` keeps the VEP-only maximum distinct from custom and preserves unknown selected scores; `modules/scoring.py` exposes selected-score availability and retains other predictor contributions. See `walkthrough/20261008_spliceai_missingness.md`. Shared-utils and Module 3 copies remain unchanged.
 
 Legacy cleanup (2026-10-08T11:53:30+02:00): `src/hpc/vcf2parsed.sh` and `config/env.sh` are now retained only under `trash/legacy_pipeline_20261008_115330/`. Active Nextflow continues to use this vendored parser. Historical source/copy statements above remain evidence of their dates.
+
+## Local changes
+
+- 2026-10-14: row-wise passes in `modules/{io_qc,splicing,pedigree,acmg,scoring,disease_hpo}.py` made faster (tuple results through `io_qc.apply_rows`, arrays instead of `.iloc` in loops); output identical to the previous version on local fixtures (`walkthrough/20261014_performance_review.md`).

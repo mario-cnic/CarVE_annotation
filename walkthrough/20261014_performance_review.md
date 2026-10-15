@@ -306,3 +306,79 @@ python3 -I reports/perf_review_20261014/parse_nf_runs.py --log F2005_union nf_wo
 - [ ] **Concat/merge streaming** (perf review #7): `-Ou` pipe, `--threads`, `bcftools index -n` parity.
 - [ ] **Resume keeps a stale table stamp; `groupTuple` order breaks the CONCAT cache** (perf review, resume): add to item 6; `groupTuple(sort: 'hash')`.
 - [ ] **Pangolin threads independent of attempt** (perf review #1 output note).
+
+## Implementation — 2026-10-14T17:12:05+02:00 (Mario's decisions after the review)
+
+Decisions taken:
+- exclude c0051-cn1 (1a, no time-limit change);
+- first-attempt memory and the `VCF_TO_TABLE` split (#2);
+- TAG via PyArrow with the footer metadata copied (#3).
+
+Also asked for: the `filter_variants` loops (#4), `groupTuple(sort: 'hash')`, concat/merge streaming (#7), and removal of `chunk_threshold`.
+
+**Not done** (no decision or out of scope): pinning Pangolin threads, the 20 h limit, queueSize/slot changes, chunk size, the stale-stamp-on-resume issue.
+
+### What changed
+
+| Area | Change |
+|---|---|
+| `nextflow.config` | `long_task_excluded_hosts = ['c0053-cn1', 'c0051-cn1']`; `TSV_TO_TABLE` 48 GB (+24 GB per retry), 12 h × attempt; `ADD_WIDE_GENOTYPES` and `TAG_TRANSCRIPT_PRIORITY` 24 GB (+12 GB per retry); `chunk_threshold` removed. The `TSV_TO_TABLE` override also applies to the legacy per-gene `main.nf` (48 GB per gene task; that path is idle) |
+| `modules/local/vcf_to_table.nf` | `VCF_TO_TABLE` is now a workflow running `VCF_TO_TSV` (parser) → `TSV_TO_TABLE` (filter). Same commands and environment; a filter retry reuses the cached TSV. Callers (`annotate_vcf.nf`, `main.nf`) are unchanged. Trace names: `VCF_TO_TABLE:VCF_TO_TSV`, `VCF_TO_TABLE:TSV_TO_TABLE` |
+| `workflows/{broad_pass_whole,gene_restricted_whole}.nf` | `groupTuple(sort: 'hash')` in `collectForConcat` |
+| `modules/local/chunk.nf` | `concat -a … -Ou \| sort -Oz` (no intermediate compressed file); parity counts from `bcftools index -n`, falling back to a full count; `set -o pipefail` |
+| `modules/local/merge.nf` | intermediates are `-Ob1 -W` BCF, indexed on write, instead of VCF.gz + `tabix`. A pipe is not possible because `annotate -a` needs an indexed target (`Could not retrieve index file for '-'`, bcftools 1.21 and 1.24) |
+| `src/python/tag_transcript_priority.py` | Parquet → Parquet streams one row group at a time with PyArrow. The tier is computed with Arrow compute using the same rule. The footer is the `pandas` entry `from_pandas(preserve_index=False)` would write, plus the stamp. The TSV path uses a vectorized `tag_priority` |
+| `src/python/parsing/modules/{io_qc,splicing,pedigree,acmg,scoring,disease_hpo}.py` | New helpers `io_qc.row_records` / `apply_rows`. Row functions get a dict of only the columns they read, boxed as `apply(axis=1)` boxes them, return tuples, and results get the same `infer_objects` step. The `.iloc[i]` loops read `.to_numpy()` arrays. Row logic is unchanged |
+
+### Checks (local only)
+
+**Concat** — FACT, 78-record panel8 VEP output split into 4 shuffled chunks:
+- old vs new commands give identical record bodies (also identical to the input), and identical headers apart from `##bcftools_*` lines;
+- holds with bcftools 1.21 (pysam 0.23 bundle, the cluster version) and 1.24;
+- a lost chunk still fails parity.
+
+**Merge** — FACT, panel8 predictor outputs:
+- identical record bodies, equal to the published `panel8_trio_20261008_NMD2.annotated.vcf.gz`; headers differ only in `##bcftools_annotateCommand`; same on 1.21 and 1.24;
+- on a 200× synthetic (15,600 records): 13.6-14.6 s → 8.0-9.0 s.
+
+**TAG** — FACT, compared with the HEAD script on 4 inputs × with/without stamp (50,750-row panel8 replica, `tests/fixtures/sample_variants.pq`, a 2.5 M-row synthetic with 3 row groups and null/NaN/whitespace/`.`/version edge values, a float `MANE_SELECT` with no `Feature`):
+- all 8 have identical footer bytes, schema with metadata, row groups and values;
+- 2.5 M rows: 22.7 s / 1.58 GB → 3.0 s / 0.38 GB.
+- An ordered categorical (`PRIORITY_TIER`-like, one row group with a single category, one category unused) keeps its categories and order. The output is cut into 1 Mi-row groups exactly as `pq.write_table` cuts it, whatever the input layout.
+- **Full scale** (the published F2005 table, 23,686,438 rows, read-only, output written to `/dev/null`):
+  - the recomputed tier differs from the stored column on 0 rows; counts {1: 38,535, 2: 2,144,530, 3: 21,503,373} equal the old run's log;
+  - the streaming writer peaks at **11.2 GB RSS** in 9.1 min. One 1 Mi-row group is 5.5-7.7 GB in Arrow, and keeping the old row groups needs one in memory, so TAG gets 24 GB, not 12.
+
+**`filter_variants.py`** — FACT, old (HEAD snapshot) vs new on 5 inputs (ClinVar/AF fixture, panel8 without GT, with one and three synthetic `GT_` columns, the 50,750-row replica):
+- identical schema, footer, column order, row order and values;
+- 50,750 rows: 72.9 s → 22.0-25.6 s.
+
+**Note (FACT):** production parses without FORMAT fields, so the table has no `GT_` columns; the multi-sample inheritance branch is only covered by the synthetic input.
+
+**Resume and `groupTuple`:** that `sort: 'hash'` keeps `CONCAT_*` cached is INFERENCE from Nextflow's documented `groupTuple` behaviour. The local stub resume below would also have passed without the change, because stub chunks finish in a stable order.
+
+**Nextflow** — local `-stub-run` (Nextflow 24.04.2):
+- `annotate_vcf.nf` with 20-record chunks: 4 chunks per tool, real concat + parity = 78 for all five tools; a `-resume` keeps all tasks cached; resources resolve as set (`TSV_TO_TABLE` 48 GB, `ADD_WIDE_GENOTYPES` 24 GB);
+- legacy `main.nf` (MYBPC3) runs through the new workflow, with one harmless warning that no process matches the `ADD_WIDE_GENOTYPES` selector.
+
+**Tests:** new `tests/python/test_tag_transcript_priority.py` and `test_row_apply.py`. All modules pass except the two that already failed before these changes from local environment issues: `test_combine_valencia_hic.py` (`genebe` missing) and `test_write_run_manifest_releases.py` (sqlite symbol).
+
+### Not verified (needs a cluster run)
+
+Before a WGS run, check the two-host exclusion string on the login node (it has never been rendered by the `standard` profile or submitted): `qsub -w v -P BIGN -A PGP -l h='!c0053-cn1&!c0051-cn1' -b y /bin/true`. **Done 2026-10-15T10:00:43+02:00 (Mario, login node): `verification: found suitable queue(s)`.** Still to see: the string as rendered in a real chunk's `.command.run`.
+
+Output check: compare against the **same input run at `d5e6461`** (code before these changes), not against an older run such as F2005, which predates the VEP field cleanup and the ClinVar/AF changes.
+- Cheapest: two `panel8_trio` or ClinVar-fixture runs (about 8 min each), one per commit, compared with `reports/perf_review_20261014/compare_tables.py A.pq B.pq --ignore-footer-key carve.provenance` (schema, footer, row groups, column and row order, values).
+- At WGS scale: rerun only `TSV_TO_TABLE` and TAG with both code versions on one cached `scratch.tsv`.
+
+`MERGE` now writes level-1 BCF intermediates, probably larger than the old VCF.gz ones; this matters only for scratch quota.
+
+On the next WGS-size run, check:
+- `.command.run` of SpliceAI/Pangolin chunks has `-l h=!c0053-cn1&!c0051-cn1`;
+- `TSV_TO_TABLE` succeeds on attempt 1 within 48 GB and 12 h;
+- TAG fits 24 GB;
+- `MERGE` and `CONCAT_*` times drop and their parity messages look right;
+- the `-W` CSI write works with the cluster's bcftools 1.21 binary (the local test used the pysam 1.21 build);
+- the final table is unchanged against the previous run of the same input: schema, footer keys, values, row order.
+
+Expected saving on an F2005-size run, per the replay (scenario D): 56.6 → about 25 h. INFERENCE until measured.

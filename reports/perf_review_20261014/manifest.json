@@ -6,16 +6,35 @@
   "repo_dirty": "only this report folder (untracked); no pipeline code or config edited",
   "executed_on": "local workstation (no cluster commands run)",
   "scripts": {
-    "parse_nf_runs.py": "sha256 eb86d365026ee30fae97ed62dad9ee94911a41970495f8335dfa41fba2bad80d (Python 3.10.12, stdlib only)",
-    "simulate_fanout.py": "sha256 c3dd126cef1d2c36e03369a8e96f461a6305d0e9ca9101a05fe8aa900b144cb4 (Python 3.10.12, stdlib only)"
+    "parse_nf_runs.py": "sha256 45c656d91b3a50330353714648c567794e9a6b8979b234beaed9d7bb50be8474 (Python 3.10.12, stdlib only)",
+    "simulate_fanout.py": "sha256 990a274a06c2963aac1fc723b3d5aec1f4c10c5890eccb2cb42844678b996416 (Python 3.10.12, stdlib only)",
+    "compare_tables.py": "sha256 e8cf96bf0b56e6eaa9bf4aba339b149f321ee8a93ab29ff3fc5a66c02521501c (pyarrow; table comparison for the cluster check)"
   },
   "inputs": {
-    "F2005_union": {"source": ".nextflow.log (launch 2026-10-02 14:28, commit 48233a3, workDir /data_lab_PGP/pipelines/annotation_pipeline_new/work) + per-task .command.run/.command.log; byte-identical stable copy: nf_work/annotation_out/F2005_union/pipeline_info/nextflow_2026-10-04_23-05.log", "sha256": "1d6c17d7b730ee20ec40b73cb4a24577e0d78cd85dd780ca05ea8ba3a2ea3bca"},
-    "S223": {"source": ".nextflow.log.8 (launch 2026-09-25 10:37, revision 5916212, mouse Pangolin db, SpliceAI -D 10000) + work dirs", "sha256": "6a4c53e61616d0b394b98587f1fba2a596946dc2077a186a49cb0a79de6609b9"},
-    "panel8_trio_20261008_NMD2": {"source": "nf_work/annotation_out/panel8_trio_20261008_NMD2/pipeline_info/execution_trace_2026-10-08_17-28-28.txt", "sha256": "24f195a1a06cb84418da5664ef96101c2a910857af7d234ae7d26a0d191b23f7"},
-    "clinvar_af_fixture_20261014": {"source": "nf_work/annotation_out/clinvar_af_fixture_20261014/pipeline_info/execution_trace_2026-10-14_15-07-04.txt (first of the three launches that day)", "sha256": "1f859c69c27b7d0ffab0cca1f58e84aac8516c34240f05633637b1e5ec85aeef"},
-    "qacct_S223_killed_and_hung": {"source": "RUNS/transcript_mapping/misc16_17_qacct.tsv", "sha256": "1d40f278f84ae537077c30567d3fa793e9ba305d94ead1fda382657dd72affd5"},
-    "qacct_S223_healthy": {"source": "RUNS/transcript_mapping/misc17_healthy_qacct.tsv", "sha256": "2851c4949d9baf6929bdbc0311e860fcef215c523716264794bdbe86f90b5d01"}
+    "F2005_union": {
+      "source": ".nextflow.log (launch 2026-10-02 14:28, commit 48233a3, workDir /data_lab_PGP/pipelines/annotation_pipeline_new/work) + per-task .command.run/.command.log; byte-identical stable copy: nf_work/annotation_out/F2005_union/pipeline_info/nextflow_2026-10-04_23-05.log",
+      "sha256": "1d6c17d7b730ee20ec40b73cb4a24577e0d78cd85dd780ca05ea8ba3a2ea3bca"
+    },
+    "S223": {
+      "source": ".nextflow.log.8 (launch 2026-09-25 10:37, revision 5916212, mouse Pangolin db, SpliceAI -D 10000) + work dirs",
+      "sha256": "6a4c53e61616d0b394b98587f1fba2a596946dc2077a186a49cb0a79de6609b9"
+    },
+    "panel8_trio_20261008_NMD2": {
+      "source": "nf_work/annotation_out/panel8_trio_20261008_NMD2/pipeline_info/execution_trace_2026-10-08_17-28-28.txt",
+      "sha256": "24f195a1a06cb84418da5664ef96101c2a910857af7d234ae7d26a0d191b23f7"
+    },
+    "clinvar_af_fixture_20261014": {
+      "source": "nf_work/annotation_out/clinvar_af_fixture_20261014/pipeline_info/execution_trace_2026-10-14_15-07-04.txt (first of the three launches that day)",
+      "sha256": "1f859c69c27b7d0ffab0cca1f58e84aac8516c34240f05633637b1e5ec85aeef"
+    },
+    "qacct_S223_killed_and_hung": {
+      "source": "RUNS/transcript_mapping/misc16_17_qacct.tsv",
+      "sha256": "1d40f278f84ae537077c30567d3fa793e9ba305d94ead1fda382657dd72affd5"
+    },
+    "qacct_S223_healthy": {
+      "source": "RUNS/transcript_mapping/misc17_healthy_qacct.tsv",
+      "sha256": "2851c4949d9baf6929bdbc0311e860fcef215c523716264794bdbe86f90b5d01"
+    }
   },
   "commands": [
     "python3 -I reports/perf_review_20261014/parse_nf_runs.py --log F2005_union .nextflow.log --log S223 .nextflow.log.8 --trace panel8_trio_20261008_NMD2 <trace> --trace clinvar_af_fixture_20261014 <trace> --qacct RUNS/transcript_mapping/misc16_17_qacct.tsv --qacct RUNS/transcript_mapping/misc17_healthy_qacct.tsv --outdir reports/perf_review_20261014 [--cache <scratch json>]",
@@ -31,5 +50,6 @@
   },
   "local_profiling": "panel8_trio_20261008_NMD2 annotated VCF parsed locally (vcf_parser env) and replicated 50x (50,750 rows) in the session scratchpad; filter_variants.py / tag_transcript_priority.py profiled with local miniforge datasci env (pandas 2.2.2, pyarrow 24.0.0). Nothing written to the project except this folder.",
   "not_available": "/mnt/scratch is not mounted locally (work dirs of the traced runs unreadable); F2005 and S223 have no trace file (no %cpu / peak_rss except the S223 qacct subset)",
-  "git_note": "*.tsv is gitignored (.gitignore:26); only the scripts and this manifest would be tracked by a plain git add"
+  "git_note": "*.tsv is gitignored (.gitignore:26); only the scripts and this manifest would be tracked by a plain git add",
+  "scripts_updated": "2026-10-14T17:30+02:00: DEPS/TAIL extended with VCF_TO_TSV and TSV_TO_TABLE (renamed processes); tables in this folder were produced before that change and are unaffected (no run contains those processes)"
 }
