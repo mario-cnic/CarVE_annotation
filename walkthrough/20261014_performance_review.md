@@ -373,6 +373,14 @@ Output check: compare against the **same input run at `d5e6461`** (code before t
 
 `MERGE` now writes level-1 BCF intermediates, probably larger than the old VCF.gz ones; this matters only for scratch quota.
 
+**Cluster panel run 2026-10-15T10:19:49+02:00 (FACT):** `nf_work/annotation_out/panel8_perf_20261015`, launched from `afd1abf` on a clean tree.
+- Exit 0, 20 tasks, 0 retries. `VCF_TO_TABLE:VCF_TO_TSV` and `VCF_TO_TABLE:TSV_TO_TABLE` ran; `TSV_TO_TABLE` requested 48 GB, TAG and `ADD_WIDE_GENOTYPES` 24 GB.
+- Compared with `panel8_trio_20261008_NMD2` (commit `1bcf165`; the only other code change since then is `e1f8fa2`):
+  - main table, `withGT` table and genotype table identical (schema, footer without the stamp, row groups, column and row order, values; `compare_tables.py`);
+  - annotated VCF and the 5 predictor VCFs have identical records (78 each); headers differ only in timestamps, work-dir paths and the order of the VEP version list;
+  - `e1f8fa2` changed no ClinVar value on this input.
+- Host exclusion confirmed 2026-10-15T10:54:46+02:00 (Mario, login node): the SpliceAI and Pangolin chunks' `.command.run` (`96/5f8a41`, `57/0f1a93`) carry `-l h_vmem=22G -l h=!c0053-cn1&!c0051-cn1` after the unchanged `-v TMPDIR=/data_tmp -S /bin/bash -P BIGN -A PGP`.
+
 On the next WGS-size run, check:
 - `.command.run` of SpliceAI/Pangolin chunks has `-l h=!c0053-cn1&!c0051-cn1`;
 - `TSV_TO_TABLE` succeeds on attempt 1 within 48 GB and 12 h;

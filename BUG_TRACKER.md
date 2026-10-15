@@ -94,3 +94,5 @@ Verified 2026-10-13T10:00:00+02:00: `nf_work/annotation_out/panel8_trio_20261008
 ### MISC-17 update — 2026-10-14T17:12:05+02:00
 
 `c0051-cn1` added to `long_task_excluded_hosts` (`nextflow.config`, Mario's decision after the [performance review](walkthrough/20261014_performance_review.md)): in F2005_union (human Pangolin db) its Pangolin chunks had median 12.6 h vs 6.5-6.7 h on the other six nodes, and one chunk ran into the 36 h limit and was killed, delaying the whole run (about 23 h by replay). Not verified on the cluster; cause of the slowness unknown; Pangolin `h_rt` unchanged.
+
+Verified 2026-10-15T10:54:46+02:00: in the cluster run `panel8_perf_20261015` (`afd1abf`) the SpliceAI and Pangolin chunks were submitted with `-l h=!c0053-cn1&!c0051-cn1` (`.command.run`). Whether the exclusion shortens a WGS run is still to be measured.
