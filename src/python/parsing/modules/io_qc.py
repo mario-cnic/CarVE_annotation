@@ -42,6 +42,23 @@ def _safe_string_series(df: pd.DataFrame, col: str) -> pd.Series:
     return pd.Series("", index=df.index)
 
 
+def row_records(data: pd.DataFrame, columns):
+    """One dict per row holding only `columns` (those present), with values boxed as
+    DataFrame.apply(axis=1) and iterrows box them on a mixed-dtype frame."""
+    cols = [c for c in dict.fromkeys(columns) if c in data.columns]
+    if not cols:
+        return ({} for _ in range(len(data)))
+    arrays = [data[c].astype(object).to_numpy() for c in cols]
+    return (dict(zip(cols, values)) for values in zip(*arrays))
+
+
+def apply_rows(data: pd.DataFrame, func, columns, names) -> pd.DataFrame:
+    """func(row) for every row of `data`, where row is a dict of `columns` and func returns a tuple
+    of len(names); column dtypes are inferred as DataFrame.apply infers them."""
+    results = [func(row) for row in row_records(data, columns)]
+    return pd.DataFrame(results, index=data.index, columns=names, dtype=object).infer_objects()
+
+
 def fix_dup_columns(data: pd.DataFrame):
     """
     If there is two columns, one with .1 and the other without merge them
@@ -168,7 +185,7 @@ def build_qc_status(data: pd.DataFrame) -> pd.DataFrame:
         has_caller_qc = qual_valid or filter_valid or qd_valid or fs_valid or mq_valid
         
         if not has_caller_qc:
-            return pd.Series(["UNSCORED", "No raw caller quality metrics present in VCF"])
+            return ("UNSCORED", "No raw caller quality metrics present in VCF")
         
         reasons = []
         is_low_qual = False
@@ -214,11 +231,11 @@ def build_qc_status(data: pd.DataFrame) -> pd.DataFrame:
                 pass
 
         if is_low_qual:
-            return pd.Series(["LOW_QUAL", "; ".join(reasons)])
+            return ("LOW_QUAL", "; ".join(reasons))
             
-        return pd.Series(["PASS", "Passed all available caller quality metrics"])
+        return ("PASS", "Passed all available caller quality metrics")
 
-    qc_df = data.apply(evaluate_qc, axis=1)
+    qc_df = apply_rows(data, evaluate_qc, ["QUAL", "FILTER", "QD", "FS", "MQ"], [0, 1])
     data["QC_STATUS"] = qc_df[0]
     data["QC_DETAIL"] = qc_df[1]
     

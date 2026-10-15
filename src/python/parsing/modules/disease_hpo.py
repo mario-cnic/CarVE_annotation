@@ -143,8 +143,9 @@ def apply_disease_phenotype_curation(
         primary_panel = DCM_CORE | HCM_CORE | ARVC_CORE | CHANNELOPATHY_CORE | AORTIC_CORE | STORAGE_INFILTRATIVE_CORE
         high_risk_panel = {"LMNA", "FLNC", "DSP", "PLN", "RYR2", "SCN5A", "KCNQ1", "KCNH2", "GLA", "TTR", "LAMP2", "FBN1"}
 
+    symbol_values = data[symbol_col].to_numpy() if symbol_col else None
     for idx in range(len(data)):
-        gene = str(data[symbol_col].iloc[idx]).strip().upper() if symbol_col else ""
+        gene = str(symbol_values[idx]).strip().upper() if symbol_col else ""
         info = curation_db.get(gene, None)
         
         is_actionable = gene in ACMG_SF_V3_2_CARDIAC_GENES

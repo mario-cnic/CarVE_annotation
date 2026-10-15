@@ -5,6 +5,7 @@ import json
 import numpy as np
 import pandas as pd
 from . import logger
+from .io_qc import row_records
 
 
 def _normalize_gt(val):
@@ -246,7 +247,7 @@ def analyze_pedigree_inheritance(
     gt_cols = [c for c in data.columns if c.startswith("GT_")]
     if len(gt_cols) <= 1 and pedigree is None:
         inh_list = []
-        for _, r in data.iterrows():
+        for r in row_records(data, gt_cols):
             g = _normalize_gt(r[gt_cols[0]]) if len(gt_cols) == 1 else "MISSING"
             if g == "HET":
                 inh_list.append("Autosomal Dominant / Heterozygous")
@@ -315,7 +316,8 @@ def analyze_pedigree_inheritance(
     summary_list = []
     chrom_col = "CHROM" if "CHROM" in data.columns else None
 
-    for idx, row in data.iterrows():
+    row_columns = gt_cols + [c for c in (proband_id, paternal_id, maternal_id, chrom_col) if c] + list(affected_ids)
+    for row in row_records(data, row_columns):
         gt_summary_parts = []
         for col in gt_cols:
             s_name = col.replace("GT_", "")

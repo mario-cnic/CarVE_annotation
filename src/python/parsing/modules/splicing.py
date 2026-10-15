@@ -5,7 +5,7 @@ import re
 import numpy as np
 import pandas as pd
 from . import logger
-from .io_qc import _safe_numeric_series
+from .io_qc import _safe_numeric_series, apply_rows
 from .gene_identity import (
     GeneIdentity, pick_gene_entry, split_entries, strip_version, is_missing, alt_from_locus,
     MATCHED, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, AMBIGUOUS, UNRESOLVED,
@@ -257,9 +257,9 @@ def parse_splicevault(data: pd.DataFrame):
         
         if not has_pred:
             if has_coverage:
-                return pd.Series(["No aberrant events detected in RNA-seq cohort", "no_events_found"])
+                return ("No aberrant events detected in RNA-seq cohort", "no_events_found")
             else:
-                return pd.Series(["Not covered", "not_covered"])
+                return ("Not covered", "not_covered")
         
         pos_val = row.get("POS")
         try:
@@ -284,11 +284,13 @@ def parse_splicevault(data: pd.DataFrame):
             decoded = "Not covered"
             status = "not_covered"
             
-        return pd.Series([decoded, status])
+        return (decoded, status)
 
     try:
-        res = data.apply(process_row, axis=1)
-        res.columns = ["SpliceVault_Predictions_Decoded", "SpliceVault_status"]
+        res = apply_rows(data, process_row,
+                         ["SpliceVault_top_events", "SpliceVault_site_sample_count", "SpliceVault_site_pos", "POS",
+                          "STRAND", "strand"],
+                         ["SpliceVault_Predictions_Decoded", "SpliceVault_status"])
         data["SpliceVault_Predictions_Decoded"] = res["SpliceVault_Predictions_Decoded"]
         data["SpliceVault_status"] = res["SpliceVault_status"]
         logger.info("SpliceVault predictions decoded and status contract applied successfully")
@@ -403,11 +405,13 @@ def parse_branchpointer(data: pd.DataFrame):
         acc_dist_val = int(acc_dist) if (not pd.isna(acc_dist) and str(acc_dist) not in (".", "nan", "")) else np.nan
         lab_status = "scored" if has_lab else "not_covered"
 
-        return pd.Series([bp_prob_val, u2_energy_val, disrupted_val, bp_status, lab_score_val, acc_dist_val, lab_status])
+        return (bp_prob_val, u2_energy_val, disrupted_val, bp_status, lab_score_val, acc_dist_val, lab_status)
 
     try:
-        res = data.apply(process_row, axis=1)
-        res.columns = list(NEW_BRANCHPOINT_COLUMNS.values())
+        res = apply_rows(data, process_row,
+                         ["Branchpointer_prob", "Branchpointer_U2_energy", "Branchpoint_disrupted", "LaBranchoR_score",
+                          "LaBranchoR_acc_dist"],
+                         list(NEW_BRANCHPOINT_COLUMNS.values()))
         for col_name in res.columns:
             data[col_name] = res[col_name]
         logger.info("Branchpoint columns parsed and status contract applied successfully")
@@ -447,22 +451,21 @@ def parse_maxentscan(data: pd.DataFrame):
         alt_val = _to_float(row.get("MaxEntScan_alt"))
 
         if pd.isna(ref_val) or pd.isna(alt_val):
-            return pd.Series([np.nan, "NO", "not_covered"])
+            return (np.nan, "NO", "not_covered")
 
         if ref_val <= 0:
             # A non-positive reference score is a normal, meaningful result (the reference
             # sequence isn't recognized as a splice-site consensus at all -- exactly the
             # situation for a variant creating a cryptic site), not a predictor failure.
             # The relative-decrease metric is undefined here, so this is not_covered, not error.
-            return pd.Series([np.nan, "NO", "not_covered"])
+            return (np.nan, "NO", "not_covered")
 
         pct_decrease = (ref_val - alt_val) / ref_val
         disrupted = "YES" if pct_decrease >= MAXENTSCAN_DISRUPTION_THRESHOLD else "NO"
-        return pd.Series([pct_decrease, disrupted, "scored"])
+        return (pct_decrease, disrupted, "scored")
 
     try:
-        res = data.apply(process_row, axis=1)
-        res.columns = list(NEW_MAXENTSCAN_COLUMNS.values())
+        res = apply_rows(data, process_row, ["MaxEntScan_ref", "MaxEntScan_alt"], list(NEW_MAXENTSCAN_COLUMNS.values()))
         for col_name in res.columns:
             data[col_name] = res[col_name]
         logger.info("MaxEntScan columns parsed and status contract applied successfully")
@@ -485,7 +488,7 @@ def build_signed_intron_offset(data: pd.DataFrame):
             try:
                 val = int(row["INTRON_OFFSET_SIGNED"])
                 side = str(row.get("SPLICE_SIDE", "donor" if val > 0 else ("acceptor" if val < 0 else "exonic")))
-                return pd.Series([val, side])
+                return (val, side)
             except ValueError:
                 pass
 
@@ -498,26 +501,26 @@ def build_signed_intron_offset(data: pd.DataFrame):
             sign, val_str = match.groups()
             val = int(val_str)
             if sign == '+':
-                return pd.Series([val, "donor"])
+                return (val, "donor")
             elif sign == '-':
-                return pd.Series([-val, "acceptor"])
+                return (-val, "acceptor")
                 
         offset_val = row.get("HGVS_OFFSET")
         if not pd.isna(offset_val) and str(offset_val) not in ("", ".", "nan"):
             try:
                 off_int = int(float(offset_val))
                 if "-" in hgvsc:
-                    return pd.Series([-abs(off_int), "acceptor"])
+                    return (-abs(off_int), "acceptor")
                 elif "+" in hgvsc:
-                    return pd.Series([abs(off_int), "donor"])
-                return pd.Series([off_int, "exonic" if off_int == 0 else "donor"])
+                    return (abs(off_int), "donor")
+                return (off_int, "exonic" if off_int == 0 else "donor")
             except ValueError:
                 pass
                 
-        return pd.Series([0, "exonic"])
+        return (0, "exonic")
 
-    res = data.apply(process_row, axis=1)
-    res.columns = ["intron_offset_signed", "splice_side"]
+    res = apply_rows(data, process_row, ["INTRON_OFFSET_SIGNED", "SPLICE_SIDE", "HGVSc", "CDNA_NAME", "HGVS_OFFSET"],
+                     ["intron_offset_signed", "splice_side"])
     data["intron_offset_signed"] = res["intron_offset_signed"]
     data["splice_side"] = res["splice_side"]
     return data

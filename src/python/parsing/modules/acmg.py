@@ -147,19 +147,22 @@ def build_acmg_criteria(data: pd.DataFrame, freq_col=GNOMAD_GRPMAX) -> pd.DataFr
     is_ba1 = af_series > 0.05
     is_bs1 = (af_series > 0.01) & (af_series <= 0.05)
 
+    # Plain arrays: element access per row without Series.iloc overhead.
+    is_ba1, is_bs1, is_pvs1, is_ps1, is_pm2, is_pm4, is_pp3, is_bp4, is_bp7 = (
+        m.to_numpy() for m in (is_ba1, is_bs1, is_pvs1, is_ps1, is_pm2, is_pm4, is_pp3, is_bp4, is_bp7))
     acmg_lists = []
     for idx in range(len(data)):
         codes = []
-        if is_ba1.iloc[idx]: codes.append("BA1")
-        elif is_bs1.iloc[idx]: codes.append("BS1")
+        if is_ba1[idx]: codes.append("BA1")
+        elif is_bs1[idx]: codes.append("BS1")
 
-        if is_pvs1.iloc[idx]: codes.append("PVS1")
-        if is_ps1.iloc[idx]: codes.append("PS1")
-        if is_pm2.iloc[idx]: codes.append("PM2_Supporting")
-        if is_pm4.iloc[idx]: codes.append("PM4")
-        if is_pp3.iloc[idx]: codes.append("PP3_Strong")
-        if is_bp4.iloc[idx]: codes.append("BP4")
-        if is_bp7.iloc[idx]: codes.append("BP7")
+        if is_pvs1[idx]: codes.append("PVS1")
+        if is_ps1[idx]: codes.append("PS1")
+        if is_pm2[idx]: codes.append("PM2_Supporting")
+        if is_pm4[idx]: codes.append("PM4")
+        if is_pp3[idx]: codes.append("PP3_Strong")
+        if is_bp4[idx]: codes.append("BP4")
+        if is_bp7[idx]: codes.append("BP7")
 
         acmg_lists.append(", ".join(codes) if codes else "Unclassified")
 

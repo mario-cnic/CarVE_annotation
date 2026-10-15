@@ -92,12 +92,16 @@ def build_priority_tier(
     score += np.where(bp_disrupt, 5.0, 0.0)
     
     # Phase 1: Calibrated In Silico Predictors (REVEL / AlphaMissense) - Inhibited if LoF
+    # Plain arrays: element access per row without Series.iloc overhead.
+    am_score_a = am_score.to_numpy()
+    is_active_lof_a = is_active_lof.to_numpy()
+    revel_score_a = revel_score.to_numpy()
     insilico_points = np.zeros(len(data), dtype=float)
     for i in range(len(data)):
-        if is_active_lof.iloc[i]:
+        if is_active_lof_a[i]:
             continue
-        r_val = revel_score.iloc[i]
-        am_val = am_score.iloc[i]
+        r_val = revel_score_a[i]
+        am_val = am_score_a[i]
         if not np.isnan(r_val) and r_val > 0.0:
             if r_val >= 0.932: insilico_points[i] = 25.0
             elif r_val >= 0.773: insilico_points[i] = 18.0
@@ -243,23 +247,52 @@ def build_priority_tier(
         ordered=True
     )
 
+    # Plain arrays: element access per row without Series.iloc overhead.
+    af_absent_a = af_absent.to_numpy()
+    af_series_a = af_series.to_numpy()
+    am_score_a = am_score.to_numpy()
+    ba1_thresh_a = ba1_thresh.to_numpy()
+    bp_disrupt_a = bp_disrupt.to_numpy()
+    bs1_thresh_a = bs1_thresh.to_numpy()
+    concordant_path_mask_a = concordant_path_mask.to_numpy()
+    has_splice_effect_a = has_splice_effect.to_numpy()
+    is_ba1_a = is_ba1.to_numpy()
+    is_bs1_a = is_bs1.to_numpy()
+    is_clinvar_benign_a = is_clinvar_benign.to_numpy()
+    is_clinvar_path_a = is_clinvar_path.to_numpy()
+    is_lof_a = is_lof.to_numpy()
+    is_low_qual_a = is_low_qual.to_numpy()
+    is_pm2_a = is_pm2.to_numpy()
+    pli_val_a = pli_val.to_numpy()
+    revel_score_a = revel_score.to_numpy()
+    splice_max_a = splice_max.to_numpy()
+    splice_method_a = splice_method.to_numpy()
+    splicing_composite_a = splicing_composite.to_numpy()
+    sv_aberrant_a = sv_aberrant.to_numpy()
+    tiers_a = tiers.to_numpy()
+    utr_disrupt_a = utr_disrupt.to_numpy()
+    vcep_path_mask_a = vcep_path_mask.to_numpy()
+    col_COMPOUND_HET_STATUS = data["COMPOUND_HET_STATUS"].to_numpy() if "COMPOUND_HET_STATUS" in data.columns else None
+    col_INHERITANCE_MODEL = data["INHERITANCE_MODEL"].to_numpy() if "INHERITANCE_MODEL" in data.columns else None
+    col_QC_DETAIL = data["QC_DETAIL"].to_numpy() if "QC_DETAIL" in data.columns else None
+    col_VARIANT_PRIORITY_SCORE = data["VARIANT_PRIORITY_SCORE"].to_numpy() if "VARIANT_PRIORITY_SCORE" in data.columns else None
     explanations = []
     rationales = []
 
     for i in range(len(data)):
         parts = []
-        if is_lof.iloc[i]: parts.append("LoF (+35.0)")
-        s_comp = splicing_composite.iloc[i]
+        if is_lof_a[i]: parts.append("LoF (+35.0)")
+        s_comp = splicing_composite_a[i]
         if s_comp > 0.05:
-            m_label = splice_method.iloc[i]
+            m_label = splice_method_a[i]
             if "Custom" in m_label:
-                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max.iloc[i]:.2f} via Custom -D 4999)")
+                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max_a[i]:.2f} via Custom -D 4999)")
             elif "VEP" in m_label:
-                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max.iloc[i]:.2f} via VEP Standard ~50bp)")
+                parts.append(f"Splicing (+{s_comp*30.0:.1f}, SpliceAI {splice_max_a[i]:.2f} via VEP Standard ~50bp)")
             else:
                 parts.append(f"Splicing (+{s_comp*30.0:.1f})")
-        if sv_aberrant.iloc[i]: parts.append("SpliceVault (+5.0)")
-        if bp_disrupt.iloc[i]: parts.append("Branchpoint (+5.0)")
+        if sv_aberrant_a[i]: parts.append("SpliceVault (+5.0)")
+        if bp_disrupt_a[i]: parts.append("Branchpoint (+5.0)")
 
         # Phase 1 In Silico Explanation
         in_pts = insilico_points[i]
@@ -267,28 +300,28 @@ def build_priority_tier(
             if in_pts > 0: parts.append(f"InSilico PP3 (+{in_pts:.1f})")
             else: parts.append(f"InSilico BP4 ({in_pts:.1f})")
 
-        if utr_disrupt.iloc[i]: parts.append("UTR (+20.0)")
-        if pli_val.iloc[i] >= 0.9: parts.append("LoF-Intolerant (+10.0)")
+        if utr_disrupt_a[i]: parts.append("UTR (+20.0)")
+        if pli_val_a[i] >= 0.9: parts.append("LoF-Intolerant (+10.0)")
         
-        if vcep_path_mask.iloc[i]: parts.append("ClinVar Expert Panel / Practice Guideline Pathogenic (+50.0)")
-        elif concordant_path_mask.iloc[i]: parts.append("ClinVar Pathogenic (+45.0)")
-        elif is_clinvar_benign.iloc[i]: parts.append("ClinVar Benign (-40.0)")
+        if vcep_path_mask_a[i]: parts.append("ClinVar Expert Panel / Practice Guideline Pathogenic (+50.0)")
+        elif concordant_path_mask_a[i]: parts.append("ClinVar Pathogenic (+45.0)")
+        elif is_clinvar_benign_a[i]: parts.append("ClinVar Benign (-40.0)")
 
-        af_v = af_series.iloc[i]
-        if af_absent.iloc[i]: parts.append("PM2_Supporting absent from gnomAD v4 (+15.0)")
+        af_v = af_series_a[i]
+        if af_absent_a[i]: parts.append("PM2_Supporting absent from gnomAD v4 (+15.0)")
         elif pd.isna(af_v): parts.append("Population AF unknown (no frequency evidence)")
-        elif is_ba1.iloc[i]: parts.append(f"BA1 Exceeds FAF_PopMax Threshold (Terminal Tier 4)")
-        elif is_bs1.iloc[i]: parts.append(f"BS1_Strong AF > FAF_BS1 (-25.0)")
-        elif is_pm2.iloc[i]: parts.append(f"PM2_Supporting AF < MCAF (+15.0)")
+        elif is_ba1_a[i]: parts.append(f"BA1 Exceeds FAF_PopMax Threshold (Terminal Tier 4)")
+        elif is_bs1_a[i]: parts.append(f"BS1_Strong AF > FAF_BS1 (-25.0)")
+        elif is_pm2_a[i]: parts.append(f"PM2_Supporting AF < MCAF (+15.0)")
 
-        c_status = str(data["COMPOUND_HET_STATUS"].iloc[i]) if "COMPOUND_HET_STATUS" in data.columns else "No Pair"
+        c_status = str(col_COMPOUND_HET_STATUS[i]) if "COMPOUND_HET_STATUS" in data.columns else "No Pair"
         if c_status in ["Phased TRANS Pair", "Unphased Candidate Pair"]:
             if c_status == "Phased TRANS Pair":
                 parts.append("Compound Het TRANS Phased (+15.0)")
             elif c_status == "Unphased Candidate Pair":
                 parts.append("Compound Het Unphased Candidate (+10.0)")
         elif "INHERITANCE_MODEL" in data.columns:
-            inh_val = str(data["INHERITANCE_MODEL"].iloc[i])
+            inh_val = str(col_INHERITANCE_MODEL[i])
             if inh_val == "De Novo":
                 parts.append("De Novo (+20.0)")
             elif inh_val in ["Autosomal Recessive (Hom)", "Autosomal Dominant / Heterozygous", "X-Linked"]:
@@ -296,56 +329,56 @@ def build_priority_tier(
             elif inh_val == "Homozygous Variant":
                 parts.append("Homozygous Variant (+10.0)")
 
-        if is_low_qual.iloc[i]:
-            qc_det = str(data["QC_DETAIL"].iloc[i]) if "QC_DETAIL" in data.columns else "Low QUAL/GQ/FILTER"
+        if is_low_qual_a[i]:
+            qc_det = str(col_QC_DETAIL[i]) if "QC_DETAIL" in data.columns else "Low QUAL/GQ/FILTER"
             parts.append(f"Low Quality Caller Metric (-25.0, {qc_det})")
 
         exp_str = " | ".join(parts) if parts else "Neutral Rarity / Benign"
         explanations.append(exp_str)
 
-        t_str = str(tiers.iloc[i])
-        final_score = data["VARIANT_PRIORITY_SCORE"].iloc[i]
+        t_str = str(tiers_a[i])
+        final_score = col_VARIANT_PRIORITY_SCORE[i]
         if "Tier 1" in t_str:
-            if vcep_path_mask.iloc[i]:
+            if vcep_path_mask_a[i]:
                 rat = "ClinGen VCEP Pathogenic / Likely Pathogenic Expert Entry"
-            elif is_clinvar_path.iloc[i]:
+            elif is_clinvar_path_a[i]:
                 rat = "ClinVar Pathogenic / Likely Pathogenic Entry"
-            elif is_lof.iloc[i] and pli_val.iloc[i] >= 0.9:
-                rat = f"High-Confidence Loss-of-Function in Constrained Gene (pLI = {pli_val.iloc[i]:.2f} >= 0.90)"
-            elif splice_max.iloc[i] >= 0.80:
-                rat = f"Ultra-High Splicing Alteration (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.80 via {splice_method.iloc[i]})"
-            elif revel_score.iloc[i] >= 0.932:
-                rat = f"Strong Pathogenic Missense (REVEL = {revel_score.iloc[i]:.3f} >= 0.932, PP3_Strong)"
+            elif is_lof_a[i] and pli_val_a[i] >= 0.9:
+                rat = f"High-Confidence Loss-of-Function in Constrained Gene (pLI = {pli_val_a[i]:.2f} >= 0.90)"
+            elif splice_max_a[i] >= 0.80:
+                rat = f"Ultra-High Splicing Alteration (SpliceAI = {splice_max_a[i]:.2f} >= 0.80 via {splice_method_a[i]})"
+            elif revel_score_a[i] >= 0.932:
+                rat = f"Strong Pathogenic Missense (REVEL = {revel_score_a[i]:.3f} >= 0.932, PP3_Strong)"
             else:
                 rat = f"High-Priority Composite Score ({final_score:.1f}/100 >= 75.0) & Ultra-Rare Population Frequency (AF < MCAF)"
         elif "Tier 2" in t_str:
-            if is_lof.iloc[i]:
-                rat = "Loss-of-Function Alteration" + (" (absent from gnomAD v4)" if af_absent.iloc[i] else f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
-            elif splice_max.iloc[i] >= 0.50:
-                rat = f"High Splicing Delta Score (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.50 via {splice_method.iloc[i]})"
-            elif revel_score.iloc[i] >= 0.773:
-                rat = f"Moderate Pathogenic Missense (REVEL = {revel_score.iloc[i]:.3f} >= 0.773, PP3_Moderate)"
-            elif am_score.iloc[i] >= 0.750:
-                rat = f"Moderate Pathogenic Missense (AlphaMissense = {am_score.iloc[i]:.3f} >= 0.750, PP3_Moderate)"
+            if is_lof_a[i]:
+                rat = "Loss-of-Function Alteration" + (" (absent from gnomAD v4)" if af_absent_a[i] else f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
+            elif splice_max_a[i] >= 0.50:
+                rat = f"High Splicing Delta Score (SpliceAI = {splice_max_a[i]:.2f} >= 0.50 via {splice_method_a[i]})"
+            elif revel_score_a[i] >= 0.773:
+                rat = f"Moderate Pathogenic Missense (REVEL = {revel_score_a[i]:.3f} >= 0.773, PP3_Moderate)"
+            elif am_score_a[i] >= 0.750:
+                rat = f"Moderate Pathogenic Missense (AlphaMissense = {am_score_a[i]:.3f} >= 0.750, PP3_Moderate)"
             else:
                 rat = f"Strong Priority Composite Score ({final_score:.1f}/100 >= 50.0)"
         elif "Tier 3" in t_str:
-            if has_splice_effect.iloc[i]:
-                rat = f"Moderate Splicing Delta Alteration (SpliceAI = {splice_max.iloc[i]:.2f} >= 0.20 via {splice_method.iloc[i]})"
+            if has_splice_effect_a[i]:
+                rat = f"Moderate Splicing Delta Alteration (SpliceAI = {splice_max_a[i]:.2f} >= 0.20 via {splice_method_a[i]})"
             else:
                 rat = f"Moderate Priority Composite Score ({final_score:.1f}/100 >= 25.0)"
         else:
-            if is_ba1.iloc[i]:
-                rat = f"Stand-Alone Benign: AF ({af_v:.4f}) Exceeds FAF_PopMax Threshold ({ba1_thresh.iloc[i]:.4f})"
-            elif is_bs1.iloc[i]:
-                rat = f"Strong Benign: AF ({af_v:.4f}) Exceeds FAF_BS1 Threshold ({bs1_thresh.iloc[i]:.4f})"
-            elif is_clinvar_benign.iloc[i]:
+            if is_ba1_a[i]:
+                rat = f"Stand-Alone Benign: AF ({af_v:.4f}) Exceeds FAF_PopMax Threshold ({ba1_thresh_a[i]:.4f})"
+            elif is_bs1_a[i]:
+                rat = f"Strong Benign: AF ({af_v:.4f}) Exceeds FAF_BS1 Threshold ({bs1_thresh_a[i]:.4f})"
+            elif is_clinvar_benign_a[i]:
                 rat = "ClinVar Benign / Likely Benign Entry"
             else:
                 rat = f"Low Priority Composite Score ({final_score:.1f}/100 < 25.0) Without Functional Evidence"
 
-        if is_low_qual.iloc[i]:
-            qc_det = str(data["QC_DETAIL"].iloc[i]) if "QC_DETAIL" in data.columns else "Low QUAL/GQ/FILTER"
+        if is_low_qual_a[i]:
+            qc_det = str(col_QC_DETAIL[i]) if "QC_DETAIL" in data.columns else "Low QUAL/GQ/FILTER"
             rat += f" [⚠️ LOW_QUAL Caller Warning: {qc_det}]"
 
         rationales.append(rat)
