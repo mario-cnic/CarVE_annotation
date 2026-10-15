@@ -98,16 +98,19 @@ process CONCAT_CHUNKS {
     // arguments ("chunk_01" and the real filename) rather than one.
     def chunk_list = annotated_chunks instanceof List ? annotated_chunks : [annotated_chunks]
     """
+    set -o pipefail
     for f in ${chunk_list.join(' ')}; do
         ${params.tabix} -f -p vcf "\$f"
     done
-    ${params.bcftools} concat -a ${chunk_list.join(' ')} -Oz -o unsorted.vcf.gz
-    # Sort temp files go in the task directory, not the node's TMPDIR.
-    ${params.bcftools} sort -T ./bcftools-sort.XXXXXX unsorted.vcf.gz -Oz -o ${final_vcf}
+    # Concat streams uncompressed BCF into sort; sort temp files go in the task directory, not the node's TMPDIR.
+    ${params.bcftools} concat -a ${chunk_list.join(' ')} -Ou \\
+        | ${params.bcftools} sort -T ./bcftools-sort.XXXXXX -Oz -o ${final_vcf} -
     ${params.tabix} -p vcf ${final_vcf}
 
-    orig_count=\$(${params.bcftools} view -H ${orig_vcf} | wc -l)
-    final_count=\$(${params.bcftools} view -H ${final_vcf} | wc -l)
+    # Record counts from the indexes; full decompression only if an index has no counts.
+    count_records() { ${params.bcftools} index -n "\$1" 2>/dev/null || ${params.bcftools} view -H "\$1" | wc -l; }
+    orig_count=\$(count_records ${orig_vcf})
+    final_count=\$(count_records ${final_vcf})
     if [ "\$orig_count" != "\$final_count" ]; then
         echo "CONCAT_CHUNKS (${suffix}): record count mismatch — input=\$orig_count output=\$final_count" >&2
         exit 1

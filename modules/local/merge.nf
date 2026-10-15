@@ -47,16 +47,14 @@ process MERGE_ANNOTATIONS {
     """
     set -o pipefail
 
-    ${params.bcftools} annotate -a ${spip_vcf} -c SPiP ${vep_vcf} -Oz -o tmp_spip.vcf.gz
-    ${params.tabix} -f tmp_spip.vcf.gz
+    # Intermediates are fast-compressed BCF indexed on write (annotate -a needs an indexed target).
+    ${params.bcftools} annotate -a ${spip_vcf} -c SPiP ${vep_vcf} -Ob1 -W -o tmp_spip.bcf
 
-    ${params.bcftools} annotate -a ${pango_vcf} -c Pangolin,PangolinTissue tmp_spip.vcf.gz -Oz -o tmp_pangolin.vcf.gz
-    ${params.tabix} -f tmp_pangolin.vcf.gz
+    ${params.bcftools} annotate -a ${pango_vcf} -c Pangolin,PangolinTissue tmp_spip.bcf -Ob1 -W -o tmp_pangolin.bcf
 
-    ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.vcf.gz -Oz -o tmp_spliceai.vcf.gz
-    ${params.tabix} -f tmp_spliceai.vcf.gz
+    ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.bcf -Ob1 -W -o tmp_spliceai.bcf
 
-    ${params.bcftools} annotate -a ${bp_vcf} -c Branchpointer_prob,Branchpointer_U2_energy,Branchpoint_disrupted,LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.vcf.gz -Oz -o ${meta.partition_id}.annotated.vcf.gz
+    ${params.bcftools} annotate -a ${bp_vcf} -c Branchpointer_prob,Branchpointer_U2_energy,Branchpoint_disrupted,LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
     ${params.tabix} -f ${meta.partition_id}.annotated.vcf.gz
     """
 
