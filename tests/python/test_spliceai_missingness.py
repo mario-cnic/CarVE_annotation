@@ -1,7 +1,6 @@
 """Synthetic regressions for two-source SpliceAI export and score selection."""
 import sys
 from pathlib import Path
-import numpy as np
 import pandas as pd
 import pytest
 

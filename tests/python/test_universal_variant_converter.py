@@ -1,6 +1,5 @@
 import sys
 import os
-import pytest
 import pandas as pd
 
 # Add src/python to sys.path

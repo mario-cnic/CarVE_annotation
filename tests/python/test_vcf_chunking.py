@@ -1,6 +1,5 @@
 import sys
 import os
-import pytest
 import pysam
 import tempfile
 import shutil

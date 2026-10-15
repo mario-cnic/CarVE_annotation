@@ -15,7 +15,7 @@ from extract_genotypes import run as extract_run
 from genotypes_to_wide import run as wide_run
 from provenance_stamp import STAMP_KEY, load_stamp, with_stamp
 from tag_transcript_priority import write_table
-from test_extract_genotypes import HEADER, RECORDS, TRIO, write_vcf
+from test_extract_genotypes import RECORDS, TRIO, write_vcf
 
 BCFTOOLS = shutil.which("bcftools") or "/data_lab_PGP/shared/utils/conda_envs/genomics/bin/bcftools"
 needs_bcftools = pytest.mark.skipif(not os.access(BCFTOOLS, os.X_OK), reason="bcftools not available")
