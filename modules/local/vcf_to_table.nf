@@ -1,8 +1,9 @@
 // Phase 5: annotated VCF -> final clean table (Parquet/TSV/Excel), ported from
-// src/hpc/vcf2parsed.sh. Two stages in one process (matching the bash original, which never
-// persists the intermediate TSV): vcf_parser_pysam.py flattens INFO/CSQ into a scratch TSV
-// filtered to one transcript (--filter_by Feature, --gene_set <ENST>), then filter_variants.py
-// applies status contracts/splicing metrics and writes the final table.
+// src/hpc/vcf2parsed.sh. Two processes chained by the VCF_TO_TABLE workflow below:
+// VCF_TO_TSV runs vcf_parser_pysam.py, which flattens INFO/CSQ into a scratch TSV (filtered to one
+// transcript with --filter_by Feature --gene_set <ENST> in the per-gene path); TSV_TO_TABLE runs
+// filter_variants.py, which applies status contracts/splicing metrics and writes the final table.
+// A retry of TSV_TO_TABLE reuses the cached TSV instead of re-parsing the VCF.
 //
 // This is this module's actual deliverable — the table Module 3 (clinical_variant_prioritization)
 // consumes. Per the user's steer this session ("don't focus too much on reports — Module 3 owns
@@ -38,17 +39,15 @@
 // (modules/local/tag_transcript_priority.nf) consumes and re-publishes as the real final
 // deliverable under the identical filename; publishing both would race to the same path.
 
-process VCF_TO_TABLE {
+process VCF_TO_TSV {
     tag "${meta.partition_id}"
     label 'process_medium'
-    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.tables}", mode: 'copy',
-        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)
 
     output:
-    tuple val(meta), path("${meta.partition_id}.parsed.clean.${params.output_format}"), emit: table
+    tuple val(meta), path("scratch.tsv"), emit: tsv
 
     script:
     def gene_set_flag = meta.transcript ? "--gene_set ${meta.transcript} --filter_by Feature" : ""
@@ -66,9 +65,36 @@ process VCF_TO_TABLE {
         --add_info --add_vep --overwrite \\
         --logging_level INFO \\
         ${gene_set_flag}
+    """
+
+    stub:
+    """
+    touch scratch.tsv
+    """
+}
+
+process TSV_TO_TABLE {
+    tag "${meta.partition_id}"
+    label 'process_medium'
+    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.tables}", mode: 'copy',
+        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
+
+    input:
+    tuple val(meta), path(tsv)
+
+    output:
+    tuple val(meta), path("${meta.partition_id}.parsed.clean.${params.output_format}"), emit: table
+
+    script:
+    """
+    export OMP_NUM_THREADS=1
+    export MKL_NUM_THREADS=1
+    export OPENBLAS_NUM_THREADS=1
+    export ARROW_IO_THREADS=1
+    export PYTHONUNBUFFERED=1
 
     ${params.datasci_python} ${params.filter_variants_script} \\
-        --input scratch.tsv \\
+        --input ${tsv} \\
         --output ${meta.partition_id}.parsed.clean.${params.output_format} \\
         --logging_level INFO \\
         --hgnc-table ${params.hgnc_table} \\
@@ -95,4 +121,17 @@ process VCF_TO_TABLE {
     """
     touch ${meta.partition_id}.parsed.clean.${params.output_format}
     """
+}
+
+// Annotated VCF -> table; emits `table` as tuple(meta, table file).
+workflow VCF_TO_TABLE {
+    take:
+    vcf_ch   // tuple(meta, vcf, tbi)
+
+    main:
+    VCF_TO_TSV(vcf_ch)
+    TSV_TO_TABLE(VCF_TO_TSV.out.tsv)
+
+    emit:
+    table = TSV_TO_TABLE.out.table
 }

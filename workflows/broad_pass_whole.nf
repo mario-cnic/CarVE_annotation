@@ -28,7 +28,8 @@ include { SPIP_ANNOTATE } from '../modules/local/spip.nf'
 // arrives in here.
 def collectForConcat(annotated_chunk_ch, orig_vcf_ch, suffix) {
     annotated_chunk_ch
-        .groupTuple()
+        // Hash order, not completion order: the same chunk list on every launch, so -resume keeps CONCAT_* cached.
+        .groupTuple(sort: 'hash')
         .join(orig_vcf_ch)
         .map { meta, chunk_files, vcf, tbi -> tuple(meta, chunk_files, vcf, tbi, suffix) }
 }
