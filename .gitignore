@@ -18,6 +18,7 @@ resources/run_*
 # NFS "silly rename" artifacts left behind when a file is removed/moved
 # while still open by another process
 .nfs*
+.fuse_hidden*
 *.vcf
 *.vcf.gz
 *.vcf.gz.tbi
