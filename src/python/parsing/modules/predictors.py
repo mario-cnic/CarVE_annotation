@@ -304,3 +304,42 @@ def parse_nmd(data: pd.DataFrame) -> pd.DataFrame:
     data["NMD_STATUS"] = status
     logger.info(f"New column `NMD_STATUS` created with value counts: {dict(status.value_counts())}")
     return data
+
+
+REMM_SCORED = "scored"
+REMM_NOT_COVERED = "not_covered"
+REMM_NOT_APPLICABLE = "not_applicable"
+REMM_NOT_ANNOTATED = "not_annotated"
+REMM_ERROR = "error"
+
+
+def parse_remm(data: pd.DataFrame) -> pd.DataFrame:
+    """Derive ReMM_score (float) and ReMM_status per row from the VEP --custom ReMM column.
+
+    ReMM is one score per genomic position, not per allele, so only SNVs are scored and every
+    ALT at the same position gets the same value. Non-SNVs are not_applicable; an SNV with no
+    value in the track is not_covered (never 0). Informational only: no effect on NEW_IMPACT
+    or PRIORITY_TIER.
+    """
+    if "ReMM" not in data.columns or "VARIANT_CLASS" not in data.columns:
+        data["ReMM_score"] = np.nan
+        data["ReMM_status"] = REMM_NOT_ANNOTATED
+        logger.warning("ReMM or VARIANT_CLASS column absent: ReMM_status set to not_annotated")
+        return data
+    raw = data["ReMM"].astype(object).where(data["ReMM"].notna(), "").astype(str).str.strip()
+    empty = raw.isin(["", ".", "-", "nan"])
+    score = pd.to_numeric(raw.mask(empty), errors="coerce")
+    unparsed = ~empty & score.isna()
+    snv = data["VARIANT_CLASS"].fillna("").astype(str).eq("SNV")
+    status = pd.Series(REMM_NOT_APPLICABLE, index=data.index, dtype=object)
+    status.loc[snv & empty] = REMM_NOT_COVERED
+    status.loc[snv & score.notna()] = REMM_SCORED
+    status.loc[snv & unparsed] = REMM_ERROR
+    # VEP gives a 1-bp deletion the deleted base's score; blank the raw value on non-SNV rows.
+    data["ReMM"] = data["ReMM"].where(snv)
+    data["ReMM_score"] = score.where(snv)
+    data["ReMM_status"] = status
+    if unparsed.any():
+        logger.warning(f"ReMM: {int(unparsed.sum())} rows with an unparsable value, e.g. {raw[unparsed].iloc[0]!r}")
+    logger.info(f"New column `ReMM_status` created with value counts: {dict(status.value_counts())}")
+    return data

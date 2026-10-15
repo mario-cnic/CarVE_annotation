@@ -24,7 +24,7 @@ try:
     )
     from .modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
-        parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd,
+        parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
     )
     from .modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -61,7 +61,7 @@ except ImportError:
     )
     from modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
-        parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd,
+        parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
     )
     from modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -294,6 +294,8 @@ def main(args: list[str] | None):
         "MaxEntScan_pct_decrease",
         "MaxEntScan_disrupted",
         "MaxEntScan_status",
+        "ReMM_score",
+        "ReMM_status",
         "5UTR_annotation",
         "5UTR_consequence",
         "gene_priority",
@@ -393,6 +395,7 @@ def main(args: list[str] | None):
     data = parse_branchpointer(data)
     data = parse_maxentscan(data)
     data = parse_nmd(data)
+    data = parse_remm(data)
 
     data = build_qc_status(data)
     data = build_newImpact(data)

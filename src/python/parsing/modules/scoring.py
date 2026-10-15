@@ -449,6 +449,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
         "REVEL Missense Ensemble": ["REVEL_score", "REVEL"],
         "SpliceVault RNA-Seq Cohort": ["SpliceVault_status", "SpliceVault"],
         "Branchpoint Disruption": ["Branchpoint_status", "Branchpoint"],
+        "ReMM Non-Coding (informational)": ["ReMM_score"],
         "ClinVar Pathogenicity": ["ClinVarVCF_CLNSIG", "clinvar_clnsig", "CLIN_SIG", "CLNSIG", "CLINVAR_DISPLAY", "ClinVar"],
         "pLI Gene LoF Intolerance": ["pLI_gene_value", "pLI"],
         "5'/3' UTR & Kozak Regulatory": ["lost_stop_codon", "5UTR_consequence", "utr_num_kozak_gainedOrLost", "mrl_gainedOrLost"]
