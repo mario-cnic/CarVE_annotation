@@ -4,7 +4,6 @@
 #                                 #
 ###################################
 
-# import pandas as pd
 from logger import logger, LOGGING_MAP, file_logging
 import argparse
 from vcf_parser import VCFParser  # requires vcf_parser package from pip
@@ -104,19 +103,6 @@ def get_samples(all_individuals: list, selected_samples: str) -> list[str]:
     return final_sample_columns
 
 
-def add_sample_header(
-    user_samples: list[str], vcf_samples: list[str], header: list[str]
-) -> list[str]:
-    """Adds sample names to header."""
-    # for sample in user_samples:
-    #     if sample in vcf_samples:
-    #         header.append(sample)
-    # return header
-    pass
-
-
-# def parse_sample_calling() -> None:
-#     """Create new column for each sample"""
 def read_gene_set(gene_file: str) -> list[str]:
     """Reads gene set from file and returns list of genes"""
     if gene_file.endswith(".txt"):

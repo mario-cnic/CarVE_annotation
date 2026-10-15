@@ -1,9 +1,7 @@
 import os
 import logging
-import re
 import numpy as np
 import pandas as pd
-from typing import Literal
 
 logger = logging.getLogger("clinical_prioritization")
 
@@ -430,29 +428,6 @@ def check_coordinate_order(data: pd.DataFrame, chrom_col: str = "CHROM", pos_col
     decreases = int(((pos[1:] < pos[:-1]) & ~new_block[1:]).sum())
     return {"checked": True, "ordered": blocks == len(uniques) and decreases == 0, "contigs": len(uniques),
             "contig_blocks": blocks, "position_decreases": decreases}
-
-
-def sort_by(
-    data: pd.DataFrame,
-    by: dict[str, bool],
-    na_pos: Literal["first", "last"] = "first",
-):
-    valid_by = {}
-    for col, ascending in by.items():
-        if col not in data.columns:
-            logger.warning(f"Column {col} not found in dataframe, skipping sort by this column")
-        else:
-            valid_by[col] = ascending
-    
-    if not valid_by:
-        logger.warning("No valid columns found for sorting, returning unsorted dataframe")
-        return data
-    
-    sorted_df = data.sort_values(
-        by=list(valid_by.keys()), ascending=list(valid_by.values()), na_position=na_pos
-    )
-    logger.info(f"Sorted dataframe by {list(valid_by.keys())}")
-    return sorted_df
 
 
 def order_columns(data: pd.DataFrame, columns: list[str]):

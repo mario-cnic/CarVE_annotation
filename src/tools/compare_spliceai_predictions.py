@@ -6,11 +6,9 @@ and evaluates orthogonal splicing predictors (SPiP, SpliceVault, Branchpointer, 
 """
 
 import os
-import sys
 import glob
 import logging
 import pandas as pd
-import numpy as np
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

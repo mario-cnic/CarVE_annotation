@@ -3,7 +3,6 @@
 Build GRCh38 tabix-indexed BED file of top LaBranchoR predicted branch points per 3' splice site.
 """
 import os
-import sys
 import gzip
 import subprocess
 from pyliftover import LiftOver

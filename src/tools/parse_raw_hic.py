@@ -1,8 +1,6 @@
 # Script to create one file per gene called `GENENAME_enrichment.xlsx`
 import os
 import pandas as pd
-import shutil
-import csv
 import mygene
 
 def parse_hic_data(src_dir='_RAW/raw_data_HIC/', output_dir='_RAW/data_HIC/'):

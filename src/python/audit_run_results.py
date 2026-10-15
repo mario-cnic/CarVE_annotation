@@ -176,32 +176,6 @@ def check_spliceai_status(run_dir, gene, n_input_vars, vcf_tmp_mtime=None):
 
     return {"status": "PENDING", "detail": "⏳ Pending", "is_complete": False}
 
-def parse_time_from_log(log_path):
-    if not os.path.exists(log_path) or os.path.getsize(log_path) == 0:
-        return None
-    try:
-        with open(log_path, 'r', errors='ignore') as f:
-            for line in f:
-                line = line.strip()
-                if "Elapsed (wall clock) time" in line:
-                    match = re.search(r'Elapsed \(wall clock\) time \(h:mm:ss or m:ss\):\s*([0-9:]+(\.[0-9]+)?)', line)
-                    if match:
-                        time_str = match.group(1).split('.')[0]
-                        parts = [int(p) for p in time_str.split(':')]
-                        if len(parts) == 3:
-                            return parts[0] * 3600 + parts[1] * 60 + parts[2]
-                        elif len(parts) == 2:
-                            return parts[0] * 60 + parts[1]
-                elif "real" in line and re.match(r'^real\s+[0-9]+[mhs]', line):
-                    match_m = re.search(r'([0-9]+)m', line)
-                    match_s = re.search(r'([0-9]+(\.[0-9]+)?)s', line)
-                    m = int(match_m.group(1)) if match_m else 0
-                    s = float(match_s.group(1)) if match_s else 0
-                    return m * 60 + int(round(s))
-    except Exception:
-        pass
-    return None
-
 def audit_run(run_dir=None, raw_dir=None, output_report_path=None):
     if run_dir is None:
         runs = discover_available_runs()

@@ -2,7 +2,6 @@
 Pedigree Parsing, Trio Compound Het TRANS Phasing, and 5-Model Single-Allele Inheritance Engine.
 """
 import json
-import numpy as np
 import pandas as pd
 from . import logger
 from .io_qc import row_records

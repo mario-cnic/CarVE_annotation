@@ -3,7 +3,6 @@
 Build GRCh38 tabix-indexed TSV of LaBranchoR In Silico Mutagenesis (ISM) variant delta scores.
 """
 import os
-import sys
 import gzip
 import subprocess
 from pyliftover import LiftOver

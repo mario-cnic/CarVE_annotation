@@ -21,7 +21,6 @@ import json
 import argparse
 import logging
 import pandas as pd
-import numpy as np
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")

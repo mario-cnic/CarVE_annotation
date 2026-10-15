@@ -5,7 +5,7 @@ import re
 import numpy as np
 import pandas as pd
 from . import logger
-from .io_qc import _safe_numeric_series, apply_rows
+from .io_qc import apply_rows
 from .gene_identity import (
     GeneIdentity, pick_gene_entry, split_entries, strip_version, is_missing, alt_from_locus,
     MATCHED, ALIAS_RESOLVED, NO_ENTRY, NO_ROW_GENE, NOT_APPLICABLE_TRANSCRIPT, AMBIGUOUS, UNRESOLVED,
@@ -53,11 +53,8 @@ NEW_BRANCHPOINT_COLUMNS = {
     "labranchor_status": "LaBranchoR_status",
 }
 
-# Informational only (see walkthrough/20260910_predictor_inventory_and_audit.md, PRED-11):
-# MaxEntScan_ref/_alt/_diff are VEP-computed raw pass-through values. This module derives a
-# normalized decrease and a disruption flag from them, but neither currently feeds
-# build_newImpact/build_priority_tier -- by explicit decision, MaxEntScan does not yet move
-# NEW_IMPACT or PRIORITY_TIER, unlike Pangolin/SpliceAI/SPiP/SpliceVarDB.
+# Informational only: normalized MaxEntScan decrease and disruption flag, derived from VEP's
+# MaxEntScan_ref/_alt/_diff; neither feeds NEW_IMPACT or PRIORITY_TIER.
 NEW_MAXENTSCAN_COLUMNS = {
     "pct_decrease": "MaxEntScan_pct_decrease",
     "disrupted": "MaxEntScan_disrupted",

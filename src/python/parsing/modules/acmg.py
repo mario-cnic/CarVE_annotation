@@ -1,7 +1,6 @@
 """
 ACMG/ClinGen 2015 Criteria Tagging, Upgraded NEW_IMPACT, and ClinVar Significance Extraction.
 """
-import numpy as np
 import pandas as pd
 from . import logger
 from .io_qc import _safe_numeric_series, _safe_string_series

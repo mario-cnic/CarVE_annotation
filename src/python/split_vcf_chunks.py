@@ -5,10 +5,8 @@ Splits large VCF files into smaller, indexed VCF chunks for parallel compute.
 """
 
 import os
-import sys
 import argparse
 import pysam
-import subprocess
 
 
 def split_vcf_into_chunks(input_vcf: str, output_dir: str, chunk_size: int = 20000) -> list:

@@ -11,8 +11,6 @@ import sys
 import glob
 import logging
 import pandas as pd
-import numpy as np
-from datetime import datetime
 
 # Import prioritization builder from filter_variants
 sys.path.insert(0, "/home/mruizp/data_lab_PGP/shared/utils/src")

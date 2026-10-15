@@ -6,7 +6,7 @@ Usage: validate_reparse_sample.py --pq T.parsed.clean.pq --row-group 16 --hgnc H
           --enst-spip-map resources/enst_to_spip_nm.grch38.gencode45.tsv --out result.json
 """
 import argparse, json, os, sys
-import numpy as np, pandas as pd, pyarrow.parquet as pq
+import pandas as pd, pyarrow.parquet as pq
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "python", "parsing"))
 from modules import splicing as sp, gene_identity as gi  # noqa: E402
