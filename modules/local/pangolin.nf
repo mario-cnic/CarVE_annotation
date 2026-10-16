@@ -7,9 +7,6 @@ process PANGOLIN_ANNOTATE {
     // Wall-clock, not memory-bound: per-chunk runtime is highly variable (minutes to many hours),
     // so this needs a much larger time ceiling than the other predictors' process_medium.
     label 'process_long'
-    // Chunk-level runs are unpublished intermediates; only CONCAT_CHUNKS's reassembled output is.
-    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.predictors}", mode: 'copy',
-        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)

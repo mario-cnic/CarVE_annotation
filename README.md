@@ -163,8 +163,6 @@ The manifest (and any dirty-tree patch) stays inside the run folder (`pipeline_i
 - **Assembly check samples, it doesn't exhaustively verify:** the pre-flight check compares header contig lengths and only the first 1000 REF alleles (`MISC-14`). VEP runs without `--check_ref`, so per-record REF disagreements beyond that sample are not detected.
 - **Unprofiled resource requests:** CPU/memory/time are not yet sized from profiling data. Per-chunk wall-clock varied from minutes to more than 46 h on `S223` (`TODO.md`, Priority 0).
 
-`main.nf` is the older per-gene Nextflow adapter. It is kept working but is no longer developed.
-
 ---
 
 ## 📊 Pipeline Outputs & Data Schema

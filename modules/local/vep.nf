@@ -1,30 +1,9 @@
-// Phase 3: VEP annotation, ported from src/hpc/annotate_vep_vars.sh — the first containerized
-// process in this migration. main.sh already ran this inside vep.sif via a manual
-// `singularity exec` call; here the container is a native Nextflow `container` directive instead,
-// so the process script is a plain `vep ...` invocation with no singularity wrapper of its own —
-// Nextflow's singularity integration (enabled in nextflow.config's `standard` profile) injects it.
-// Runs on the same un-chunked per-gene VCF as every other predictor (main.sh:437-446), no chunking
-// stage exists for VEP either. Broad-safe tier — every plugin here is one variant-level pass.
-// See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
-//
-// Whole-VCF redesign (plan item 7-8): this process is also reused per-CHUNK in the new whole-VCF
-// path (workflows/broad_pass_whole.nf), where every chunk of the same run shares one `meta`
-// (chunk identity lives only in the task's own work directory, not in the output filename) — so
-// `publishDir` below skips publishing for those chunk-level calls (`meta.partition_type ==
-// 'chunk'`) via `saveAs`, since only CONCAT_CHUNKS's reassembled whole-run file
-// (modules/local/chunk.nf) is a real deliverable; real per-gene calls publish as before. NOTE:
-// Nextflow's `publishDir enabled:` option does NOT support a per-task closure (confirmed by
-// testing directly — `enabled: { ... }` silently disables publishing unconditionally, even for a
-// closure that always returns `true`) — `saveAs` returning `null` to skip a file is the correct,
-// tested idiom for this. Without it, every chunk of the same run would try to publish to the
-// identical filename `${meta.partition_id}.annVEP.vcf.gz` and silently overwrite each other.
+// VEP 111 with its plugins and custom annotations, run in the VEP container (broad tier).
 
 process VEP_ANNOTATE {
     tag "${meta.partition_id}"
     label 'process_medium'
     container "${params.vep_sif}"
-    publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.predictors}", mode: 'copy',
-        saveAs: { filename -> meta.partition_type == 'chunk' ? null : filename }
 
     input:
     tuple val(meta), path(vcf), path(tbi)
@@ -32,38 +11,8 @@ process VEP_ANNOTATE {
     output:
     tuple val(meta), path("${meta.partition_id}.annVEP.vcf.gz"), path("${meta.partition_id}.annVEP.vcf.gz.tbi"), emit: vcf
 
-    // Plugins/custom files run in the broad tier. The commented-out plugins in the bash
-    // source (GeneSplicer, dbscSNV, selv, FATHMM) were already dead there and aren't ported.
-    // Note: this --plugin SpliceAI is VEP's own precomputed-lookup plugin (hg38 raw score VCFs
-    // under vep_dir/plugins/spliceAI), unrelated to and not a duplicate of this pipeline's own
-    // live SPLICEAI_ANNOTATE process (gene-restricted tier) — main.sh already ran both together.
-    //
-    // Behavior change from the bash original, noted rather than hidden: main.sh submits this job
-    // with `-pe smp 4` but never exports $THREADS, so the bash version's `--fork ${THREADS:-1}`
-    // actually ran with --fork 1 — a latent bug, not an intentional throttle. This port uses
-    // --fork ${task.cpus} (real parallelism matching the allocated slots), a deliberate behavior
-    // change, not a verbatim port.
-    //
-    // tabix below is the container's OWN /usr/local/bin/tabix (htslib 1.9, confirmed present in
-    // vep.sif), not params.tabix — the bash original indexes on the HOST after singularity exec
-    // returns; this script runs entirely inside the container, so a host conda tabix binary would
-    // be visible via the bind mount but not guaranteed to load (built against host libs). Using
-    // the container's own tabix avoids that mismatch entirely.
-    //
-    // NOT ported: annotate_vep_vars.sh's `export PERL5OPT=-X` (meant to silence Mastermind
-    // plugin warnings flooding stderr). Real bug found on the first live cluster run of this
-    // process: `-X`, while a legal `perl` command-line switch, is NOT on PERL5OPT's own allowed-
-    // switch list — Perl itself refuses it ("Illegal switch in PERL5OPT: -X."), which hard-failed
-    // every chunk. Root cause of why this was never caught in the bash pipeline: `annotate_vep_
-    // vars.sh` sets it as a plain host `export` before calling `singularity exec -e ...` (`-e`
-    // = `--cleanenv`), and `--cleanenv` does NOT pass plain host env vars into the container —
-    // only `SINGULARITYENV_`-prefixed ones are. So that `export` never actually reached Perl
-    // inside the container in production either; it was always a silent no-op. Nextflow's own
-    // singularity integration propagates script-exported env vars into the container more
-    // faithfully than a manual bash `singularity exec` call does, which is exactly why a
-    // dormant, always-broken setting only surfaces as a hard failure here. Not replaced with a
-    // working equivalent — the original problem was disk-I/O noise, not correctness, and
-    // reintroducing warning suppression is out of scope for this port.
+    // `--plugin SpliceAI` is VEP's precomputed-score lookup, separate from SPLICEAI_ANNOTATE.
+    // `tabix` is the container's own binary. Do not set PERL5OPT=-X: Perl rejects it.
     script:
     def vep_files = params.vep_dir
     def dbnsfp_fields = file(params.vep_dbnsfp_fields).readLines()
@@ -104,13 +53,6 @@ process VEP_ANNOTATE {
     tabix ${meta.partition_id}.annVEP.vcf.gz
     """
 
-    // Real inference needs the full VEP cache/plugin data tree under /references (many GB,
-    // several plugin files not mirrored to this sandbox's local_references at all — unlike
-    // SpliceAI's single FASTA), and local_dev leaves singularity.enabled=false, so `container`
-    // is never exercised here either. -stub-run skips this process's `script:` block entirely
-    // (Nextflow does not execute it in stub mode) — the stub proves channel/DAG wiring only,
-    // nothing about the command line above or the container directive; both are unverified in
-    // this sandbox and must be checked on the cluster.
     stub:
     """
     cp ${vcf} ${meta.partition_id}.annVEP.vcf.gz

@@ -1,14 +1,5 @@
-// Whole-VCF redesign (plan item 7-8): broad-safe tier for the new whole-VCF entry point. Chunks
-// the FULL, unfiltered input (VEP/Branchpointer are genome-wide-capable, no region restriction
-// needed), fans VEP_ANNOTATE + BRANCHPOINT_ANNOTATE [+ SPIP_ANNOTATE if params.spip_tier=='broad']
-// out over the chunks, then reassembles each tool's chunks back into one whole-run file.
-// Reuses the exact same processes as the legacy per-gene BROAD_PASS_SUBWORKFLOW
-// (workflows/broad_pass.nf, untouched) — only the wiring around them differs.
-//
-// CONCAT_CHUNKS is imported under a distinct alias per tool: Nextflow disallows the same process
-// being invoked from more than one call site within one workflow scope unless each site aliases
-// it (see workflows/chunk_fan_concat.nf's header comment for how this was found).
-// See /home/mruizp/.claude/plans/scalable-wibbling-snowflake.md for scope/non-goals.
+// Broad tier: chunks the full input, runs VEP, Branchpointer (and SPiP when spip_tier == 'broad')
+// per chunk, and reassembles each predictor's chunks. CONCAT_CHUNKS needs one alias per call site.
 
 include { CHUNK_VCF } from '../modules/local/chunk.nf'
 include { CONCAT_CHUNKS as CONCAT_VEP } from '../modules/local/chunk.nf'
@@ -18,14 +9,7 @@ include { VEP_ANNOTATE } from '../modules/local/vep.nf'
 include { BRANCHPOINT_ANNOTATE } from '../modules/local/branchpointer.nf'
 include { SPIP_ANNOTATE } from '../modules/local/spip.nf'
 
-// Groups a tool's per-chunk output back by run and pairs it with the pre-chunk input for
-// CONCAT_CHUNKS's parity check. No sort-by-filename here (an earlier version had one, following
-// Phase 1's spliceai_spike.nf pattern, on the theory that it fixed groupTuple()'s unspecified
-// element order) — removed after BUG_TRACKER.md MISC-8 showed it was a no-op for every predictor
-// except SpliceAI (whose per-chunk filename is uniquely named; VEP/Branchpointer/Pangolin/SPiP's
-// aren't) and, more to the point, unnecessary regardless: CONCAT_CHUNKS's own `bcftools sort`
-// (modules/local/chunk.nf) now guarantees correct final ordering no matter what order chunk_files
-// arrives in here.
+// Groups a predictor's chunks by run and pairs them with the pre-chunk input for the parity check.
 def collectForConcat(annotated_chunk_ch, orig_vcf_ch, suffix) {
     annotated_chunk_ch
         // Hash order, not completion order: the same chunk list on every launch, so -resume keeps CONCAT_* cached.
@@ -41,10 +25,7 @@ workflow BROAD_PASS_WHOLE_SUBWORKFLOW {
     main:
     CHUNK_VCF(meta_vcf_ch, params.chunk_size)
 
-    // Fan out directly off CHUNK_VCF.out.chunks, same as Phase 1's spliceai_spike.nf — NOT
-    // wrapped in a shared FAN_CHUNKS subworkflow (an earlier version of this file did; dropped
-    // after empirically narrowing a hard-to-reproduce bug to that indirection, see the plan's
-    // walkthrough for the diagnostic trail).
+    // One channel element per chunk; a single chunk arrives as a bare Path, so wrap it in a list.
     chunk_ch = CHUNK_VCF.out.chunks
         .map { meta, vcf_list, tbi_list ->
             tuple(
@@ -63,9 +44,6 @@ workflow BROAD_PASS_WHOLE_SUBWORKFLOW {
     BRANCHPOINT_ANNOTATE(chunk_ch)
     CONCAT_BRANCHPOINT(collectForConcat(BRANCHPOINT_ANNOTATE.out.vcf.map { m, vcf, tbi -> tuple(m, vcf) }, meta_vcf_ch, 'annBranchpoint'))
 
-    // Mirrors the legacy BROAD_PASS_SUBWORKFLOW's inverse gate: SPiP's tier is unresolved,
-    // defaulted to 'restricted' (see the whole-VCF GENE_RESTRICTED_WHOLE_SUBWORKFLOW), so this
-    // branch is a no-op today.
     if (params.spip_tier == 'broad') {
         SPIP_ANNOTATE(chunk_ch)
         CONCAT_SPIP_BROAD(collectForConcat(SPIP_ANNOTATE.out.vcf.map { m, vcf, tbi -> tuple(m, vcf) }, meta_vcf_ch, 'annSPiP'))
