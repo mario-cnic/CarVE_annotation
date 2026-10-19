@@ -3,6 +3,8 @@ import shutil
 import sys
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 import pysam
 import pytest
 
@@ -179,6 +181,26 @@ def test_wide_view_batches_give_the_same_result(tmp_path):
     a, b = str(tmp_path / "a.pq"), str(tmp_path / "b.pq")
     assert wide_run(main, gt, a, 10, batch_rows=1000) == 0 and wide_run(main, gt, b, 10, batch_rows=2) == 0
     pd.testing.assert_frame_equal(pd.read_parquet(a), pd.read_parquet(b))
+
+
+def test_wide_view_column_empty_in_first_batch_keeps_file_types(tmp_path):
+    vcf = write_vcf(tmp_path / "trio.vcf.gz", TRIO, RECORDS)
+    _, gt = go(tmp_path, vcf)
+    loci = [r[0] + ":" + str(r[1]) + "-" + r[2] + "-" + r[3] for r in RECORDS]
+    n = len(loci)
+    main = str(tmp_path / "main.pq")
+    pq.write_table(pa.table({
+        "Locus": pa.array(loci, pa.string()),
+        "MANE_PLUS_CLINICAL": pa.array([None] * (n - 1) + ["NM_1.1"], pa.string()),
+        "Score": pa.array([None] + list(range(1, n)), pa.int64()),
+    }), main)
+    out = str(tmp_path / "w.pq")
+    assert wide_run(main, gt, out, 10, batch_rows=1) == 0
+    w = pq.read_table(out)
+    assert w.schema.field("MANE_PLUS_CLINICAL").type == pa.string()
+    assert w.schema.field("Score").type == pa.int64()
+    assert w.column("MANE_PLUS_CLINICAL").to_pylist()[-1] == "NM_1.1"
+    assert w.num_rows == n and set(w.column("GT_PROBAND-1").to_pylist()) <= {"HET", "HOMALT", "HOMREF", "MISSING"}
 
 
 def test_wide_view_fails_when_a_table_row_has_no_genotype(tmp_path):

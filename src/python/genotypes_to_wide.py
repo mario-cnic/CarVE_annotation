@@ -52,21 +52,22 @@ def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000,
     wide = wide_genotypes(long_df)
     del long_df
     gt_cols = [c for c in wide.columns if c.startswith("GT_")]
+    wide[gt_cols] = wide[gt_cols].fillna("MISSING")
+    wide_schema = pa.Schema.from_pandas(wide, preserve_index=False)
 
     # The main table is joined batch by batch: a WGS table has tens of millions of rows x ~600 columns.
+    # Its columns stay Arrow and keep the file's types; the output schema is fixed before the first batch.
     source = pq.ParquetFile(table_path)
-    writer, n_rows, unmatched = None, 0, 0
+    out_schema = with_stamp(pa.schema(list(source.schema_arrow) + list(wide_schema)), stamp)
+    writer, n_rows, unmatched = pq.ParquetWriter(output_path, out_schema), 0, 0
     try:
         for batch in source.iter_batches(batch_size=batch_rows):
-            part = batch.to_pandas()
-            joined = part.join(wide, on="Locus", how="left")
-            unmatched += int(joined[gt_cols[0]].isna().sum()) if gt_cols else 0
-            joined[gt_cols] = joined[gt_cols].fillna("MISSING")
-            table = pa.Table.from_pandas(joined, preserve_index=False)
-            if writer is None:
-                writer = pq.ParquetWriter(output_path, with_stamp(table.schema, stamp))
-            writer.write_table(table.cast(writer.schema))
-            n_rows += len(joined)
+            gts = wide.reindex(batch.column("Locus").to_pandas().values)
+            unmatched += int(gts[gt_cols[0]].isna().sum()) if gt_cols else 0
+            gts[gt_cols] = gts[gt_cols].fillna("MISSING")
+            extra = pa.Table.from_pandas(gts, schema=wide_schema, preserve_index=False)
+            writer.write_table(pa.Table.from_arrays(batch.columns + extra.columns, schema=out_schema))
+            n_rows += batch.num_rows
     finally:
         if writer is not None:
             writer.close()
