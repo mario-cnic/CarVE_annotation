@@ -1,0 +1,33 @@
+{
+  "report": "perf_review_20261019_F1830",
+  "purpose": "F1830_union (first WGS-size run after the 2026-10-14 performance changes) vs F2005_union, per process (walkthrough/20261019_F1830_run_timing.md)",
+  "generated_at": "2026-10-19T10:27:22+02:00",
+  "repo_commit": "8b19978c25feaa3978ba9a55aa40724c4952f29c",
+  "repo_dirty": "MISC-18 fix (genotypes_to_wide.py, test, BUG_TRACKER.md) uncommitted; not used by the parser",
+  "executed_on": "local workstation (no cluster commands run)",
+  "command": "python3 -I reports/perf_review_20261014/parse_nf_runs.py --trace F1830_trace nf_work/annotation_out/F1830_union/pipeline_info/execution_trace_2026-10-16_17-11-14.txt --log F1830_log nf_work/annotation_out/F1830_union/pipeline_info/nextflow_2026-10-16_17-10-51.log --log F2005_union nf_work/annotation_out/F2005_union/pipeline_info/nextflow_2026-10-04_23-05.log --outdir <scratch> --cache <scratch>",
+  "scripts": {
+    "parse_nf_runs.py": "45c656d91b3a50330353714648c567794e9a6b8979b234beaed9d7bb50be8474"
+  },
+  "inputs": {
+    "F1830_trace": {
+      "source": "nf_work/annotation_out/F1830_union/pipeline_info/execution_trace_2026-10-16_17-11-14.txt (launch 2026-10-16 17:11, commit 8b19978, workDir /mnt/scratch/mruizp/annotation_pipeline_new/work)",
+      "sha256": "a5eba2f7a963f7b29f8a463bd88cc0ab01b085107967b34c7acf8e622084741a"
+    },
+    "F1830_log": {
+      "source": "nf_work/annotation_out/F1830_union/pipeline_info/nextflow_2026-10-16_17-10-51.log + per-task .command.run/.command.log (hosts; the trace hostname column is empty)",
+      "sha256": "8e066d767bba4c3d8b61148d8dc7b9ca84a120cdc0eb2d07dc2516db2f1087c4"
+    },
+    "F2005_union": {
+      "source": "nf_work/annotation_out/F2005_union/pipeline_info/nextflow_2026-10-04_23-05.log (launch 2026-10-02 14:28, commit 48233a3, workDir /data_lab_PGP/pipelines/annotation_pipeline_new/work)",
+      "sha256": "1d6c17d7b730ee20ec40b73cb4a24577e0d78cd85dd780ca05ea8ba3a2ea3bca"
+    }
+  },
+  "outputs": [
+    "tasks.tsv",
+    "per_process.tsv",
+    "critical_path.tsv",
+    "run_summary.tsv"
+  ],
+  "notes": "F1830_trace and F1830_log describe the same launch; peak_rss and %cpu come from the trace only. The 2026-10-19 -resume launch (ADD_WIDE_GENOTYPES only) is not included."
+}
