@@ -343,3 +343,47 @@ def parse_remm(data: pd.DataFrame) -> pd.DataFrame:
         logger.warning(f"ReMM: {int(unparsed.sum())} rows with an unparsable value, e.g. {raw[unparsed].iloc[0]!r}")
     logger.info(f"New column `ReMM_status` created with value counts: {dict(status.value_counts())}")
     return data
+
+
+AVI_SCORED = "scored"
+AVI_NOT_COVERED = "not_covered"
+AVI_NOT_APPLICABLE = "not_applicable"
+AVI_NOT_ANNOTATED = "not_annotated"
+AVI_ERROR = "error"
+
+
+def parse_avi(data: pd.DataFrame) -> pd.DataFrame:
+    """Convert the VEP AVI plugin columns AVI_PHRED and AVI_RAW to floats and derive AVI_status per row.
+
+    AlphaGenome AVI scores exist for SNVs only, one per allele. The plugin leaves both columns empty
+    for a non-SNV (not_applicable) and for an SNV absent from the file (not_covered, never 0).
+    Informational only: no effect on NEW_IMPACT or PRIORITY_TIER.
+    """
+    if "AVI_PHRED" not in data.columns or "VARIANT_CLASS" not in data.columns:
+        data["AVI_PHRED"] = np.nan
+        data["AVI_RAW"] = np.nan
+        data["AVI_status"] = AVI_NOT_ANNOTATED
+        logger.warning("AVI_PHRED or VARIANT_CLASS column absent: AVI_status set to not_annotated")
+        return data
+    snv = data["VARIANT_CLASS"].fillna("").astype(str).eq("SNV")
+    values = {}
+    unparsed = pd.Series(False, index=data.index)
+    for col in ["AVI_PHRED", "AVI_RAW"]:
+        raw = data.get(col, pd.Series(np.nan, index=data.index))
+        raw = raw.astype(object).where(raw.notna(), "").astype(str).str.strip()
+        empty = raw.isin(["", ".", "-", "nan"])
+        values[col] = pd.to_numeric(raw.mask(empty), errors="coerce")
+        bad = ~empty & values[col].isna()
+        if bad.any():
+            logger.warning(f"{col}: {int(bad.sum())} rows with an unparsable value, e.g. {raw[bad].iloc[0]!r}")
+        unparsed |= bad
+    status = pd.Series(AVI_NOT_APPLICABLE, index=data.index, dtype=object)
+    status.loc[snv & values["AVI_PHRED"].isna()] = AVI_NOT_COVERED
+    status.loc[snv & values["AVI_PHRED"].notna()] = AVI_SCORED
+    status.loc[snv & unparsed] = AVI_ERROR
+    ok = snv & ~unparsed
+    data["AVI_PHRED"] = values["AVI_PHRED"].where(ok)
+    data["AVI_RAW"] = values["AVI_RAW"].where(ok)
+    data["AVI_status"] = status
+    logger.info(f"New column `AVI_status` created with value counts: {dict(status.value_counts())}")
+    return data

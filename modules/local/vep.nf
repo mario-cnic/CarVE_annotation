@@ -43,6 +43,7 @@ process VEP_ANNOTATE {
         --plugin pLI,${params.vep_pli} \\
         --plugin dbNSFP,"${params.vep_dbnsfp},${dbnsfp_fields}" \\
         --plugin AlphaMissense,file=${params.vep_alphamissense} \\
+        --plugin AVI,file=${params.vep_avi},raw=1 \\
         --plugin MaxEntScan,${params.vep_maxentscan_dir} \\
         --custom file=${params.splicevardb_vcf},short_name=splicevardb,format=vcf,type=exact,coords=0,fields=gene%hgvs%method%classification%location%doi \\
         --custom file=${params.clinvar_vcf},short_name=ClinVarVCF,format=vcf,type=exact,coords=0,fields=CLNSIG%CLNSIGCONF%CLNREVSTAT%CLNDN%CLNVC%ALLELEID \\
