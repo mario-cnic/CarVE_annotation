@@ -9,6 +9,8 @@ from parsing.modules.clinvar import resolve_clinvar
 from parsing.modules.acmg import _extract_clinvar_status, build_newImpact
 from parsing.modules import scoring
 
+DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
+
 
 def test_custom_authoritative_and_fallback_per_row():
     df = pd.DataFrame({
@@ -59,13 +61,13 @@ def test_ambiguous_or_other_classification_not_promoted(classification,path,beni
 
 
 def test_scoring_and_impact_use_custom_source(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({'ClinVarVCF_CLNSIG': ['Pathogenic', 'Pathogenic'],
                        'ClinVarVCF_CLNREVSTAT': ['reviewed_by_expert_panel', None],
                        'clinvar_clnsig': ['Benign'] * 2, 'ClinVar_Stars': [4] * 2,
                        'QC_STATUS': ['PASS'] * 2, 'Consequence': ['missense_variant'] * 2,
                        'IMPACT': ['MODERATE'] * 2})
-    result = scoring.build_priority_tier(build_newImpact(df))
+    result = scoring.build_priority_tier(build_newImpact(df), DISEASE_GENE_LIST)
     assert result.NEW_IMPACT.tolist() == ['HIGH', 'HIGH']
     assert result.VARIANT_PRIORITY_SCORE.iloc[0] - result.VARIANT_PRIORITY_SCORE.iloc[1] == 5
     assert result.CLINVAR_SOURCE.eq('ClinVarVCF_CLNSIG').all()

@@ -9,6 +9,8 @@ from parsing.modules.population import resolve_population_af, ABSENT, GNOMAD_GRP
 from parsing.modules.acmg import build_acmg_criteria
 from parsing.modules import scoring
 
+DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
+
 
 def test_resolution_per_row_and_raw_preservation():
     df = pd.DataFrame({GNOMAD_GRPMAX: [0, None, '.', 'bad', -1, 1.1, float('inf'), .002],
@@ -66,11 +68,11 @@ def test_absent_requires_gnomad_annotation_and_no_record():
 
 
 def test_score_has_no_unknown_rarity_bonus(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['missense_variant'] * 2,
                        'REVEL_score': [.8] * 2, 'NEW_IMPACT': ['MODERATE'] * 2,
                        'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(df)
+    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
     assert result.VARIANT_PRIORITY_SCORE.iloc[1] - result.VARIANT_PRIORITY_SCORE.iloc[0] == 15
     assert result.POPULATION_AF_STATUS.iloc[0] == 'missing_frequency'
     assert 'PM2' not in result.ACMG_CRITERIA.iloc[0]
@@ -96,23 +98,23 @@ def test_filters_retain_absent_and_dominant_ranks_it_candidate():
 
 
 def test_unknown_cannot_promote_to_tier_one(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['stop_gained'] * 2,
                        'pLI_gene_value': [1.] * 2, 'NEW_IMPACT': ['HIGH'] * 2,
                        'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(df)
+    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
     assert not result.PRIORITY_TIER.iloc[0].startswith('Tier 1')
     assert result.PRIORITY_TIER.iloc[1].startswith('Tier 1')
     assert 'population AF unknown' in result.TIER_RATIONALE.iloc[0]
 
 
 def test_absent_from_gnomad_earns_pm2_and_can_reach_tier_one(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None], GNOMAD_JOINT: [None, 0, None],
                        GNOMAD_AN_JOINT: [None, 1000, 0], 'Consequence': ['stop_gained'] * 3,
                        'pLI_gene_value': [1.] * 3, 'NEW_IMPACT': ['HIGH'] * 3,
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_priority_tier(df)
+    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'missing_frequency']
     assert pd.isna(result.POPULATION_AF.iloc[0]) and result.POPULATION_AF.iloc[1] == 0
     assert result.VARIANT_PRIORITY_SCORE.iloc[0] == result.VARIANT_PRIORITY_SCORE.iloc[1]
@@ -134,9 +136,9 @@ def test_all_unknown_filter_and_availability():
 
 
 def test_explicit_column_used_consistently_for_scoring_and_criteria(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [0], 'chosen_frequency': [.1], 'QC_STATUS': ['PASS']})
-    result = scoring.build_priority_tier(df, freq_col='chosen_frequency')
+    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST, freq_col='chosen_frequency')
     assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency'
     assert 'BA1' in result.ACMG_CRITERIA.iloc[0]
     assert 'PM2' not in result.ACMG_CRITERIA.iloc[0]

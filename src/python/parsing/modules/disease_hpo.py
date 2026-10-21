@@ -30,29 +30,30 @@ HPO_GENE_PANELS = {
 }
 
 
-@functools.lru_cache(maxsize=1)
-def load_cardiac_disease_gene_curation() -> dict[str, dict]:
-    """Loads and merges curated disease gene evidence databases."""
-    v4_path = "/home/mruizp/data_lab_PGP/shared/utils/data/Complete_gene_list_V4.csv"
-    v2_path = "/home/mruizp/data_lab_PGP/shared/utils/data/full_cardiac_gene_list_V2.csv"
-    
-    curation = {}
-    if os.path.exists(v4_path):
-        df_v4 = pd.read_csv(v4_path)
-        for _, r in df_v4.iterrows():
-            g = str(r.get("GENE", "")).strip().upper()
-            if not g or g == "NAN": continue
-            src = str(r.get("SOURCE", "")).strip()
-            ev = str(r.get("EVIDENCE", "")).strip()
-            curation[g] = {
-                "symbol": g,
-                "name": str(r.get("NAME", "")).strip(),
-                "source": src,
-                "v4_evidence": ev,
-                "v2_priority": ""
-            }
+@functools.lru_cache(maxsize=4)
+def load_cardiac_disease_gene_curation(v4_path: str, v2_path: str | None = None) -> dict[str, dict]:
+    """Loads and merges curated disease gene evidence databases; a missing or empty V4 list is an error."""
+    if not os.path.isfile(v4_path):
+        raise FileNotFoundError(f"Disease-gene curation list not found: {v4_path}")
 
-    if os.path.exists(v2_path):
+    curation = {}
+    df_v4 = pd.read_csv(v4_path)
+    for _, r in df_v4.iterrows():
+        g = str(r.get("GENE", "")).strip().upper()
+        if not g or g == "NAN": continue
+        src = str(r.get("SOURCE", "")).strip()
+        ev = str(r.get("EVIDENCE", "")).strip()
+        curation[g] = {
+            "symbol": g,
+            "name": str(r.get("NAME", "")).strip(),
+            "source": src,
+            "v4_evidence": ev,
+            "v2_priority": ""
+        }
+    if not curation:
+        raise ValueError(f"Disease-gene curation list has no genes: {v4_path}")
+
+    if v2_path:
         df_v2 = pd.read_csv(v2_path)
         for _, r in df_v2.iterrows():
             g = str(r.get("Gen", "")).strip().upper()
@@ -99,10 +100,11 @@ def load_cardiac_disease_gene_curation() -> dict[str, dict]:
 
 def apply_disease_phenotype_curation(
     data: pd.DataFrame,
+    disease_gene_list: str,
     disease_phenotype: str = "🫀 Cardiomyopathies (General Panel - DCM, HCM, ARVC, RCM)"
 ) -> pd.DataFrame:
     """Annotates dataset with Disease Curation Evidence levels."""
-    curation_db = load_cardiac_disease_gene_curation()
+    curation_db = load_cardiac_disease_gene_curation(disease_gene_list)
     
     evidence_tiers = []
     curation_sources = []

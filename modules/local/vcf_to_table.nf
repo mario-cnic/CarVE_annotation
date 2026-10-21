@@ -57,6 +57,7 @@ process TSV_TO_TABLE {
         --output ${meta.partition_id}.parsed.clean.${params.output_format} \\
         --logging_level INFO \\
         --hgnc-table ${params.hgnc_table} \\
+        --disease-gene-list ${params.disease_gene_list} \\
         --spliceai-symbol-map ${params.spliceai_symbol_map} \\
         --enst-spip-map ${params.enst_spip_map} \\
         --dbnsfp-aligned-columns ${params.dbnsfp_aligned_columns} \\

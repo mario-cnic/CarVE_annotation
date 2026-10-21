@@ -85,4 +85,6 @@ Legacy cleanup (2026-10-08T11:53:30+02:00): `src/hpc/vcf2parsed.sh` and `config/
 
 - 2026-10-14: row-wise passes in `modules/{io_qc,splicing,pedigree,acmg,scoring,disease_hpo}.py` made faster (tuple results through `io_qc.apply_rows`, arrays instead of `.iloc` in loops); output identical to the previous version on local fixtures (`walkthrough/20261014_performance_review.md`).
 
+- 2026-10-21: `modules/disease_hpo.py`, `modules/scoring.py`, `filter_variants.py`: the disease-gene curation list is a required `--disease-gene-list` argument instead of a hardcoded workstation path; a missing or empty list raises.
+
 Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_pysam.add_sample_header` (unused) were removed, along with unused imports; see `walkthrough/20261015_code_bloat_cleanup.md`. The sentence above saying `sort_by` stays is superseded.

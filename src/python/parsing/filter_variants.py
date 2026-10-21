@@ -99,6 +99,13 @@ def argparsing() -> argparse.ArgumentParser:
     parser.add_argument("--input", type=str, help="path to intermediate tsv file")
     parser.add_argument("--output", type=str, help="file path and name")
     parser.add_argument(
+        "--disease-gene-list",
+        dest="disease_gene_list",
+        type=str,
+        required=True,
+        help="Complete_gene_list_V4.csv (GENE, NAME, SOURCE, EVIDENCE) for disease-gene curation",
+    )
+    parser.add_argument(
         "--columns",
         type=str,
         help="columns to select or path to csv file with columns to select",
@@ -430,7 +437,7 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = build_qc_status(data)
     data = build_newImpact(data)
     data = analyze_pedigree_inheritance(data, pedigree)
-    data = build_priority_tier(data, freq_col=args.freq_col)
+    data = build_priority_tier(data, args.disease_gene_list, freq_col=args.freq_col)
 
     if args.classification == 'dominant':
         data = classification_dominant(data=data, freq_col=args.freq_col, freq=args.freq)

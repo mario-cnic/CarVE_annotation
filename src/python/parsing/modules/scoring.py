@@ -13,6 +13,7 @@ from .population import annotate_population_af, resolve_population_af, rarity_af
 
 def build_priority_tier(
     data: pd.DataFrame,
+    disease_gene_list: str,
     freq_col: str = "gnomADv4_AF_grpmax_joint",
     hpo_terms: list[str] | None = None,
     disease_phenotype: str = "cardiomyopathies_all"
@@ -27,7 +28,7 @@ def build_priority_tier(
     if "QC_STATUS" not in data.columns:
         data = build_qc_status(data)
 
-    data = apply_disease_phenotype_curation(data, disease_phenotype)
+    data = apply_disease_phenotype_curation(data, disease_gene_list, disease_phenotype)
 
     af_series = annotate_population_af(data, freq_col)
     af_absent = data["POPULATION_AF_STATUS"].eq(ABSENT)

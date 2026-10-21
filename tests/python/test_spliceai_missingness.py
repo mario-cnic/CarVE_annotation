@@ -8,6 +8,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules import splicing, scoring
 from parsing.modules.acmg import build_acmg_criteria
 
+DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
+
 
 def test_two_sources_remain_separate_and_raw_columns_preserved():
     df = pd.DataFrame({'SpliceAI_pred_DS_AG': [.2, None, 0],
@@ -70,11 +72,11 @@ def test_unknown_does_not_supply_benign_splicing_evidence():
 
 
 def test_missing_spliceai_does_not_erase_other_predictor_scores(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({'spliceai_custom_MAX': [None, 0, None], 'spliceAI_MAX': [None] * 3,
                        'SPiP_prediction': [.8, .8, 0], 'Pangolin_max_score': [.3, .3, 0],
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_priority_tier(df)
+    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
     assert result.VARIANT_PRIORITY_SCORE.notna().all()
     assert result.VARIANT_PRIORITY_SCORE.iloc[0] == result.VARIANT_PRIORITY_SCORE.iloc[1] == 24
     assert result.VARIANT_PRIORITY_SCORE.iloc[2] == 0
@@ -84,10 +86,10 @@ def test_missing_spliceai_does_not_erase_other_predictor_scores(monkeypatch):
 
 
 def test_explicit_error_preserved_without_poisoning_valid_fallback(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, phenotype: data)
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({'SpliceAI_status': ['error'] * 2, 'spliceAI_MAX': [None] * 2,
                        'spliceai_custom_MAX': [None, 0], 'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(splicing.build_spliceMAX(df))
+    result = scoring.build_priority_tier(splicing.build_spliceMAX(df), DISEASE_GENE_LIST)
     assert result.SpliceAI_status.tolist() == ['error', 'error']
     assert result.SPLICEAI_STATUS.tolist() == ['error', 'scored']
     assert pd.isna(result.SPLICE_MAX_UNIFIED.iloc[0]) and result.SPLICE_MAX_UNIFIED.iloc[1] == 0
