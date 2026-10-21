@@ -194,7 +194,13 @@ Run times on the workstation over the mount:
   - `nextflow config` resolves `vep_avi`; `bash -n run_annotate_vcf.sh` passes.
   - Local VEP 111 (`vep.sif`, offline cache 111) with the shared plugin dir and the real file: chr11:47342906 C>A 59.63756 / raw 3.378, C>G 34.16779 / 1.92, chr11:5225450 A>T 21.49414 / 0.6643, chr5:90000001 A>G 10.35304 / 0.1648, all equal to the file; the same value on every transcript row and on the intergenic row. A 1-bp deletion (chr11:47342950 TG>T) and chrM:3000 A>G got empty fields. A rerun adding `--regulatory --canonical --mane --biotype --numbers` gave the HBB SNV the same value on its RegulatoryFeature row as on its transcript rows.
 - **Provenance**: `write_run_manifest.py` has no release reader for AVI (`database_releases`), and the path holds no version. It records a `.sha256` sidecar for files over 1 GB, so one was written next to the table: `alphagenome_variant_impact_score_snvs.tsv.gz.sha256`. The download date (2026-10-19), the zip sha256 and the model id (`combined_ag_cond_linear_ensemble_20260417`, from the SHAP file name, INFERENCE for AVI) are recorded only here.
-- **Not checked**: a cluster fixture run, and the added VEP time per partition.
+- **Cluster fixture run (FACT, 2026-10-20, `nf_work/annotation_out/avi_fixture_20261020`)**:
+  - Code: commit 940011c plus the uncommitted patch carrying the AVI change (committed 50 s after launch as bb2c5d1); the patch also carried the uncommitted chunked-TSV work. All 19 tasks completed.
+  - 22 SNV loci (199 rows), all `scored`, one `AVI_PHRED` per locus across its rows; all 22 PHRED/RAW pairs equal a pysam lookup of the table. The fixture has no indels.
+  - Versus `clinvar_af_fixture_20261016` (same input): same 199 rows; 3 new columns; `NEW_IMPACT` and `PRIORITY_TIER` unchanged. The only other change is the key order inside 2 `5UTR_annotation` strings (same content; UTRAnnotator does not fix the order).
+  - `VEP_ANNOTATE` realtime 18.7 s vs 17.4 s and 17.7 s on the two earlier fixture runs.
+  - The table's `.sha256` sidecar was written after this launch, so this run's manifest has size and mtime only for `vep_avi`.
+- **Not checked**: the added VEP time on a WGS.
 
 ## Remaining work
 
