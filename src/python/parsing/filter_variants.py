@@ -4,6 +4,8 @@ Top-Level Pipeline Orchestrator and API Entrypoint.
 Re-exports all modular sub-packages from `src.modules` for 100% backward compatibility.
 """
 import argparse
+from collections import Counter
+
 import pandas as pd
 
 try:
@@ -44,6 +46,9 @@ try:
         build_priority_tier, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
     )
+    from .modules.chunked import (
+        CoordinateOrder, PartWriter, locus_chunks, read_dtype_args, whole_file_dtypes,
+    )
 except ImportError:
     from modules.gene_identity import GeneIdentity
     from modules.io_qc import (
@@ -81,6 +86,9 @@ except ImportError:
     from modules.scoring import (
         build_priority_tier, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
+    )
+    from modules.chunked import (
+        CoordinateOrder, PartWriter, locus_chunks, read_dtype_args, whole_file_dtypes,
     )
 
 
@@ -211,6 +219,13 @@ def argparsing() -> argparse.ArgumentParser:
         help="Convert low GQ (<10) values to MISSING instead of removing the row",
     )
     parser.add_argument(
+        "--chunk-rows",
+        type=int,
+        default=None,
+        help="TSV input to Parquet output: process about this many rows at a time (never splitting a "
+             "variant's rows) instead of loading the whole TSV; not with --genotype_file or --classification",
+    )
+    parser.add_argument(
         "--dbnsfp_cols",
         type=str,
         help="path to file with dbNSFP columns to parse and add to the dataframe",
@@ -325,20 +340,29 @@ def main(args: list[str] | None):
             raise e
     else:
         compression = "gzip" if args.input.endswith(".gz") else "infer"
-        data = pd.read_csv(
-            args.input,
-            na_values=".",
-            sep="\t",
-            compression=compression,
-            header=0,
-            index_col=False,
-            low_memory=False,
-        )
+        read_kwargs = dict(na_values=".", sep="\t", compression=compression, header=0, index_col=False,
+                           low_memory=False)
+        if args.chunk_rows and args.output.endswith((".parquet", ".pq")):
+            run_chunked(args, read_kwargs, first_cols)
+            return
+        if args.chunk_rows:
+            logger.warning("--chunk-rows applies to Parquet output only; loading the whole TSV")
+        data = pd.read_csv(args.input, **read_kwargs)
     logger.debug(f"Dataframe columns: {data.columns}")
     freq_cols = [x for x in data.columns if args.freq_col in x]
     logger.debug(f"Frequency columns: {freq_cols}")
     logger.info(f"Input file {args.input} loaded with shape {data.shape}")
 
+    pedigree = read_pedigree_file(args.genotype_file) if args.genotype_file else None
+    data, coordinate_order = transform(data, args, {}, pedigree, first_cols)
+    log_coordinate_order(coordinate_order)
+    save_data(data, args.output, args.log_file)
+
+
+def transform(data, args, state, pedigree, first_cols, coordinates=None):
+    """Every column and status step on one frame. `state` caches the GeneIdentity between calls;
+    `coordinates` (a CoordinateOrder) collects the order check instead of computing it here."""
+    first_cols = list(first_cols)
     data = select_columns(data, column_file=args.columns, formato=args.add_format)
     data = build_cDNA_MANE(data)
     data = build_signed_intron_offset(data)
@@ -346,12 +370,10 @@ def main(args: list[str] | None):
     data = fix_dup_columns(data)
     data = parse_genotype(data)
 
-    if args.genotype_file:
-        pedigree = read_pedigree_file(args.genotype_file)
+    if pedigree is not None:
         data = filter_phenotype(data, pedigree)
         first_cols += ["compound_het"]
     else:
-        pedigree = None
         logger.warning("No genotype file provided, skipping filtering by genotype")
     
     if args.freq:
@@ -380,7 +402,9 @@ def main(args: list[str] | None):
                 "SpliceAI/SPiP columns are present: --hgnc-table, --spliceai-symbol-map and --enst-spip-map are required so "
                 "scores are attached to the row's own gene/transcript. Refusing to fall back to unmatched scores."
             )
-        identity = GeneIdentity(args.spliceai_symbol_map, args.hgnc_table, args.enst_spip_map)
+        if "identity" not in state:
+            state["identity"] = GeneIdentity(args.spliceai_symbol_map, args.hgnc_table, args.enst_spip_map)
+        identity = state["identity"]
 
     data = parse_spliceai_custom(data, identity=identity)
     data = build_spliceMAX(data, SPLICING_COLUMNS)
@@ -427,7 +451,11 @@ def main(args: list[str] | None):
         logger.info("Merging sample columns")
         first_cols += sample_cols
 
-    coordinate_order = check_coordinate_order(data)
+    if coordinates is None:
+        coordinate_order = check_coordinate_order(data)
+    else:
+        coordinates.add(data)
+        coordinate_order = None
     data = remove_columns(data, columns=["CHROM", "POS", "REF", "ALT"])
 
     if pedigree is not None and isinstance(pedigree, (dict, pd.DataFrame)):
@@ -436,7 +464,10 @@ def main(args: list[str] | None):
         logger.warning("Pedigree is not properly initialized or valid, skipping marking compound heterozygous variants")
 
     data = order_columns(data, columns=first_cols)
+    return data, coordinate_order
 
+
+def log_coordinate_order(coordinate_order):
     # Rows stay in the input's coordinate order; ranking is left to the consumer.
     if coordinate_order["ordered"]:
         logger.info(f"Rows are in coordinate order ({coordinate_order['contigs']} contigs)")
@@ -444,7 +475,30 @@ def main(args: list[str] | None):
         logger.warning(f"Rows are not in coordinate order (checked={coordinate_order['checked']}, "
                        f"contig blocks={coordinate_order['contig_blocks']} for {coordinate_order['contigs']} contigs, "
                        f"position decreases={coordinate_order['position_decreases']})")
-    save_data(data, args.output, args.log_file)
+
+
+def run_chunked(args, read_kwargs, first_cols):
+    """TSV -> Parquet in Locus-aligned chunks with the whole file's column dtypes; same rows, order and
+    schema as loading the whole TSV. Steps that compare rows of different variants are refused."""
+    if args.genotype_file or args.classification:
+        raise ValueError("--chunk-rows cannot be combined with --genotype_file or --classification "
+                         "(compound-het marking and ranking compare rows of different variants)")
+    logger.info(f"First pass over {args.input}: column dtypes in chunks of {args.chunk_rows} rows")
+    kinds = whole_file_dtypes(args.input, read_kwargs, args.chunk_rows)
+    logger.info(f"Column dtypes of the whole file: {dict(Counter(kinds.values()))}")
+    dtype, objbool_cols = read_dtype_args(kinds)
+    writer = PartWriter(args.output)
+    coordinates = CoordinateOrder()
+    state = {}
+    try:
+        for i, chunk in enumerate(locus_chunks(args.input, read_kwargs, args.chunk_rows, dtype, objbool_cols)):
+            logger.info(f"Chunk {i}: {chunk.shape[0]} rows")
+            data, _ = transform(chunk, args, state, None, first_cols, coordinates=coordinates)
+            writer.add(data)
+        writer.finish()
+    finally:
+        writer.cleanup()
+    log_coordinate_order(coordinates.result())
 
 
 if __name__ == "__main__":

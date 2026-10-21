@@ -60,6 +60,7 @@ process TSV_TO_TABLE {
         --spliceai-symbol-map ${params.spliceai_symbol_map} \\
         --enst-spip-map ${params.enst_spip_map} \\
         --dbnsfp-aligned-columns ${params.dbnsfp_aligned_columns} \\
+        ${params.table_chunk_rows ? "--chunk-rows ${params.table_chunk_rows}" : ''} \\
         --skip_quality_filter
     """
 

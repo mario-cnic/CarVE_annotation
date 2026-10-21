@@ -108,6 +108,7 @@ bash run_annotate_vcf.sh -profile standard \
 | `--run_id <LABEL>` | input filename without `.vcf.gz` | Output folder name and prefix for every published file |
 | `--spip_tier` | `restricted` | Which tier SPiP runs in (see below) |
 | `--output_format` | `pq` | Final table format: `pq` or `tsv` only |
+| `--table_chunk_rows` | `250000` | `TSV_TO_TABLE` reads the intermediate TSV this many rows at a time and never splits a variant's rows, so memory does not grow with the input; the table equals the whole-file read. Parquet output only (`tsv` output loads the TSV whole); `0` loads it whole |
 | `--genotypes` | `auto` | `auto` writes the long genotype table when the input has samples with GT; `off` skips it |
 | `--genotype_wide` | `false` | Also write `<run_id>.parsed.clean.withGT.<fmt>`: the main table plus `GT_<sample>` (HET/HOMALT/HOMREF/MISSING) and `GQ_/DP_/AD_<sample>` columns. Parquet only; joined in batches; fails above `--genotype_wide_max_samples` (default 10) or if any table row has no genotype row. On a WGS table (S223: 22.6 M rows × 591 columns) the output is as large as the final table |
 | `-profile` | `standard` | `standard` = SGE + Singularity (production). `local_dev` = local miniforge environments, for `-stub-run` testing only |
