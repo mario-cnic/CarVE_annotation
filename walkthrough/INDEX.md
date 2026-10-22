@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-10-22 | [20261022_predictor_score_cache.md](./20261022_predictor_score_cache.md) | Predictor score cache for SpliceAI and Pangolin |
 | 2026-10-19 | [20261019_alphagenome_inclusion_study.md](./20261019_alphagenome_inclusion_study.md) | AlphaGenome / AlphaGenome Atlas: inclusion study for Module 2 |
 | 2026-10-19 | [20261019_F1830_run_timing.md](./20261019_F1830_run_timing.md) | F1830_union vs F2005_union: run time and failures |
 | 2026-10-15 | [20261015_code_bloat_cleanup.md](./20261015_code_bloat_cleanup.md) | Dead code and comment cleanup |

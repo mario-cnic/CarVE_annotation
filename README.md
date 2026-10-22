@@ -114,6 +114,8 @@ bash run_annotate_vcf.sh -profile standard \
 | `-profile` | `standard` | `standard` = SGE + Singularity (production). `local_dev` = local miniforge environments, for `-stub-run` testing only |
 | `-work-dir <PATH>` | scratch under `standard` | Override the task work directory; use the original directory when resuming an older run |
 | `-resume` | off | Reuse cached tasks from the selected work directory and launch-directory cache |
+| `--annotation_cache_dir <DIR>` | `/data_lab_PGP/resources/annotation_cache` (`false` under `local_dev`) | SpliceAI/Pangolin score cache: sites already scored by the same predictor version are copied from it, only the rest are computed, and those are added to it. `false` turns it off. Needs the wrapper, which derives each version id from the run manifest; `-stub-run` never writes to it; see [the walkthrough](walkthrough/20261022_predictor_score_cache.md) |
+| `--annotation_cache_write` | `true` | `false` reads the cache without adding this run's sites |
 
 ### Two predictor tiers
 
