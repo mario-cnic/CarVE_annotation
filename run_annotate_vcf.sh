@@ -27,7 +27,7 @@ if [[ -z "$NEXTFLOW_BIN" ]]; then
 fi
 
 ARGS=("$@")
-INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0
+INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0 CACHE_DIR=""
 FORWARD_ARGS=()
 i=0
 while [[ $i -lt ${#ARGS[@]} ]]; do
@@ -40,6 +40,7 @@ while [[ $i -lt ${#ARGS[@]} ]]; do
 	-profile) PROFILE="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
 	--spip_tier) SPIP_TIER="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
 	--output_format) OUTPUT_FORMAT="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	--annotation_cache_dir) CACHE_DIR="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
 	-resume) RESUME=1; FORWARD_ARGS+=("${ARGS[$i]}") ;;
 	*) FORWARD_ARGS+=("${ARGS[$i]}") ;;
 	esac
@@ -120,6 +121,31 @@ python3 "$MANIFEST_PY" launch \
 	echo "error: failed to write launch manifest — aborting before launching nextflow" >&2
 	exit 1
 }
+
+# Score cache: one version id per predictor, derived from the manifest just written (creates the
+# version folder on first use), and the list of segments the run reads. A -resume keeps the list of
+# the original launch, so the run's own new segments do not invalidate its cached tasks.
+# A run whose provenance is incomplete is not started.
+[[ -z "$CACHE_DIR" ]] && CACHE_DIR="$(resolve_param annotation_cache_dir)"
+if [[ -n "$CACHE_DIR" && "$CACHE_DIR" != "null" && "$CACHE_DIR" != "false" ]]; then
+	for p in spliceai pangolin; do
+		VID="$(python3 "$REPO_ROOT/src/python/annotation_cache.py" version-id --predictor "$p" \
+			--manifest "$INFO_DIR/RUN_MANIFEST.json" --cache-dir "$CACHE_DIR")" || {
+			echo "error: no $p cache version for this run — aborting before launching nextflow" >&2
+			exit 1
+		}
+		SEG_LIST="$INFO_DIR/annotation_cache_segments.$p.txt"
+		if [[ $RESUME -eq 0 || ! -f "$SEG_LIST" ]]; then
+			python3 "$REPO_ROOT/src/python/annotation_cache.py" list-segments \
+				--version-dir "$CACHE_DIR/$p/$VID" --output "$SEG_LIST" >/dev/null || {
+				echo "error: could not list the $p cache segments — aborting before launching nextflow" >&2
+				exit 1
+			}
+		fi
+		echo "[run_annotate_vcf.sh] $p cache: $CACHE_DIR/$p/$VID ($(grep -c '\.vcf\.gz$' "$SEG_LIST") segments)"
+		FORWARD_ARGS+=("--annotation_cache_version_$p" "$VID" "--annotation_cache_segments_$p" "$SEG_LIST")
+	done
+fi
 
 echo "[run_annotate_vcf.sh] launching: $NEXTFLOW_BIN -log $NF_LOG run annotate_vcf.nf ${FORWARD_ARGS[*]}"
 cd "$REPO_ROOT" && "$NEXTFLOW_BIN" -log "$NF_LOG" run annotate_vcf.nf "${FORWARD_ARGS[@]}"

@@ -21,6 +21,10 @@ workflow {
     if (!(params.spip_tier in ['restricted', 'broad'])) {
         error "params.spip_tier must be 'restricted' or 'broad', got: ${params.spip_tier}"
     }
+    if (params.annotation_cache_dir && !(params.annotation_cache_version_spliceai && params.annotation_cache_version_pangolin
+            && params.annotation_cache_segments_spliceai && params.annotation_cache_segments_pangolin)) {
+        error "--annotation_cache_dir needs the cache version ids and segment lists; launch with run_annotate_vcf.sh, which derives them from the run manifest"
+    }
 
     input_vcf_file = file(params.input_vcf)
     input_tbi_file = file("${params.input_vcf}.tbi")
