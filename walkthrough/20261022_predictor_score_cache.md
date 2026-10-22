@@ -100,9 +100,30 @@ Pangolin `b21e77aef22ff4e8`. F2005_union: Pangolin `b21e77aef22ff4e8` (identical
   sites (3 samples) against it: 65 s, 32 MB, all hits.
 - Not run: the cluster. Stub runs prove the wiring, not real scores.
 
+## Cluster check (2026-10-22)
+
+Test cache `/mnt/scratch/mruizp/annotation_cache_test`, input `test_data/raw_vcfs/clinvar_af_fixture.vcf.gz`.
+
+- `cache_fixture_1`, launched 17:37 from `fd79df6` with the cache code uncommitted (`RUN_DIRTY` patch =
+  the content committed as `038b679`/`040557a`): exit 0; SpliceAI and Pangolin 5/5 misses; one segment each.
+- A first `cache_fixture_2` launched while run 1 was still running read an empty segment list and was
+  stopped. Relaunched 17:43 from `040557a` (clean) after run 1 finished: exit 0 in under 3 min; 5/5 hits for
+  both predictors; no `CHUNK_*_MISSES`, `SPLICEAI_ANNOTATE`, `PANGOLIN_ANNOTATE` or `CACHE_WRITE` task;
+  `CONCAT_*` and `MERGE_ANNOTATIONS` ran; SpliceAI, Pangolin and PangolinTissue values identical to run 1.
+- Final tables: 199 rows x 586 columns in both; all values equal except `5UTR_annotation`, which holds the
+  same key=value pairs in a different order (VEP UTRannotator output order varies between runs; VEP is not
+  cached).
+- Runs launched together do not see each other's segments: each reads the list frozen at its launch.
+
+## Seeding (2026-10-22)
+
+`/data_lab_PGP/resources/annotation_cache/` created by `annotation_cache.py seed`: SpliceAI
+`ca2807064ffcf846` and Pangolin `b21e77aef22ff4e8`, each with F1830_union_avi (975,496 sites) and F2005_union
+(375,760 new sites; 608,244 shared with F1830, 0 conflicts). F2005 SpliceAI entered with
+`--override-reason` (recorded in its segment sidecar). `verify`: 0 conflicts. 36 MB in total.
+
 ## Pending
 
-1. Cluster fixture, twice, with a test cache (commands in TODO).
-2. Seed F1830_union_avi, and F2005_union with `--override-reason` for SpliceAI, into
-   `/data_lab_PGP/resources/annotation_cache/`.
-3. Next WGS family run with the cache: hit rate, task-hours, wall time vs F1830 (23.7 h).
+1. Next WGS family run with the cache: hit rate, task-hours, wall time vs F1830 (23.7 h). A re-run of
+   F1830 or F2005 will be ~100% hits and does not measure a new family's hit rate.
+2. Segment compaction once segments accumulate.
