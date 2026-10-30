@@ -38,20 +38,38 @@ process CONCAT_CHUNKS {
     tuple val(meta), path("${meta.partition_id}.${suffix}.vcf.gz"), path("${meta.partition_id}.${suffix}.vcf.gz.tbi"), emit: vcf
 
     // No stub: concat and the parity check also run under -stub-run.
-    // Chunks may arrive in any order: index each, `concat -a`, then `sort` the result.
+    // Chunks arrive in any order. Disjoint chunks are put in position order and their compressed
+    // blocks joined (`concat --naive`); overlapping ones (score-cache hits) go through `concat -a | sort`.
     script:
     def final_vcf = "${meta.partition_id}.${suffix}.vcf.gz"
     // A single staged file is a bare Path, which `.join` would split into path segments.
     def chunk_list = annotated_chunks instanceof List ? annotated_chunks : [annotated_chunks]
     """
     set -o pipefail
+    # Order chunks by their first record: contig rank in the header, then POS. Header-only chunks are left out.
+    ${params.bcftools} view -h ${chunk_list[0]} | awk -F'[=,>]' '/^##contig=<ID=/ { print \$3 "\\t" NR }' > contig_rank.tsv
     for f in ${chunk_list.join(' ')}; do
-        ${params.tabix} -f -p vcf "\$f"
-    done
-    # Concat streams uncompressed BCF into sort; sort temp files go in the task directory, not the node's TMPDIR.
-    ${params.bcftools} concat -a ${chunk_list.join(' ')} -Ou \\
-        | ${params.bcftools} sort -T ./bcftools-sort.XXXXXX -Oz -o ${final_vcf} -
-    ${params.tabix} -p vcf ${final_vcf}
+        first=\$( { ${params.bcftools} view -H "\$f" || true; } | head -1 | cut -f1,2 )
+        if [ -n "\$first" ]; then printf '%s\\t%s\\n' "\$first" "\$f"; fi
+    done > chunk_first.tsv
+    awk -F'\\t' 'NR == FNR { rank[\$1] = \$2; next } { print rank[\$1] "\\t" \$2 "\\t" \$3 }' contig_rank.tsv chunk_first.tsv \\
+        | sort -k1,1n -k2,2n | cut -f3 > chunk_order.txt
+    [ -s chunk_order.txt ] || echo ${chunk_list[0]} > chunk_order.txt
+
+    # tabix refuses records out of order, so it checks that the ordered chunks did not overlap.
+    if ${params.bcftools} concat --naive \$(cat chunk_order.txt) -o ${final_vcf} && ${params.tabix} -p vcf ${final_vcf}; then
+        echo "CONCAT_CHUNKS (${suffix}): \$(wc -l < chunk_order.txt) chunks joined in position order"
+    else
+        echo "CONCAT_CHUNKS (${suffix}): chunks overlap, using concat -a | sort" >&2
+        rm -f ${final_vcf} ${final_vcf}.tbi
+        for f in ${chunk_list.join(' ')}; do
+            ${params.tabix} -f -p vcf "\$f"
+        done
+        # Concat streams uncompressed BCF into sort; sort temp files go in the task directory, not the node's TMPDIR.
+        ${params.bcftools} concat -a ${chunk_list.join(' ')} -Ou \\
+            | ${params.bcftools} sort -T ./bcftools-sort.XXXXXX -Oz -o ${final_vcf} -
+        ${params.tabix} -p vcf ${final_vcf}
+    fi
 
     # Record counts from the indexes; full decompression only if an index has no counts.
     count_records() { ${params.bcftools} index -n "\$1" 2>/dev/null || ${params.bcftools} view -H "\$1" | wc -l; }
