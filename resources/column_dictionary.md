@@ -64,7 +64,13 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `SPLICE_MAX_UNIFIED`: valid custom maximum first (including zero), otherwise valid VEP maximum; null when neither is available.
 - `SPLICEAI_METHOD`: selected source (`Custom Window (-D 4999 / ~10kb)` / `VEP Standard (~50bp)`) or `Not Covered` when no score is available.
 - `SPLICEAI_STATUS`: selected-score availability: `scored`, `not_covered`, or `error` when neither source supplies a score and an explicit source error exists. Source-specific match/reason fields remain available.
-- `pLI_gene_value`: gnomAD loss-of-function intolerance score.
+- Gene constraint (gnomAD v4.1.2, joined in the parser by the row's VEP `Gene`, Ensembl gene ID; values are the gene's MANE Select transcript, canonical when it has none; table `resources/gnomad_v4.1.2_gene_constraint.grch38.tsv`). Before 2026-11-04 `pLI_gene_value` came from the VEP pLI plugin (ExAC r0.3, 2016) and the other columns did not exist.
+  - `pLI_gene_value`: pLI (`lof.pLI`, high-confidence pLoF). Empty when gnomAD has no estimate (e.g. no expected pLoF), never 0.
+  - `LOEUF_gene_value`: LOEUF (`lof.oe_ci.upper`). gnomAD suggests < 0.45 for a pLoF-constrained cut in v4 (about the 15th percentile) and prefers continuous use; v2 cuts (< 0.35) do not transfer.
+  - `mis_z_gene_value`: missense Z (`mis.z_score`).
+  - `gene_constraint_flags`: gnomAD `constraint_flags` of that transcript (`;`-separated: `no_exp_lof`, `outlier_mis`, `outlier_syn`, …); values are kept for flagged transcripts.
+  - `gene_constraint_transcript`: gnomAD's transcript (versioned, GENCODE v39).
+  - `gene_constraint_status`: `matched`, `not_in_table` (Ensembl gene absent: mostly non-coding genes), `not_applicable` (row without a gene) or `not_annotated` (no table passed).
 
 ### C. SPiP Splicing Predictor (v2.1)
 - `SPiP_interpretation`: Categorical risk classification (`High`, `Moderate`, `Low`, `No impact`).
