@@ -25,7 +25,7 @@ try:
         build_spliceMAX, _extract_spliceai_details, _extract_spliceai_score,
     )
     from .modules.predictors import (
-        DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
+        DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
         parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
     )
@@ -66,7 +66,7 @@ except ImportError:
         build_spliceMAX, _extract_spliceai_details, _extract_spliceai_score,
     )
     from modules.predictors import (
-        DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
+        DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
         parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
     )
@@ -238,12 +238,6 @@ def argparsing() -> argparse.ArgumentParser:
         default=None,
         help="TSV input to Parquet output: process about this many rows at a time (never splitting a "
              "variant's rows) instead of loading the whole TSV; not with --genotype_file or --classification",
-    )
-    parser.add_argument(
-        "--dbnsfp_cols",
-        type=str,
-        help="path to file with dbNSFP columns to parse and add to the dataframe",
-        default="data/dbNSFP_parsing.tsv",
     )
 
     return parser
@@ -437,7 +431,6 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
                 "of its own transcript. Refusing to leave per-transcript lists on every transcript row."
             )
         data = parse_dbnsfp_by_row_transcript(data, load_aligned_columns(args.dbnsfp_aligned_columns))
-    data = parse_dbnsfp(data, transcript=None, dbnsfp_cols=args.dbnsfp_cols)
     data = parse_missense(data, MISSENSE_COLUMNS)
     data = parse_splicevault(data)
     data = parse_pangolin(data)

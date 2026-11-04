@@ -88,3 +88,5 @@ Legacy cleanup (2026-10-08T11:53:30+02:00): `src/hpc/vcf2parsed.sh` and `config/
 - 2026-10-21: `modules/disease_hpo.py`, `modules/scoring.py`, `filter_variants.py`: the disease-gene curation list is a required `--disease-gene-list` argument instead of a hardcoded workstation path; a missing or empty list raises.
 
 Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_pysam.add_sample_header` (unused) were removed, along with unused imports; see `walkthrough/20261015_code_bloat_cleanup.md`. The sentence above saying `sort_by` stays is superseded.
+
+- 2026-11-04: `modules/predictors.py`, `filter_variants.py`: `parse_dbnsfp` and the `--dbnsfp_cols` argument removed (`PRED-2`). It ran only on one-row frames (else returned unchanged) and read a column file that does not exist (`MISC-21`); per-row dbNSFP selection is `parse_dbnsfp_by_row_transcript`. `vcf_parser_pysam.py` is unchanged.

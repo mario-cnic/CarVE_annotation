@@ -328,10 +328,3 @@ def test_transcript_tier_one_survives_renamed_symbols_and_duplicates(tmp_path):
                        "MANE_SELECT": [None, None, None, "NM_1.1", None]})
     assert list(tp.tag_priority(df, curated)["TRANSCRIPT_PRIORITY_TIER"]) == [1, 1, 1, 2, 3]
 
-
-def test_parse_dbnsfp_one_row_frame_without_column_file_is_skipped(tmp_path):
-    # A one-row frame reaches the legacy file read; the CLI default path is not shipped.
-    from modules import predictors as pr
-    df = pd.DataFrame({"Feature": ["ENST00000000001"], "ENSP": ["ENSP00000000001"], "REVEL_score": ["0.5"]})
-    out = pr.parse_dbnsfp(df.copy(), transcript=None, dbnsfp_cols=str(tmp_path / "missing.tsv"))
-    pd.testing.assert_frame_equal(out, df)
