@@ -9,7 +9,7 @@
 
 ## Source
 
-- `gs://gcp-public-data--gnomad/release/4.1.2/constraint/gnomad.v4.1.2.constraint_metrics.tsv.bgz` (https://storage.googleapis.com/…; 574,538,527 bytes, uploaded 2026-09-23). The GCS md5 matched; sha256 `a3fbca52…138a858f`. Downloaded 2026-11-04 into the session scratchpad only. It is public and can be downloaded again; keeping a copy on lab storage is Mario's call.
+- `gs://gcp-public-data--gnomad/release/4.1.2/constraint/gnomad.v4.1.2.constraint_metrics.tsv.bgz` (https://storage.googleapis.com/…; 574,538,527 bytes, uploaded 2026-09-23). The GCS md5 matched; sha256 `a3fbca52…138a858f`. Downloaded 2026-11-04. A copy is at `/data_lab_PGP/resources/annotation/gnomAD_constraint/v4.1.2/` (Mario, 2026-11-04T17:59+01:00), with the v4.1.1 field README, the LOEUF percentile thresholds, a `.sha256` for each file and `SOURCE.txt`. All files are read-only and the sha256 after the copy equals the download's.
 - The gnomAD changelog (2026-09-28) says v4.1.2 is a constraint-only release. It fixes the rank and bin fields of v4.1.1; "the constraint metric values themselves (including LOEUF) are unchanged". Field descriptions come from `gnomad.v4.1.1.gene_constraint_ht_README.md`; no v4.1.2 README exists.
 - Transcripts are GENCODE v39, GRCh38. VEP 111 uses GENCODE 45; the join is by Ensembl gene ID, which is stable across the two releases, so transcript versions do not matter.
 - The LOEUF field is `lof.oe_ci.upper` (high-confidence pLoF). It is the field the rank and bin columns use, and the one Ensembl's `LOEUF.pm` reads for v4. On unflagged MANE Select transcripts, 15.06% fall below the v4.1.1 percentile-15 cut (0.44896); `lof_hc_lc.oe_ci.upper` gives 15.00%.
