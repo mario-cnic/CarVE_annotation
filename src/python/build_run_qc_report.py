@@ -221,6 +221,21 @@ def read_check(run_dir: Path) -> dict:
     return {k: v for k, _, v in rows}
 
 
+def table_completeness(merged_records, distinct_locus, duplicate_sites) -> dict:
+    """Merged-VCF records against the final table's distinct Locus (MISC-2). Duplicate sites of the input
+    (a warning of the input check) share one Locus, so they are subtracted. `unavailable` when a figure is."""
+    try:
+        dups = int(duplicate_sites) if duplicate_sites not in (None, "") else 0
+    except ValueError:
+        dups = 0
+    out = {"merged_records": merged_records, "duplicate_site_records": dups, "expected_distinct_locus": None,
+           "table_distinct_locus": distinct_locus, "status": "unavailable"}
+    if merged_records is not None and distinct_locus is not None:
+        out["expected_distinct_locus"] = merged_records - dups
+        out["status"] = "match" if distinct_locus == out["expected_distinct_locus"] else "mismatch"
+    return out
+
+
 def find_one(run_dir: Path, subdir: str, suffix: str) -> Path | None:
     found = run_files(run_dir, subdir, f"*{suffix}")
     return found[0] if found else None
@@ -260,6 +275,11 @@ def build(run_dir: Path, nextflow_log: Path | None, bcftools: str, distinct_locu
         stages[label] = vcf_records(path, bcftools) if path else UNAVAILABLE
     table_path = next((p for p in run_files(run_dir, "tables", "*.parsed.clean.pq") if ".withGT." not in p.name), None)
     table = table_counts(table_path, distinct_locus) if table_path else {"note": "no parsed.clean.pq found (TSV/XLSX output is not summarised)"}
+    completeness = table_completeness(stages["annotated (merged) records"], table.get("distinct_locus"),
+                                      check.get("duplicate_site_records"))
+    if completeness["status"] == "mismatch":
+        notes.append(f"final table has {completeness['table_distinct_locus']:,} distinct Locus, expected "
+                     f"{completeness['expected_distinct_locus']:,} from the merged VCF: some records did not reach the table")
     gt_path = find_one(run_dir, "genotypes", ".genotypes.pq")
     if gt_path:
         try:
@@ -281,7 +301,7 @@ def build(run_dir: Path, nextflow_log: Path | None, bcftools: str, distinct_locu
             "samples": check.get("sample_names"), "launched_at": launch.get("generated_at"), "completed_at": done.get("generated_at"),
             "wall_hours": wall_h, "exit_code": done.get("exit_code"), "workflow_stats": done.get("workflow_stats"),
         },
-        "stage_counts": stages, "table": table, "genotype_rows": gt_rows, "genotype_note": gt_note,
+        "stage_counts": stages, "table": table, "completeness": completeness, "genotype_rows": gt_rows, "genotype_note": gt_note,
         "task_source": task_source, "processes": process_table(task_rows), "failed_attempts": failed_attempts(task_rows),
         "provenance": {k: launch.get(k) for k in ("spliceai_distance", "pangolin_distance", "tool_versions", "launched_by", "host")},
         "notes": notes if manifest else notes + ["no RUN_MANIFEST.json: summary and provenance are unavailable"],
@@ -307,6 +327,9 @@ def render_html(rep: dict) -> str:
     stage_rows = [[k, v] for k, v in rep["stage_counts"].items()]
     stage_rows.append(["table rows (variant x transcript)", t.get("rows")])
     stage_rows.append(["table distinct Locus", t.get("distinct_locus")])
+    c = rep.get("completeness") or {}
+    stage_rows.append(["table distinct Locus vs merged records" + (f" (minus {c['duplicate_site_records']} duplicate sites)"
+                       if c.get("duplicate_site_records") else ""), c.get("status")])
     stage_rows.append(["genotype rows" + (f" ({rep['genotype_note']})" if rep["genotype_note"] else ""), rep["genotype_rows"]])
     parts.append("<h2>2. Records per stage</h2>" + table_html(["stage", "count"], stage_rows))
     if t.get("note"):

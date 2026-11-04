@@ -127,3 +127,16 @@ def test_reports_are_never_overwritten(tmp_path):
     assert "unavailable" in files[0].read_text()  # HTML renders missing values as such
     with pytest.raises(FileExistsError):
         qc.write_reports(rep, tmp_path / "out")  # same second: same names
+
+
+def test_table_completeness_against_the_merged_vcf(tmp_path):
+    # MISC-2: the final table must hold every merged record (distinct Locus), duplicate input sites aside.
+    match = qc.build(make_run(tmp_path / "a"), None, fake_bcftools(tmp_path, 2), True)
+    assert match["completeness"]["status"] == "match" and not any("did not reach" in n for n in match["notes"])
+    short = qc.build(make_run(tmp_path / "b"), None, fake_bcftools(tmp_path, 5), True)
+    assert short["completeness"] == {"merged_records": 5, "duplicate_site_records": 0, "expected_distinct_locus": 5,
+                                     "table_distinct_locus": 2, "status": "mismatch"}
+    assert any("did not reach the table" in n for n in short["notes"])
+    assert "mismatch" in qc.render_html(short)
+    assert qc.table_completeness(3, 2, "1")["status"] == "match"      # one duplicate site shares a Locus
+    assert qc.table_completeness(None, 2, None)["status"] == "unavailable"
