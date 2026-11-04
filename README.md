@@ -13,7 +13,7 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
 
 1. **Universal Input & Coordinate Standardization**:
    - **cDNA / Transcript notation**: E.g. `NM_000257.3:c.526C>T`, `ENST00000343260:c.100A>G`, `c.1504C>T`.
-   - **Genomic coordinates**: Standard `CHROM`, `POS`, `REF`, `ALT` in **hg19/GRCh37** (with automatic liftover to GRCh38) or **GRCh38**.
+   - **Genomic coordinates**: Standard `CHROM`, `POS`, `REF`, `ALT` in **GRCh38**, or **hg19/GRCh37** lifted to GRCh38 beforehand by `src/python/universal_variant_converter.py --build hg19 --fasta <GRCh38 FASTA>` (pyliftover; not part of the Nextflow run, whose input must be GRCh38). Each lifted REF is checked against the GRCh38 FASTA; records that do not lift cleanly (unmapped, multi-mapped, broken span, minus-strand indel, REF mismatch) are refused and listed in `<output>.err`, never guessed. VCF input keeps its FORMAT and sample columns.
    - **File formats**: Direct `.vcf`, `.vcf.gz`, `.xlsx`, `.csv`, `.tsv`, `.pq`, or `.parquet`.
    - **Signed Intron Offset & Splice Side**: Calculates exact signed distance to nearest exon boundary (`-12` = 12bp intronic, `+5` = 5bp exonic) and splice side (`donor`, `acceptor`, `exonic`).
 

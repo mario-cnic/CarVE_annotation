@@ -84,6 +84,117 @@ def normalize_chrom(chrom_str):
         return "MT"
     return c
 
+_COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
+GRCH38_CONTIG_ORDER = [line.split("ID=")[1].split(",")[0] for line in VCF_HEADER_GRCH38.splitlines()
+                       if line.startswith("##contig=")]
+
+
+def revcomp(seq: str) -> str:
+    return seq.translate(_COMPLEMENT)[::-1]
+
+
+def open_grch38_fasta(path):
+    """pysam.FastaFile of the GRCh38 FASTA the lifted REF alleles are checked against (LIFT-2)."""
+    import pysam
+    if not path or not os.path.exists(path):
+        raise FileNotFoundError(f"GRCh38 FASTA not found: {path}; liftover needs it to check the lifted REF alleles")
+    return pysam.FastaFile(path)
+
+
+def _fasta_contig(fasta, chrom):
+    for name in (chrom, f"chr{chrom}", chrom[3:] if chrom.startswith("chr") else None, "chrM" if chrom in ("MT", "M") else None):
+        if name and name in fasta.references:
+            return name
+    return None
+
+
+def lift_variant(converter, fasta, chrom, pos, ref, alt):
+    """Lifts one hg19 variant to GRCh38: ((chrom, pos, ref, alt), None), or (None, reason) (LIFT-2).
+
+    The whole REF span must map to one contiguous, same-length span. On a minus-strand mapping SNV/MNP
+    alleles are reverse-complemented; an indel is refused (its VCF anchor base would have to be redone).
+    The lifted REF must equal the GRCh38 FASTA, so a REF/ALT swap between builds is refused, not swapped.
+    """
+    query = "chrM" if chrom == "MT" else f"chr{chrom}"      # UCSC chain names
+    hits = converter.convert_coordinate(query, pos - 1)
+    if not hits:
+        return None, "liftover_failed_unmapped"
+    if len(hits) > 1:
+        return None, "liftover_ambiguous"
+    new_chrom, p0, strand = hits[0][0], hits[0][1], hits[0][2]
+    if len(ref) > 1:
+        end = converter.convert_coordinate(query, pos - 1 + len(ref) - 1)
+        if not end or len(end) != 1 or end[0][0] != new_chrom or abs(end[0][1] - p0) != len(ref) - 1:
+            return None, "liftover_allele_span_broken"
+        p0 = min(p0, end[0][1])
+    alts = alt.split(",")
+    if strand == "-":
+        if any(len(a) != len(ref) for a in alts):
+            return None, "liftover_minus_strand_indel"
+        ref, alts = revcomp(ref), [revcomp(a) for a in alts]
+    contig = _fasta_contig(fasta, new_chrom)
+    if contig is None:
+        return None, "liftover_contig_not_in_fasta"
+    if fasta.fetch(contig, p0, p0 + len(ref)).upper() != ref:
+        return None, "ref_mismatch_after_liftover"
+    return (normalize_chrom(new_chrom), p0 + 1, ref, ",".join(alts)), None
+
+
+def _contig_rank(chrom):
+    return GRCH38_CONTIG_ORDER.index(chrom) if chrom in GRCH38_CONTIG_ORDER else len(GRCH38_CONTIG_ORDER)
+
+
+def liftover_vcf(inp, output_path, converter, fasta):
+    """hg19 VCF -> GRCh38 VCF keeping FORMAT and sample columns and the header's INFO/FORMAT/FILTER/ALT
+    lines (LIFT-1). hg19 ##contig/##reference/##assembly lines are replaced by the GRCh38 contigs;
+    records are written in GRCh38 contig and position order; refused records go to <output>.err."""
+    import gzip
+    open_fn = gzip.open if inp.endswith(".gz") else open
+    meta, column_line, records, errors = [], None, [], []
+    with open_fn(inp, "rt") as vf:
+        for line in vf:
+            if line.startswith("##"):
+                if not line.startswith(("##contig=", "##reference=", "##assembly=", "##fileformat=")):
+                    meta.append(line)
+                continue
+            if line.startswith("#"):
+                column_line = line
+                continue
+            parts = line.rstrip("\n").split("\t")
+            if len(parts) < 8:
+                continue
+            chrom = normalize_chrom(parts[0])
+            try:
+                pos = int(parts[1])
+            except ValueError:
+                errors.append((f"{parts[0]}:{parts[1]}:{parts[3]}:{parts[4]}", parts[2], "invalid_position_integer"))
+                continue
+            ref, alt = parts[3].upper(), parts[4].upper()
+            lifted, reason = lift_variant(converter, fasta, chrom, pos, ref, alt)
+            if lifted is None:
+                errors.append((f"{chrom}:{pos}:{ref}:{alt}", parts[2], reason))
+                continue
+            info = parts[7]
+            parts[7] = f"ORIG_HG19_POS={pos}" if info in ("", ".") else f"ORIG_HG19_POS={pos};{info}"
+            parts[0], parts[1], parts[3], parts[4] = lifted[0], str(lifted[1]), lifted[2], lifted[3]
+            records.append(parts)
+    records.sort(key=lambda r: (_contig_rank(r[0]), int(r[1])))
+    header = [VCF_HEADER_GRCH38] + meta
+    if not any(l.startswith("##INFO=<ID=ORIG_HG19_POS,") for l in meta):
+        header.append('##INFO=<ID=ORIG_HG19_POS,Number=1,Type=Integer,Description="Original hg19 genomic coordinate">\n')
+    header.append(column_line or "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+    out_dir = os.path.dirname(output_path)
+    if out_dir:
+        os.makedirs(out_dir, exist_ok=True)
+    with open(output_path, "w") as f:
+        f.writelines(header)
+        f.writelines("\t".join(r) + "\n" for r in records)
+    with open(output_path + ".err", "w") as ef:
+        ef.writelines(["VARIANT\tID\tREASON\n"] + ["\t".join(str(x) for x in e) + "\n" for e in errors])
+    logger.info(f"Lifted {len(records)} records to GRCh38 ({len(errors)} refused, see {output_path}.err)")
+    return len(records), errors
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Universal Variant Converter to GRCh38 VCF")
     parser.add_argument("--input", required=True, help="Input file path (.xlsx, .csv, .tsv, .pq, .parquet, .vcf, .vcf.gz)")
@@ -93,6 +204,8 @@ def parse_args():
     parser.add_argument("--id-columns", nargs="+", default=None, help="Columns for CHROM POS REF ALT or a single combined locus column")
     parser.add_argument("--vcf-header-json", type=str, default=None, help="Optional JSON file with VCF INFO field definitions")
     parser.add_argument("--batch-size", type=int, default=2500, help="Batch size for external API / GeneBe queries")
+    parser.add_argument("--fasta", default=config.GRCH38_FASTA,
+                        help="GRCh38 FASTA used to check lifted REF alleles (hg19/GRCh37 input only)")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output file")
     return parser.parse_args()
 
@@ -192,7 +305,7 @@ def convert_cdna_genebe(df, cdna_col, batch_size=2500):
 
     return variants, errors
 
-def convert_coordinates(df, id_cols, input_build="GRCh38"):
+def convert_coordinates(df, id_cols, input_build="GRCh38", fasta=None):
     variants = []
     errors = []
     
@@ -219,6 +332,8 @@ def convert_coordinates(df, id_cols, input_build="GRCh38"):
         except Exception as e:
             logger.error(f"Failed to initialize pyliftover: {e}. Liftover required for hg19 inputs.")
             raise e
+        if fasta is None:
+            raise ValueError("hg19/GRCh37 input: a GRCh38 FASTA is required to check the lifted REF alleles")
 
     for idx, row in df.iterrows():
         raw_chrom = row[chrom_col]
@@ -241,12 +356,11 @@ def convert_coordinates(df, id_cols, input_build="GRCh38"):
         alt = str(raw_alt).strip().upper()
 
         if converter:
-            lift_res = converter.convert_coordinate(f"chr{chrom}", pos - 1)
-            if not lift_res:
-                errors.append((f"{chrom}:{pos}:{ref}:{alt}", ".", "liftover_failed_unmapped"))
+            lifted, reason = lift_variant(converter, fasta, chrom, pos, ref, alt)
+            if lifted is None:
+                errors.append((f"{chrom}:{pos}:{ref}:{alt}", ".", reason))
                 continue
-            chrom = normalize_chrom(lift_res[0][0])
-            pos = lift_res[0][1] + 1  # Convert back to 1-based coordinate
+            chrom, pos, ref, alt = lifted
 
         info_pairs = []
         if need_liftover:
@@ -342,34 +456,7 @@ def main():
                 logger.error(f"Failed to load pyliftover: {e}")
                 sys.exit(1)
             
-            import gzip
-            open_fn = gzip.open if inp.endswith('.gz') else open
-            variants = []
-            errors = []
-            
-            with open_fn(inp, 'rt') as vf:
-                for line in vf:
-                    if line.startswith('#'):
-                        continue
-                    parts = line.strip().split('\t')
-                    if len(parts) >= 5:
-                        chrom = normalize_chrom(parts[0])
-                        try:
-                            pos = int(parts[1])
-                        except ValueError:
-                            continue
-                        ref = parts[3].upper()
-                        alt = parts[4].upper()
-                        lift_res = converter.convert_coordinate(f"chr{chrom}", pos - 1)
-                        if lift_res:
-                            new_chrom = normalize_chrom(lift_res[0][0])
-                            new_pos = lift_res[0][1] + 1
-                            info_str = parts[7] if len(parts) > 7 else "."
-                            info_str = f"ORIG_HG19_POS={pos};{info_str}" if info_str != "." else f"ORIG_HG19_POS={pos}"
-                            variants.append((new_chrom, new_pos, parts[2], ref, alt, parts[5] if len(parts) > 5 else ".", parts[6] if len(parts) > 6 else ".", info_str))
-                        else:
-                            errors.append((f"{chrom}:{pos}:{ref}:{alt}", ".", "liftover_failed"))
-            write_vcf(args.output, variants, errors, [])
+            liftover_vcf(inp, args.output, converter, open_grch38_fasta(args.fasta))
             return
         else:
             # Direct VCF copy/decompression to output file
@@ -423,7 +510,8 @@ def main():
             sys.exit(1)
     elif id_cols:
         logger.info(f"Running Coordinate conversion mode using columns {id_cols} (Build: {args.build})...")
-        variants, errors = convert_coordinates(inp, id_cols, input_build=args.build)
+        fasta = open_grch38_fasta(args.fasta) if args.build.upper() in ("HG19", "GRCH37") else None
+        variants, errors = convert_coordinates(inp, id_cols, input_build=args.build, fasta=fasta)
     else:
         logger.error("Could not automatically detect variant representation columns (cDNA or CHROM/POS/REF/ALT).")
         sys.exit(1)
