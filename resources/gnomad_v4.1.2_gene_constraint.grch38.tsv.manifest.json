@@ -1,0 +1,61 @@
+{
+  "built": "2026-11-04T16:26:21+01:00",
+  "source_url": "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1.2/constraint/gnomad.v4.1.2.constraint_metrics.tsv.bgz",
+  "release": "gnomAD v4.1.2 (constraint-only release, 2026-09-23 upload; changelog 2026-09-28)",
+  "source": "/tmp/claude-12101/-data-lab-PGP-pipelines-annotation-pipeline-new/f65060da-d582-4648-9617-86fa4759ad16/scratchpad/gnomad_constraint_dl/gnomad.v4.1.2.constraint_metrics.tsv.bgz",
+  "source_sha256": "a3fbca52b2beb889dba15cc558f6b6c937f9ea48982f2940395913bd138a858f",
+  "source_md5": "ecec6974d91c6f60c5419fc772c97ee7",
+  "assembly": "GRCh38",
+  "source_transcripts": "GENCODE v39 (gnomAD constraint)",
+  "fields": {
+    "pLI": "lof.pLI",
+    "LOEUF": "lof.oe_ci.upper",
+    "LOEUF_decile": "lof.oe_ci.upper_bin_decile",
+    "lof_z": "lof.z_score",
+    "mis_z": "mis.z_score"
+  },
+  "genes": 20076,
+  "genes_by_basis": {
+    "mane_select": 18411,
+    "canonical": 1665
+  },
+  "genes_missing": {
+    "pLI": 1820,
+    "LOEUF": 1820,
+    "LOEUF_decile": 1820,
+    "lof_z": 1820,
+    "mis_z": 87
+  },
+  "genes_with_constraint_flags": 2235,
+  "rows_read": {
+    "refseq_rows_skipped": 115252,
+    "ensembl_rows": 106646
+  },
+  "notes": [
+    "GCS md5Hash 7OxpdNkcb2DFQZ/Hcsl+5w== matched the download (2026-11-04).",
+    "gnomAD changelog 2026-09-28: v4.1.2 fixes rank/bin fields only; LOEUF and other metric values are unchanged from v4.1.1.",
+    "LOEUF field: lof.oe_ci.upper (high-confidence pLoF), the field the rank/bin columns and Ensembl's LOEUF.pm (v4) use. Unflagged MANE Select: 15.06% below the v4.1.1 percentile-15 cut 0.44896 (lof_hc_lc.oe_ci.upper: 15.00%).",
+    "Field descriptions: gnomad.v4.1.1.gene_constraint_ht_README.md (no v4.1.2 README published)."
+  ],
+  "output": "resources/gnomad_v4.1.2_gene_constraint.grch38.tsv",
+  "output_sha256": "fba7132cb295316a22c9ab2817f0b15479c4c397495658b7b6b128b75aea7185",
+  "argv": [
+    "src/python/build_gene_constraint_table.py",
+    "--constraint-tsv",
+    "/tmp/claude-12101/-data-lab-PGP-pipelines-annotation-pipeline-new/f65060da-d582-4648-9617-86fa4759ad16/scratchpad/gnomad_constraint_dl/gnomad.v4.1.2.constraint_metrics.tsv.bgz",
+    "--source-url",
+    "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1.2/constraint/gnomad.v4.1.2.constraint_metrics.tsv.bgz",
+    "--release",
+    "gnomAD v4.1.2 (constraint-only release, 2026-09-23 upload; changelog 2026-09-28)",
+    "--out-tsv",
+    "resources/gnomad_v4.1.2_gene_constraint.grch38.tsv",
+    "--note",
+    "GCS md5Hash 7OxpdNkcb2DFQZ/Hcsl+5w== matched the download (2026-11-04).",
+    "--note",
+    "gnomAD changelog 2026-09-28: v4.1.2 fixes rank/bin fields only; LOEUF and other metric values are unchanged from v4.1.1.",
+    "--note",
+    "LOEUF field: lof.oe_ci.upper (high-confidence pLoF), the field the rank/bin columns and Ensembl's LOEUF.pm (v4) use. Unflagged MANE Select: 15.06% below the v4.1.1 percentile-15 cut 0.44896 (lof_hc_lc.oe_ci.upper: 15.00%).",
+    "--note",
+    "Field descriptions: gnomad.v4.1.1.gene_constraint_ht_README.md (no v4.1.2 README published)."
+  ]
+}

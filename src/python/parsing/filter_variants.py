@@ -27,7 +27,7 @@ try:
     from .modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi, parse_utrannotator,
+        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
     )
     from .modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -68,7 +68,7 @@ except ImportError:
     from modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi, parse_utrannotator,
+        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
     )
     from modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -205,6 +205,13 @@ def argparsing() -> argparse.ArgumentParser:
         help="resources/enst_to_spip_nm.*.tsv (Ensembl transcript -> SPiP RefSeq transcript by exon structure)",
     )
     parser.add_argument(
+        "--gene-constraint-table",
+        type=str,
+        default=None,
+        help="resources/gnomad_*_gene_constraint.grch38.tsv (gene-level pLI, LOEUF, missense Z by Ensembl gene ID); "
+             "without it gene_constraint_status is not_annotated",
+    )
+    parser.add_argument(
         "--skip_quality_filter",
         action="store_true",
         help="Skip quality filter, this may lead to false positives in the results",
@@ -329,7 +336,12 @@ def main(args: list[str] | None):
         "gene_priority",
         "SOURCE",
         "EVIDENCE",
-        "pLI_gene_value"
+        "pLI_gene_value",
+        "LOEUF_gene_value",
+        "mis_z_gene_value",
+        "gene_constraint_flags",
+        "gene_constraint_transcript",
+        "gene_constraint_status",
     ]
 
     if args.input.endswith(".parquet") or args.input.endswith(".pq"):
@@ -435,6 +447,9 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = parse_remm(data)
     data = parse_avi(data)
     data = parse_utrannotator(data)
+    if args.gene_constraint_table and "gene_constraint" not in state:
+        state["gene_constraint"] = load_gene_constraint(args.gene_constraint_table)
+    data = annotate_gene_constraint(data, state.get("gene_constraint"))
 
     data = build_qc_status(data)
     data = build_newImpact(data)

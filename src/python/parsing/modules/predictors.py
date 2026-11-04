@@ -506,6 +506,62 @@ def parse_utrannotator(data: pd.DataFrame) -> pd.DataFrame:
     return data
 
 
+CONSTRAINT_MATCHED = "matched"
+CONSTRAINT_NOT_IN_TABLE = "not_in_table"
+CONSTRAINT_NOT_APPLICABLE = "not_applicable"
+CONSTRAINT_NOT_ANNOTATED = "not_annotated"
+# Output column -> column of the gene constraint table (build_gene_constraint_table.py)
+CONSTRAINT_VALUES = {"pLI_gene_value": "pLI", "LOEUF_gene_value": "LOEUF", "mis_z_gene_value": "mis_z"}
+CONSTRAINT_TEXT = {"gene_constraint_transcript": "transcript", "gene_constraint_flags": "constraint_flags"}
+
+
+def load_gene_constraint(path: str) -> pd.DataFrame:
+    """Gene constraint table indexed by Ensembl gene ID; refuses a table with a repeated gene."""
+    table = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    missing = [c for c in ["gene_id", *CONSTRAINT_VALUES.values(), *CONSTRAINT_TEXT.values()] if c not in table.columns]
+    if missing:
+        raise ValueError(f"Gene constraint table {path} lacks columns {missing}")
+    if table.gene_id.duplicated().any():
+        raise ValueError(f"Gene constraint table {path} repeats gene_id {table.gene_id[table.gene_id.duplicated()].iloc[0]}")
+    for col in CONSTRAINT_VALUES.values():
+        table[col] = pd.to_numeric(table[col].replace("", np.nan), errors="raise").astype("float64")
+    return table.set_index("gene_id")
+
+
+def annotate_gene_constraint(data: pd.DataFrame, table: pd.DataFrame | None) -> pd.DataFrame:
+    """Attach gene-level pLI, LOEUF and missense Z to each row by its VEP `Gene` (Ensembl gene ID).
+
+    Values are gnomAD's for the gene's MANE Select transcript (canonical when the gene has none); a
+    gene without an estimate keeps an empty value, never 0. gene_constraint_status: matched,
+    not_in_table (ENSG absent from the table), not_applicable (row without a gene) or not_annotated.
+    """
+    if "pLI_gene_value" in data.columns:
+        logger.warning("Input carries pLI_gene_value (VEP pLI plugin); replaced by the gene constraint table")
+    gene = data["Gene"].astype(object).where(data["Gene"].notna(), "").astype(str).str.strip() if "Gene" in data.columns else pd.Series("", index=data.index)
+    has_gene = gene.str.startswith("ENSG")
+    status = pd.Series(CONSTRAINT_NOT_APPLICABLE, index=data.index, dtype=object)
+    if table is None:
+        status.loc[has_gene] = CONSTRAINT_NOT_ANNOTATED
+        for col in CONSTRAINT_VALUES:
+            data[col] = np.nan
+        for col in CONSTRAINT_TEXT:
+            data[col] = None
+        data["gene_constraint_status"] = status
+        logger.warning("No gene constraint table: gene_constraint_status set to not_annotated for rows with a gene")
+        return data
+    matched = has_gene & gene.isin(table.index)
+    status.loc[has_gene] = CONSTRAINT_NOT_IN_TABLE
+    status.loc[matched] = CONSTRAINT_MATCHED
+    looked_up = table.reindex(gene.where(matched))
+    for out, col in CONSTRAINT_VALUES.items():
+        data[out] = looked_up[col].to_numpy(dtype="float64")
+    for out, col in CONSTRAINT_TEXT.items():
+        data[out] = pd.Series(looked_up[col].to_numpy(dtype=object), index=data.index).where(matched, None)
+    data["gene_constraint_status"] = status
+    logger.info(f"New column `gene_constraint_status` created with value counts: {dict(status.value_counts())}")
+    return data
+
+
 def utr5_high_impact_mask(data: pd.DataFrame) -> pd.Series:
     """Rows whose UTRAnnotator_status is high_impact; derives the status first when the column is absent."""
     if "UTRAnnotator_status" not in data.columns:
