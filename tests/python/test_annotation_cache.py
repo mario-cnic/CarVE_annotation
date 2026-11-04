@@ -348,3 +348,69 @@ def test_segment_list_names_every_file_of_valid_segments_only(tmp_path):
     assert n == 1 and "bad.vcf.gz" in skipped[0]
     assert [os.path.basename(l) for l in lines] == ["good.vcf.gz", "good.vcf.gz.tbi", "good.json"]
     assert all(os.path.isabs(l) and os.path.exists(l) for l in lines)
+
+
+# ---------------------------------------------------------------- migrate
+
+@needs_bcftools
+def test_migrate_copies_scored_sites_into_the_new_code_version(tmp_path, repo):
+    cache = tmp_path / "cache"
+    old_commit = git(repo, "rev-parse", "HEAD")
+    old_identity = ac.version_identity(manifest(old_commit), "pangolin", repo)
+    old_vdir = ac.ensure_version_dir(cache, old_identity)
+    src = vcf(tmp_path / "old_src.vcf.gz", [(100, "A", "G", "Pangolin=G1|10:0.5;PangolinTissue=G1|Heart|Liver"),
+                                            (200, "C", "T", "DP=1"),          # computed, no score: left out
+                                            (300, "G", "A", "Pangolin=G1|5:0.1")])
+    ac.write_segment("pangolin", src, old_vdir / "segments" / "old", {"version_id": old_vdir.name, "run_id": "R0"},
+                     BCFTOOLS, TABIX, BGZIP)
+    (repo / "src/external/Pangolin-main/pangolin/pangolin.py").write_text("score()  # fail loudly\n")
+    git(repo, "commit", "-qam", "error handling only")
+    new_commit = git(repo, "rev-parse", "HEAD")
+    args = ("pangolin", cache, old_vdir.name, "HEAD", "error handling only", BCFTOOLS, TABIX, BGZIP, repo)
+
+    dry = ac.migrate(*args, dry_run=True)
+    assert (dry["source_sites"], dry["scored_sites"], dry["unscored_sites_left_out"]) == (3, 2, 1)
+    assert not (cache / "pangolin" / dry["to_version"]).exists()
+
+    res = ac.migrate(*args)
+    # The version the next run derives from its manifest at the new commit.
+    assert res["to_version"] == ac.version_id(ac.version_identity(manifest(new_commit), "pangolin", repo))
+    assert res["code_diff"] and all(d.startswith("src/external/") for d in res["code_diff"])
+    new_vdir = cache / "pangolin" / res["to_version"]
+    seg = ac.list_segments(new_vdir / "segments")[0]
+    assert len(seg) == 1
+    assert [(r[1], r[7]) for r in body(seg[0])] == [
+        ("100", "Pangolin=G1|10:0.5;PangolinTissue=G1|Heart|Liver"), ("300", "Pangolin=G1|5:0.1")]
+    side = json.loads(seg[0].with_name(seg[0].name[:-len(".vcf.gz")] + ".json").read_text())
+    assert side["migrated_from"] == old_vdir.name and side["migrate_reason"] == "error handling only"
+
+    # Scored sites are hits in the new version; the unscored one is recomputed.
+    inp = vcf(tmp_path / "in.vcf.gz", [(100, "A", "G", ""), (200, "C", "T", ""), (300, "G", "A", "")])
+    split = ac.split("pangolin", inp, new_vdir / "segments", tmp_path / "h.vcf.gz", tmp_path / "m.vcf.gz",
+                     tmp_path / "r.json", BCFTOOLS, TABIX)
+    assert (split["hits"], split["misses"]) == (2, 1)
+    assert [r[1] for r in body(tmp_path / "m.vcf.gz")] == ["200"]
+
+    with pytest.raises(ac.CacheError, match="already a migration"):
+        ac.migrate(*args)
+
+
+@needs_bcftools
+def test_migrate_keeps_sites_the_new_version_computed_and_refuses_bad_input(tmp_path, repo):
+    cache = tmp_path / "cache"
+    old_vdir = ac.ensure_version_dir(cache, ac.version_identity(manifest(git(repo, "rev-parse", "HEAD")), "pangolin", repo))
+    ac.write_segment("pangolin", vcf(tmp_path / "o.vcf.gz", [(100, "A", "G", "Pangolin=old"), (300, "G", "A", "Pangolin=z")]),
+                     old_vdir / "segments" / "old", {"version_id": old_vdir.name, "run_id": "R0"}, BCFTOOLS, TABIX, BGZIP)
+    with pytest.raises(ac.CacheError, match="nothing to migrate"):
+        ac.migrate("pangolin", cache, old_vdir.name, "HEAD", "r", BCFTOOLS, TABIX, BGZIP, repo)
+    with pytest.raises(ac.CacheError, match="--reason"):
+        ac.migrate("pangolin", cache, old_vdir.name, "HEAD", " ", BCFTOOLS, TABIX, BGZIP, repo)
+
+    (repo / "src/external/Pangolin-main/pangolin/pangolin.py").write_text("score()  # v2\n")
+    git(repo, "commit", "-qam", "v2")
+    new_vdir = ac.ensure_version_dir(cache, ac.version_identity(manifest(git(repo, "rev-parse", "HEAD")), "pangolin", repo))
+    ac.write_segment("pangolin", vcf(tmp_path / "n.vcf.gz", [(100, "A", "G", "Pangolin=new")]),
+                     new_vdir / "segments" / "run1", {"version_id": new_vdir.name, "run_id": "R1"}, BCFTOOLS, TABIX, BGZIP)
+    res = ac.migrate("pangolin", cache, old_vdir.name, "HEAD", "v2", BCFTOOLS, TABIX, BGZIP, repo)
+    assert res["to_version"] == new_vdir.name and res["segment"]["n_records"] == 1
+    assert ac.verify(new_vdir, "pangolin", BCFTOOLS)["duplicates"] == 0

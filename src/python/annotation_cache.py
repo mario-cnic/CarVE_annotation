@@ -18,6 +18,8 @@ Usage:
         --misses misses.vcf.gz --output-prefix segments/<name> --run-id RUN --version-id ID
     annotation_cache.py seed --run-dir RUN_DIR --predictor pangolin --cache-dir DIR \
         [--into-version ID --override-reason TEXT]
+    annotation_cache.py migrate --predictor spliceai --cache-dir DIR --from-version OLD_ID \
+        [--commit HEAD] --reason TEXT [--dry-run]
     annotation_cache.py verify --version-dir DIR --predictor pangolin
     annotation_cache.py list-segments --version-dir DIR --output segments.txt
 """
@@ -462,6 +464,65 @@ def seed(run_dir: Path, predictor: str, cache_dir: Path, into_version: str | Non
     return info
 
 
+def migrate(predictor: str, cache_dir: Path, from_version: str, commit: str, reason: str,
+            bcftools: str, tabix: str, bgzip: str, repo_root: Path | None = None, dry_run: bool = False) -> dict:
+    """Copies the scored sites of version `from_version` into the version that differs from it only
+    in the scoring code at `commit`, as one segment. Unscored sites ("computed, no score") are left
+    out, so the next run recomputes them; use it only when the code change cannot change a score.
+    Other identity fields (FASTA, env, distance, database) are kept, so a run whose other fields
+    differ gets another version and never reads the migrated segment."""
+    repo_root = repo_root or REPO_ROOT
+    if not reason or not reason.strip():
+        raise CacheError("--reason is required")
+    old_vdir = cache_dir / predictor / from_version
+    vfile = old_vdir / "VERSION.json"
+    if not vfile.is_file():
+        raise CacheError(f"{vfile} not found")
+    old_identity = json.loads(vfile.read_text())["identity"]
+    if old_identity.get("predictor") != predictor:
+        raise CacheError(f"{vfile} is a {old_identity.get('predictor')} version, not {predictor}")
+    sha = run(["git", "rev-parse", "--verify", f"{commit}^{{commit}}"], cwd=repo_root).strip()
+    new_identity = dict(old_identity, code=code_identity(repo_root, sha, predictor))
+    new_vid = version_id(new_identity)
+    if new_vid == from_version:
+        raise CacheError(f"the {predictor} scoring code at {sha} is that of {from_version}: nothing to migrate")
+    segments, skipped = list_segments(old_vdir / "segments")
+    if not segments:
+        raise CacheError(f"{old_vdir} has no valid segments")
+    score_field = PREDICTORS[predictor]["fields"][0]
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        lookup = build_lookup(bcftools, tabix, segments, tmp / "lookup.vcf.gz")
+        scored = tmp / "scored.vcf.gz"
+        run([bcftools, "view", "-i", f'INFO/{score_field}!="."', str(lookup), "-Oz", "-o", str(scored)])
+        run([tabix, "-f", "-p", "vcf", str(scored)])
+        n_sites, n_scored = count_records(bcftools, lookup), count_records(bcftools, scored)
+        result = {"predictor": predictor, "from_version": from_version, "to_version": new_vid, "commit": sha,
+                  "source_segments": [s.name for s in segments], "source_segments_skipped": skipped,
+                  "source_sites": n_sites, "scored_sites": n_scored, "unscored_sites_left_out": n_sites - n_scored,
+                  "code_diff": identity_diff(old_identity["code"], new_identity["code"])}
+        if dry_run:
+            return dict(result, dry_run=True)
+        new_vdir = ensure_version_dir(cache_dir, new_identity)
+        existing, _ = list_segments(new_vdir / "segments")
+        for seg in existing:
+            if json.loads(seg.with_name(seg.name[:-len(".vcf.gz")] + ".json").read_text()).get("migrated_from") == from_version:
+                raise CacheError(f"{seg.name} in {new_vdir} is already a migration from {from_version}")
+        src = scored
+        if existing:
+            # Sites the new version already computed keep its own values.
+            src = tmp / "not_in_target.vcf.gz"
+            target = build_lookup(bcftools, tabix, existing, tmp / "target.vcf.gz")
+            run([bcftools, "isec", "-c", "none", "-C", "-w1", str(scored), str(target), "-Oz", "-o", str(src)])
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        meta = {"version_id": new_vid, "run_id": f"migrated_from_{from_version}", "migrated_from": from_version,
+                "migrate_reason": reason, **{k: result[k] for k in (
+                    "commit", "source_segments", "source_sites", "scored_sites", "unscored_sites_left_out", "code_diff")}}
+        info = write_segment(predictor, src, new_vdir / "segments" / f"migrated.{from_version}.{stamp}",
+                             meta, bcftools, tabix, bgzip)
+    return dict(result, segment=info)
+
+
 # ---------------------------------------------------------------- CLI
 
 def main(argv=None) -> int:
@@ -503,6 +564,14 @@ def main(argv=None) -> int:
     sp.add_argument("--into-version")
     sp.add_argument("--override-reason")
 
+    sp = sub.add_parser("migrate", help="copy a version's scored sites into the version of the scoring code at --commit")
+    common(sp)
+    sp.add_argument("--cache-dir", required=True, type=Path)
+    sp.add_argument("--from-version", required=True)
+    sp.add_argument("--commit", default="HEAD")
+    sp.add_argument("--reason", required=True)
+    sp.add_argument("--dry-run", action="store_true", help="only count scored / unscored sites")
+
     sp = sub.add_parser("verify", help="check that sites cached more than once agree")
     common(sp)
     sp.add_argument("--version-dir", required=True, type=Path)
@@ -532,7 +601,10 @@ def main(argv=None) -> int:
                         args.report, bcftools, tabix)
         else:
             bgzip = tool("bgzip", args.bgzip)
-            if args.cmd == "make-segment":
+            if args.cmd == "migrate":
+                res = migrate(args.predictor, args.cache_dir, args.from_version, args.commit, args.reason,
+                              bcftools, tabix, bgzip, dry_run=args.dry_run)
+            elif args.cmd == "make-segment":
                 res = make_segment(args.predictor, args.annotated, args.misses, args.output_prefix,
                                    {"version_id": args.version_id, "run_id": args.run_id},
                                    bcftools, tabix, bgzip)
