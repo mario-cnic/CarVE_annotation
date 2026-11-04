@@ -139,17 +139,6 @@ def argparsing() -> argparse.ArgumentParser:
         default=None,
     )
     parser.add_argument(
-        "--genotype_filter",
-        action="store_false",
-        help="Filter by genotype instead of just labeling variants with matching genotypes",
-    )
-    parser.add_argument(
-        "--genotype_group",
-        type=str,
-        help="Group of samples to filter by genotype.",
-        default=None,
-    )
-    parser.add_argument(
         "--freq",
         type=float,
         help="frequency to filter variants",
@@ -390,7 +379,7 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     else:
         logger.warning("No genotype file provided, skipping filtering by genotype")
     
-    if args.freq:
+    if args.freq is not None:
         data = filter_freq(data, freq=args.freq, freq_column=args.freq_col)
     else:
         logger.warning("No frequency provided, skipping filtering by frequency")
