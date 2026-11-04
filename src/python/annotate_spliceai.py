@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import os
+import sys
 import argparse
 
 # Suppress TensorFlow verbose logging
@@ -41,13 +42,18 @@ def annotate_vcf(in_vcf: str, out_vcf: str, fasta_path: str, distance: int = 499
     annotated = 0
     for rec in in_v:
         count += 1
+        # get_delta_scores returns [] for the sites it skips on purpose (logged by spliceai); an
+        # exception is a real failure. Fail the task: a record written without SpliceAI would be
+        # cached as "computed, no score" (PRED-16).
         try:
             scores = get_delta_scores(rec, annotator, distance, mask)
-            if scores:
-                rec.info["SpliceAI"] = scores
-                annotated += 1
-        except Exception as e:
-            pass
+        except Exception:
+            print(f"SpliceAI failed on record {count}: {rec.chrom}:{rec.pos} {rec.ref}>{','.join(rec.alts or ())}",
+                  file=sys.stderr)
+            raise
+        if scores:
+            rec.info["SpliceAI"] = scores
+            annotated += 1
         out_v.write(rec)
         
     in_v.close()
