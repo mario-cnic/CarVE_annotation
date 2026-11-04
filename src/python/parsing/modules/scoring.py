@@ -7,6 +7,7 @@ from . import logger
 from .io_qc import _safe_numeric_series, _safe_string_series, build_qc_status
 from .splicing import _extract_spliceai_details, NEW_SPIP_COLUMNS
 from .disease_hpo import apply_disease_phenotype_curation, HPO_GENE_PANELS
+from . import acmg
 from .acmg import build_acmg_criteria, _extract_clinvar_status
 from .predictors import utr5_high_impact_mask
 from .population import annotate_population_af, resolve_population_af, rarity_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT
@@ -39,7 +40,7 @@ def build_priority_tier(
     impact = _safe_string_series(data, "NEW_IMPACT").str.upper()
     pvs1_elig = _safe_string_series(data, "PVS1_ELIGIBILITY") if "PVS1_ELIGIBILITY" in data.columns else pd.Series("Allowed", index=data.index)
     symbol_series = _safe_string_series(data, "SYMBOL").str.upper()
-    is_pvs1_vetoed = pvs1_elig.str.contains("Vetoed", case=False, na=False) | (symbol_series == "MYH7")
+    is_pvs1_vetoed = pvs1_elig.str.contains("Vetoed", case=False, na=False) | symbol_series.isin(acmg.PVS1_VETO_GENES)
 
     is_lof = conseq.str.contains("stop_gained|frameshift|splice_donor|splice_acceptor")
     is_active_lof = is_lof & (~is_pvs1_vetoed)

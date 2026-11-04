@@ -10,6 +10,11 @@ from .splicing import build_spliceMAX, _extract_spliceai_score, NEW_SPIP_COLUMNS
 from .predictors import utr5_high_impact_mask
 
 
+# Genes whose loss-of-function variants never get PVS1 (MYH7: loss of function is not an established
+# disease mechanism). The one list used by build_acmg_criteria and scoring.build_priority_tier (ACMG-4).
+PVS1_VETO_GENES = frozenset({"MYH7"})
+
+
 def _extract_clinvar_status(df: pd.DataFrame):
     """Extract source-selected ClinVar masks and expose selection provenance."""
     classification, _, _, _ = annotate_clinvar(df)
@@ -109,7 +114,7 @@ def build_acmg_criteria(data: pd.DataFrame, freq_col=GNOMAD_GRPMAX) -> pd.DataFr
     pli_val = _safe_numeric_series(data, "pLI_gene_value")
 
     is_lof = conseq.str.contains("stop_gained|frameshift|splice_donor|splice_acceptor")
-    is_pvs1 = is_lof & (pli_val >= 0.9) & (symbol_series != "MYH7")
+    is_pvs1 = is_lof & (pli_val >= 0.9) & ~symbol_series.isin(PVS1_VETO_GENES)
 
     is_clinvar_path, _ = _extract_clinvar_status(data)
     is_ps1 = is_clinvar_path & conseq.str.contains("missense")
