@@ -482,6 +482,23 @@ def parse_maxentscan(data: pd.DataFrame):
     return data
 
 
+# First intronic position of an HGVS c./n. description: coding (100+5), 5'UTR (-45+3), 3'UTR (*12-2),
+# non-coding n. (123+5); in a range, the first intronic end (c.99_100+2del -> +2).
+_HGVS_INTRONIC = re.compile(r"(?<![\d*])[-*]?\d+([+-])(\d+)")
+
+
+def _hgvs_intron_offset(hgvs: str):
+    """(signed offset, 'donor'/'acceptor') from an HGVS c./n. string, or None if no intronic position."""
+    m = re.search(r"(?:^|[:\s])[cn]\.(\S+)", hgvs)
+    if not m:
+        return None
+    hit = _HGVS_INTRONIC.search(m.group(1))
+    if not hit:
+        return None
+    sign, n = hit.group(1), int(hit.group(2))
+    return (n, "donor") if sign == "+" else (-n, "acceptor")
+
+
 def build_signed_intron_offset(data: pd.DataFrame):
     """Creates `intron_offset_signed` (Integer) and `splice_side` ('donor', 'acceptor', 'exonic')."""
     if "intron_offset_signed" in data.columns and "splice_side" in data.columns:
@@ -499,34 +516,17 @@ def build_signed_intron_offset(data: pd.DataFrame):
             except ValueError:
                 pass
 
-        hgvsc = str(row.get("HGVSc", ""))
-        if pd.isna(hgvsc) or hgvsc in ("", ".", "nan", "N/A"):
-            hgvsc = str(row.get("CDNA_NAME", ""))
-            
-        match = re.search(r'c\.\d+([+-])(\d+)', hgvsc)
-        if match:
-            sign, val_str = match.groups()
-            val = int(val_str)
-            if sign == '+':
-                return (val, "donor")
-            elif sign == '-':
-                return (-val, "acceptor")
-                
-        offset_val = row.get("HGVS_OFFSET")
-        if not pd.isna(offset_val) and str(offset_val) not in ("", ".", "nan"):
-            try:
-                off_int = int(float(offset_val))
-                if "-" in hgvsc:
-                    return (-abs(off_int), "acceptor")
-                elif "+" in hgvsc:
-                    return (abs(off_int), "donor")
-                return (off_int, "exonic" if off_int == 0 else "donor")
-            except ValueError:
-                pass
-                
+        hgvsc = row.get("HGVSc")
+        if is_missing(hgvsc):
+            hgvsc = row.get("CDNA_NAME")
+
+        intronic = None if is_missing(hgvsc) else _hgvs_intron_offset(str(hgvsc))
+        if intronic is not None:
+            return intronic
+        # HGVS_OFFSET is VEP's 3'-shift of the HGVS notation, not an intron offset (PRED-8): not used.
         return (0, "exonic")
 
-    res = apply_rows(data, process_row, ["INTRON_OFFSET_SIGNED", "SPLICE_SIDE", "HGVSc", "CDNA_NAME", "HGVS_OFFSET"],
+    res = apply_rows(data, process_row, ["INTRON_OFFSET_SIGNED", "SPLICE_SIDE", "HGVSc", "CDNA_NAME"],
                      ["intron_offset_signed", "splice_side"])
     data["intron_offset_signed"] = res["intron_offset_signed"]
     data["splice_side"] = res["splice_side"]
