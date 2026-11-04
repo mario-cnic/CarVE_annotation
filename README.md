@@ -122,13 +122,15 @@ bash run_annotate_vcf.sh -profile standard \
 | Tier | Records | Tools |
 | --- | --- | --- |
 | Broad | every record in the input | VEP 111 (with its plugins), Branchpointer/LaBranchoR |
-| Gene-restricted | only records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 4999`), Pangolin (`-d 4999`), SPiP (unless `--spip_tier broad`) |
+| Gene-restricted | only SNV, indel and MNP records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 4999`), Pangolin (`-d 4999`), SPiP (unless `--spip_tier broad`) |
 
 Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A missing score there means the tool was not run, not that the variant is predicted benign.
 
+**Structural variants are not a supported input.** Symbolic alleles (`<DEL>`, `<CNV>`, `<DUP:TANDEM>`, ...), breakends and `*` alleles pass the input check (counted as `symbolic_or_non_acgt_records` in the assembly-check report) and are annotated by VEP and Branchpointer only; `GENE_SUBSET` leaves them out of the gene-restricted tier, whose tools cannot score them (`PRED-17`; the `GENE_SUBSET` log line gives the count). Call SVs with a dedicated caller and annotate them separately.
+
 ### Outputs
 
-Everything is published to `nf_work/annotation_out/<run_id>/`, in sub-folders (paths below are relative to it):
+Everything is published to `nf_work/annotation_out/<run_id>/` (or `<--outdir>/<run_id>/`), in sub-folders (paths below are relative to it):
 
 | File | Content |
 | --- | --- |
