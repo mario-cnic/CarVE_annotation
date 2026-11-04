@@ -215,3 +215,25 @@ def test_wide_view_rejects_non_parquet_table(tmp_path):
     _, gt = go(tmp_path, vcf)
     (tmp_path / "t.tsv").write_text("Locus\nchr1:100-A-C\n")
     assert wide_run(str(tmp_path / "t.tsv"), gt, str(tmp_path / "w.pq"), 10) == 1
+
+
+def test_wide_view_main_columns_read_back_as_in_the_main_table(tmp_path):
+    # MISC-26: the output keeps the main table's pandas metadata, so pandas reads its columns back unchanged.
+    vcf = write_vcf(tmp_path / "trio.vcf.gz", TRIO, RECORDS)
+    _, gt = go(tmp_path, vcf)
+    loci = [r[0] + ":" + str(r[1]) + "-" + r[2] + "-" + r[3] for r in RECORDS]
+    df = pd.DataFrame({"Locus": loci,
+                       "NEW_IMPACT": pd.Categorical(["HIGH", "LOW", "HIGH", "MODERATE"][:len(loci)],
+                                                    categories=["HIGH", "MODERATE", "LOW", "MODIFIER"], ordered=True),
+                       "flag": pd.Series([True, None, False, True][:len(loci)], dtype=object),
+                       "when": pd.to_datetime(["2026-01-01"] * len(loci), utc=True),
+                       # pandas extension dtypes: rebuilt only from the pandas metadata
+                       "n": pd.array([1, None, 3, 4][:len(loci)], dtype="Int64"),
+                       "s": pd.array(["a", None, "c", "d"][:len(loci)], dtype="string")})
+    main = str(tmp_path / "main.pq")
+    df.to_parquet(main, index=False)
+    out = str(tmp_path / "w.pq")
+    assert wide_run(main, gt, out, 10) == 0
+    w = pd.read_parquet(out)
+    pd.testing.assert_frame_equal(w[df.columns], pd.read_parquet(main))
+    assert [c for c in w.columns if c not in df.columns][:1] == ["GT_FATHER_1"]

@@ -12,6 +12,7 @@ row (the output is then incomplete).
 """
 
 import argparse
+import json
 import sys
 
 import pandas as pd
@@ -36,6 +37,19 @@ def wide_genotypes(long_df):
     return wide
 
 
+def _pandas_metadata(main: pa.Schema, wide: pa.Schema) -> dict:
+    """File metadata with one `pandas` entry for main + wide columns (MISC-26): the main table's
+    column entries, then the wide frame's, without index entries; nothing when main has none."""
+    if not main.metadata or b"pandas" not in main.metadata:
+        return {}
+    meta = json.loads(main.metadata[b"pandas"])
+    extra = json.loads(wide.metadata[b"pandas"])["columns"] if wide.metadata and b"pandas" in wide.metadata else []
+    keep = lambda c: c.get("field_name") is not None and not str(c["field_name"]).startswith("__index_level_")
+    meta["index_columns"], meta["column_indexes"] = [], []
+    meta["columns"] = [c for c in meta["columns"] if keep(c)] + [c for c in extra if keep(c)]
+    return {b"pandas": json.dumps(meta).encode()}
+
+
 def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000, stamp=None):
     if not table_path.endswith((".pq", ".parquet")) or not output_path.endswith((".pq", ".parquet")):
         print("ERROR: the wide view supports Parquet tables only (--output_format pq)", file=sys.stderr)
@@ -58,7 +72,8 @@ def run(table_path, genotypes_path, output_path, max_samples, batch_rows=250000,
     # The main table is joined batch by batch: a WGS table has tens of millions of rows x ~600 columns.
     # Its columns stay Arrow and keep the file's types; the output schema is fixed before the first batch.
     source = pq.ParquetFile(table_path)
-    out_schema = with_stamp(pa.schema(list(source.schema_arrow) + list(wide_schema)), stamp)
+    out_schema = with_stamp(pa.schema(list(source.schema_arrow) + list(wide_schema),
+                                      metadata=_pandas_metadata(source.schema_arrow, wide_schema)), stamp)
     writer, n_rows, unmatched = pq.ParquetWriter(output_path, out_schema), 0, 0
     try:
         for batch in source.iter_batches(batch_size=batch_rows):
