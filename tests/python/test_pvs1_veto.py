@@ -37,3 +37,13 @@ def test_both_places_follow_the_one_list(monkeypatch):
     assert pvs1(lof_rows()) == [True, False]
     myh7, mybpc3 = lof_points(lof_rows(), monkeypatch)
     assert myh7 - mybpc3 == 35.0
+
+
+def test_explanation_and_rationale_follow_the_veto(monkeypatch):
+    # ACMG-7: a vetoed LoF got "LoF (+35.0)" and a LoF rationale although no LoF points were added.
+    monkeypatch.setattr(scoring, "apply_disease_phenotype_curation", lambda data, gene_list, phenotype: data)
+    df = lof_rows().assign(gnomADv4_AF_grpmax_joint=0.0)
+    out = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
+    myh7, mybpc3 = out.iloc[0], out.iloc[1]
+    assert "LoF (+35.0)" not in myh7["SCORE_EXPLANATION"] and "LoF (+35.0)" in mybpc3["SCORE_EXPLANATION"]
+    assert "Loss-of-Function" not in myh7["TIER_RATIONALE"] and "Loss-of-Function" in mybpc3["TIER_RATIONALE"]

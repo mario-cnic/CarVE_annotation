@@ -244,7 +244,6 @@ def build_priority_tier(
     is_bs1_a = is_bs1.to_numpy()
     is_clinvar_benign_a = is_clinvar_benign.to_numpy()
     is_clinvar_path_a = is_clinvar_path.to_numpy()
-    is_lof_a = is_lof.to_numpy()
     is_low_qual_a = is_low_qual.to_numpy()
     is_pm2_a = is_pm2.to_numpy()
     pli_val_a = pli_val.to_numpy()
@@ -265,7 +264,7 @@ def build_priority_tier(
 
     for i in range(len(data)):
         parts = []
-        if is_lof_a[i]: parts.append("LoF (+35.0)")
+        if is_active_lof_a[i]: parts.append("LoF (+35.0)")
         s_comp = splicing_composite_a[i]
         if s_comp > 0.05:
             m_label = splice_method_a[i]
@@ -327,7 +326,7 @@ def build_priority_tier(
                 rat = "ClinGen VCEP Pathogenic / Likely Pathogenic Expert Entry"
             elif is_clinvar_path_a[i]:
                 rat = "ClinVar Pathogenic / Likely Pathogenic Entry"
-            elif is_lof_a[i] and pli_val_a[i] >= 0.9:
+            elif is_active_lof_a[i] and pli_val_a[i] >= 0.9:
                 rat = f"High-Confidence Loss-of-Function in Constrained Gene (pLI = {pli_val_a[i]:.2f} >= 0.90)"
             elif splice_max_a[i] >= 0.80:
                 rat = f"Ultra-High Splicing Alteration (SpliceAI = {splice_max_a[i]:.2f} >= 0.80 via {splice_method_a[i]})"
@@ -336,7 +335,7 @@ def build_priority_tier(
             else:
                 rat = f"High-Priority Composite Score ({final_score:.1f}/100 >= 75.0) & Ultra-Rare Population Frequency (AF < MCAF)"
         elif "Tier 2" in t_str:
-            if is_lof_a[i]:
+            if is_active_lof_a[i]:
                 rat = "Loss-of-Function Alteration" + (" (absent from gnomAD v4)" if af_absent_a[i] else f" (AF = {af_v:.4f})" if pd.notna(af_v) else " (population AF unknown)")
             elif splice_max_a[i] >= 0.50:
                 rat = f"High Splicing Delta Score (SpliceAI = {splice_max_a[i]:.2f} >= 0.50 via {splice_method_a[i]})"
