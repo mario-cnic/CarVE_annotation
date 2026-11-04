@@ -328,3 +328,21 @@ def test_transcript_tier_one_survives_renamed_symbols_and_duplicates(tmp_path):
                        "MANE_SELECT": [None, None, None, "NM_1.1", None]})
     assert list(tp.tag_priority(df, curated)["TRANSCRIPT_PRIORITY_TIER"]) == [1, 1, 1, 2, 3]
 
+
+
+def test_missense_scores_are_the_row_transcripts_not_the_max(tmp_path):
+    # PRED-3: parse_missense took the max over every transcript's REVEL/MetaRNN; after per-row selection
+    # each row keeps its own transcript's value and the variant-level max is kept apart.
+    from modules import predictors as pr
+    aligned = pr.load_aligned_columns(os.path.join(os.path.dirname(__file__), "../../resources/dbnsfp_transcript_aligned_columns.txt"))
+    assert {"REVEL_score", "MetaRNN_score"} <= set(aligned) and "MetaLR_score" not in aligned
+    lists = {"Ensembl_transcriptid": "ENST00000000001&ENST00000000002", "REVEL_score": "0.20&0.90",
+             "MetaRNN_score": "0.10&0.80", "MetaLR_score": "0.55"}
+    df = pd.DataFrame([dict(lists, Feature="ENST00000000001.3"), dict(lists, Feature="ENST00000000002.1"),
+                       dict(lists, Feature="ENST00000000009.1")])
+    out = pr.parse_missense(pr.parse_dbnsfp_by_row_transcript(df, aligned), list(pr.MISSENSE_COLUMNS))
+    assert out["REVEL_score"].tolist()[:2] == [0.20, 0.90] and np.isnan(out["REVEL_score"].iloc[2])
+    assert out["MetaRNN_score"].tolist()[:2] == [0.10, 0.80]
+    assert out["MetaLR_score"].tolist() == [0.55] * 3                  # one value per variant
+    assert out["REVEL_score_anytranscript_max"].tolist() == [0.90] * 3
+    assert out["dbNSFP_match"].tolist() == ["matched_transcript", "matched_transcript", "no_entry_for_row_transcript"]
