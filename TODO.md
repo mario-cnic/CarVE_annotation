@@ -10,7 +10,7 @@
 
 - [ ] **Performance review follow-ups: cluster verification** (implemented 2026-10-14, [walkthrough](walkthrough/20261014_performance_review.md), section "Implementation"). On the next WGS-size run: c0051-cn1/c0053-cn1 exclusion in `.command.run`, `TSV_TO_TABLE` attempt 1 succeeds, TAG within 24 GB, BCF intermediates in `MERGE` work with the cluster bcftools 1.21, final table unchanged vs the same input run at `d5e6461`; panel run `panel8_perf_20261015` (2026-10-15, `afd1abf`): output identical to `panel8_trio_20261008_NMD2`, new tasks and memory requests OK; two-host exclusion accepted by `qsub -w v` and present in the chunks' `.command.run` (2026-10-15). That run includes ReMM (Mario, 2026-10-15), so `VEP_ANNOTATE` time is not comparable with earlier runs. Still undecided: Pangolin threads pinned to 4 (precondition for a 20 h limit), queueSize/slots after the `qconf`/`qhost` commands, restricted chunk size. **WGS run `F1830_union` 2026-10-19** ([walkthrough](walkthrough/20261019_F1830_run_timing.md)): wall 23.7 h vs 56.6 h (F2005); exclusion holds, longest Pangolin 7.9 h, TAG attempt 1 OK; `TSV_TO_TABLE` attempt 1 out of memory (real peak ~330 GB RSS, single `pd.read_csv` of the 47.5 GB TSV; `h_vmem` looks per-slot), `CONCAT_VEP`/`MERGE_ANNOTATIONS` 5x slower than F2005 and always killed at the 1 h `process_single` limit (cause not determined), queue throttling (~11.7 h before the last Pangolin chunk was submitted). Proposals there, not applied.
 
-- [ ] **Cluster checks for branch `ccr-8536b091-fabr1g` (PRED-16, MISC-21..24)** (added 2026-11-04). In this order:
+- [ ] **Cluster checks for branch `ccr-8536b091-fabr1g` (PRED-16, PRED-17, MISC-4, MISC-21..24)** (added 2026-11-04). In this order:
   1. Checkout the branch (or merge it to `main`); tree clean in `src/python/annotate_spliceai.py` and `modules/local/spliceai.nf` (a dirty scoring file makes the launcher refuse the cache).
   2. Tests in the cluster env: `PYTHON_BIN=/data_lab_PGP/shared/utils/conda_envs/datasci/bin/python3 bash tests/run_all_tests.sh`. Expected: all pass except MISC-26 if still open.
   3. **Before any run**, migrate the SpliceAI cache (the PRED-16 fix changes its `version_id`; without this the next run recomputes every gene-restricted site). `<OLD>` = the folder now in `annotation_cache/spliceai/`:
@@ -20,7 +20,10 @@
   5. Check: no SpliceAI chunk fails (if one does, the log names the record: PRED-16 working); `spliceai.cache_split.json` `misses` ≈ `unscored_sites_left_out` + sites new to this input; `annotation_cache.py verify --predictor spliceai --version-dir <cache>/spliceai/<NEW>` 0 conflicts; `TSV_TO_TABLE` and the rest complete (MISC-21).
   6. Evidence on past silent SpliceAI failures: sites of this run's new segment that were unscored in `<OLD>` and now carry a score. 0 = none among them.
   7. Optional (MISC-22): a short run on a small VCF with no site in `resources/v5_genes_loc.bed`, to check VEP / SpliceAI / Pangolin / SPiP accept a header-only chunk.
-  Then flip PRED-16 and MISC-21..24 in `BUG_TRACKER.md`.
+  8. MISC-4: rebuild the gene BED with the primary-assembly fallback, review the unmatched list, commit the BED:
+     `python3 src/python/build_gene_restriction_bed.py --gene-list /data_lab_PGP/shared/utils/data/Complete_gene_list_V5.csv --mane-gtf /data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz --primary-gtf /home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz --unmatched-output /tmp/v5_unmatched.tsv`
+     (`git diff --stat resources/v5_genes_loc.bed`: only added regions are expected.)
+  Then flip PRED-16, PRED-17, MISC-4 and MISC-21..24 in `BUG_TRACKER.md`.
 
 ---
 

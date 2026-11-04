@@ -35,13 +35,18 @@ def read_gene_list(path: str) -> list[str]:
     return list(genes.keys())
 
 
-def read_mane_gene_coords(path: str) -> dict[str, tuple[str, int, int, str]]:
-    """Parses the MANE GTF's `gene` feature lines into {gene_name: (chrom, start, end, strand)}.
+def _attr(attrs: str, key: str):
+    for attr in attrs.split(";"):
+        attr = attr.strip()
+        if attr.startswith(key + " "):
+            return attr.split('"')[1]
+    return None
 
-    GTF coordinates are 1-based inclusive; BED is 0-based half-open, so start is
-    converted (gtf_start - 1) when writing the BED, not here.
-    """
-    coords = {}
+
+def read_gtf_genes(path: str) -> dict[str, tuple[str, int, int, str, str | None]]:
+    """{gene_name: (chrom, start, end, strand, gene_id without version)} from a GTF's `gene` lines.
+    A name seen on a primary contig keeps that record over one on an alt/fix/random contig."""
+    genes = {}
     opener = gzip.open if path.endswith(".gz") else open
     with opener(path, "rt") as f:
         for line in f:
@@ -50,17 +55,60 @@ def read_mane_gene_coords(path: str) -> dict[str, tuple[str, int, int, str]]:
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 9 or fields[2] != "gene":
                 continue
-            chrom, _, _, start, end, _, strand = fields[0], fields[1], fields[2], fields[3], fields[4], fields[5], fields[6]
-            attrs = fields[8]
-            gene_name = None
-            for attr in attrs.split(";"):
-                attr = attr.strip()
-                if attr.startswith("gene_name "):
-                    gene_name = attr.split('"')[1]
-                    break
-            if gene_name:
-                coords[gene_name] = (chrom, int(start), int(end), strand)
-    return coords
+            name = _attr(fields[8], "gene_name")
+            if not name:
+                continue
+            gid = _attr(fields[8], "gene_id")
+            rec = (fields[0], int(fields[3]), int(fields[4]), fields[6], gid.split(".")[0] if gid else None)
+            if name not in genes or (is_primary_contig(rec[0]) and not is_primary_contig(genes[name][0])):
+                genes[name] = rec
+    return genes
+
+
+def is_primary_contig(chrom: str) -> bool:
+    """chr1-22, X, Y, M (with or without `chr`); not alt / fix / random / chrUn / EBV."""
+    c = chrom[3:] if chrom.startswith("chr") else chrom
+    return c in {str(i) for i in range(1, 23)} | {"X", "Y", "M", "MT"}
+
+
+def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> tuple[dict, dict]:
+    """{listed gene: [(chrom, start, end, strand, how), ...]} and {listed gene: reason} for the rest (MISC-4).
+
+    A listed name is looked up in MANE by exact symbol, then case-insensitively (`C10ORF71` ->
+    `C10orf71`, only if one MANE symbol fits), then as an Ensembl gene ID (`ENSG...`, version ignored).
+    A MANE record is always kept. When it sits only on an alt/fix contig, or the name is not in MANE,
+    the primary-assembly GTF (`primary`, e.g. GENCODE) is tried the same way and its record is added
+    if it is on a primary contig. Genes left on alt/fix contigs only are reported (`mane_alt_contig_only`).
+    """
+    def lookup(name, table):
+        if not table:
+            return None, None
+        if name in table:
+            return table[name], "symbol"
+        folded = [k for k in table if k.upper() == name.upper()]
+        if len(folded) == 1:
+            return table[folded[0]], "symbol_case"
+        if name.upper().startswith("ENSG"):
+            hits = [v for v in table.values() if v[4] == name.split(".")[0].upper()]
+            if len(hits) == 1:
+                return hits[0], "ensembl_id"
+        return None, None
+
+    found, missing = {}, {}
+    for name in genes:
+        recs = []
+        rec, how = lookup(name, mane)
+        if rec:
+            recs.append((*rec[:4], f"mane_{how}"))
+        if not rec or not is_primary_contig(rec[0]):
+            prec, phow = lookup(name, primary)
+            if prec and is_primary_contig(prec[0]):
+                recs.append((*prec[:4], f"primary_gtf_{phow}"))
+        if recs:
+            found[name] = recs
+        if not any(is_primary_contig(r[0]) for r in recs):
+            missing[name] = "mane_alt_contig_only" if recs else "no_match"
+    return found, missing
 
 
 def main():
@@ -75,6 +123,11 @@ def main():
         default="/home/mruizp/data_lab_PGP/shared/utils/data/MANE.GRCh38.v1.4.ensembl_genomic.gtf.gz",
         help="MANE GRCh38 GTF path (gzipped or plain)",
     )
+    parser.add_argument(
+        "--primary-gtf",
+        default=None,
+        help="Optional primary-assembly GTF (e.g. GENCODE 45) for genes MANE lacks or has on alt/fix contigs only",
+    )
     parser.add_argument("--output", default="resources/v5_genes_loc.bed", help="Output BED path")
     parser.add_argument(
         "--margin",
@@ -85,28 +138,28 @@ def main():
     parser.add_argument(
         "--unmatched-output",
         default=None,
-        help="Optional path to write the list of genes that had no MANE GTF match",
+        help="Optional path to write the genes without a primary-contig region (gene<TAB>reason)",
     )
     args = parser.parse_args()
 
     genes = read_gene_list(args.gene_list)
     print(f"Read {len(genes)} unique genes from {args.gene_list}")
 
-    mane_coords = read_mane_gene_coords(args.mane_gtf)
-    print(f"Parsed {len(mane_coords)} gene coordinates from {args.mane_gtf}")
+    mane = read_gtf_genes(args.mane_gtf)
+    print(f"Parsed {len(mane)} gene coordinates from {args.mane_gtf}")
+    primary = read_gtf_genes(args.primary_gtf) if args.primary_gtf else None
+    if primary is not None:
+        print(f"Parsed {len(primary)} gene coordinates from {args.primary_gtf}")
 
-    matched = []
-    unmatched = []
-    for gene in genes:
-        if gene in mane_coords:
-            matched.append(gene)
-        else:
-            unmatched.append(gene)
-
-    print(f"Matched {len(matched)}/{len(genes)} genes ({100 * len(matched) / len(genes):.1f}%)")
+    found, unmatched = resolve_genes(genes, mane, primary)
+    how = {}
+    for recs in found.values():
+        for r in recs:
+            how[r[4]] = how.get(r[4], 0) + 1
+    print(f"Genes with a primary-contig region: {len(genes) - len(unmatched)}/{len(genes)}; records by match: {how}")
     if unmatched:
-        print(f"Unmatched ({len(unmatched)}): {', '.join(unmatched[:10])}"
-              + (", ..." if len(unmatched) > 10 else ""))
+        print(f"Without a primary-contig region ({len(unmatched)}): "
+              + ", ".join(f"{g} ({r})" for g, r in list(unmatched.items())[:10]) + (", ..." if len(unmatched) > 10 else ""))
 
     # Sort by (chrom, start) for a well-formed BED; chrom sort is lexicographic (matches
     # this repo's existing cardio_genes_loc.bed, which is not karyotype-sorted either).
@@ -115,16 +168,16 @@ def main():
     # sources use different conventions, and `bcftools view -R` needs an exact string match with
     # no synonym-file support (unlike VEP's --synonyms). Harmless for whichever convention doesn't
     # match a given input — those rows just never overlap anything.
-    rows = []
-    for gene in matched:
-        chrom, start, end, strand = mane_coords[gene]
-        bed_start = max(0, (start - 1) - args.margin)
-        bed_end = end + args.margin
-        bare_chrom = chrom[3:] if chrom.startswith("chr") else chrom
-        chr_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
-        for c in {bare_chrom, chr_chrom}:
-            rows.append((c, bed_start, bed_end, gene, ".", strand))
-    rows.sort(key=lambda r: (r[0], r[1]))
+    rows = set()
+    for gene, recs in found.items():
+        for chrom, start, end, strand, _ in recs:
+            bed_start = max(0, (start - 1) - args.margin)
+            bed_end = end + args.margin
+            bare_chrom = chrom[3:] if chrom.startswith("chr") else chrom
+            chr_chrom = chrom if chrom.startswith("chr") else f"chr{chrom}"
+            for c in {bare_chrom, chr_chrom}:
+                rows.add((c, bed_start, bed_end, gene, ".", strand))
+    rows = sorted(rows, key=lambda r: (r[0], r[1], r[2], r[3]))
 
     with open(args.output, "w", newline="") as f:
         writer = csv.writer(f, delimiter="\t")
@@ -134,8 +187,8 @@ def main():
 
     if args.unmatched_output:
         with open(args.unmatched_output, "w") as f:
-            f.write("\n".join(unmatched) + "\n")
-        print(f"Wrote {len(unmatched)} unmatched gene names to {args.unmatched_output}")
+            f.write("".join(f"{g}\t{r}\n" for g, r in unmatched.items()))
+        print(f"Wrote {len(unmatched)} genes without a primary-contig region to {args.unmatched_output}")
 
 
 if __name__ == "__main__":
