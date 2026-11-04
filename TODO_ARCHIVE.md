@@ -158,3 +158,7 @@ Status at archiving (2026-10-05): verified since the original text was written -
 - [ ] **`main.sh` deprecated (Mario, 2026-10-02), leftovers:** README still presents `main.sh` as an entry point (lines 3-5, 94-111, 150, 278); `main.sh` and its tests are not moved to `deprecated_scripts/`; `src/hpc/*.sh` are shared with the Nextflow modules, so they stay and `ORCH-1/2/3` stay open; check whether Module 3 / `sarek_pipeline` call `main.sh` or read its `RUNS/` outputs (a `DEC-` record only if so).
 
 Completed: moved approved legacy paths to `trash/legacy_pipeline_20261008_115330/`, not deleted; metadata verified after rename. Active Nextflow calls tools directly; the previous assertion that HPC shell wrappers were shared was incorrect. Module 3/sarek tracked-code searches found no executable caller to the retired paths (one historical Module 3 design-document reference). [Manifest](reports/legacy_cleanup_20261008/manifest.json).
+
+## Archived 2026-11-04T12:57:14+01:00
+
+- [x] **CLOSED 2026-11-04 (Mario): obsolete.** S223 is part of `F2005_union`, re-run 2026-11-03 at `-D 4999` (SpliceAI and Pangolin) with the human Pangolin db (`gencode.v45.ensembl_canonical.grch38.db`) and the current parsers; that table replaces the standalone S223 one. Original: **Re-run Pangolin for S223** (mouse db) **and SpliceAI/Pangolin at `-D 4999`** (S223's are `-D 10000`; all earlier SpliceAI results are `-D 10000`), then re-parse S223 into a NEW file with the new parsers (`MISC-12`). Check the next `RUN_MANIFEST.json` shows `spliceai_distance: 4999`.
