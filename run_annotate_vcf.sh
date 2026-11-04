@@ -27,12 +27,14 @@ if [[ -z "$NEXTFLOW_BIN" ]]; then
 fi
 
 ARGS=("$@")
-INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0 CACHE_DIR=""
+INPUT="" RUN_ID="" PROFILE="standard" SPIP_TIER="" OUTPUT_FORMAT="" RESUME=0 CACHE_DIR="" NF_OUTDIR=""
 FORWARD_ARGS=()
 i=0
 while [[ $i -lt ${#ARGS[@]} ]]; do
 	case "${ARGS[$i]}" in
-	--input_vcf) INPUT="${ARGS[$((i + 1))]}"; FORWARD_ARGS+=("${ARGS[$i]}" "${ARGS[$((i + 1))]}"); i=$((i + 1)) ;;
+	# --input_vcf and --outdir are forwarded after the loop as absolute paths: nextflow is launched from $REPO_ROOT.
+	--input_vcf) INPUT="${ARGS[$((i + 1))]}"; i=$((i + 1)) ;;
+	--outdir) NF_OUTDIR="${ARGS[$((i + 1))]}"; i=$((i + 1)) ;;
 	# --run_id is deliberately dropped from FORWARD_ARGS here, not forwarded as-typed: it's
 	# re-added once, below, from $RUN_ID — the one place this script computes it — so Nextflow
 	# never derives its own value in parallel (see the note below this loop for why that matters).
@@ -51,6 +53,9 @@ if [[ -z "$INPUT" ]]; then
 	echo "error: --input_vcf is required (same as annotate_vcf.nf itself needs it)" >&2
 	exit 2
 fi
+# Relative paths are resolved from the caller's directory here and from $REPO_ROOT by nextflow.
+[[ "$INPUT" = /* ]] || INPUT="$PWD/$INPUT"
+FORWARD_ARGS+=(--input_vcf "$INPUT")
 
 # run_id defaults to the input file name without .gz/.vcf; passed to Nextflow explicitly below.
 if [[ -z "$RUN_ID" ]]; then
@@ -91,7 +96,14 @@ for p in python_spliceai pangolin_python spip_rscript bcftools vcf_parser_python
 	add_external --env "$p" "$p"
 done
 
-OUTDIR="$REPO_ROOT/nf_work/annotation_out/$RUN_ID"
+# The folder Nextflow publishes into: --outdir (relative to the caller's directory), else the config default.
+if [[ -n "$NF_OUTDIR" ]]; then
+	[[ "$NF_OUTDIR" = /* ]] || NF_OUTDIR="$PWD/$NF_OUTDIR"
+	FORWARD_ARGS+=(--outdir "$NF_OUTDIR")
+else
+	NF_OUTDIR="$REPO_ROOT/nf_work/annotation_out"
+fi
+OUTDIR="$NF_OUTDIR/$RUN_ID"
 INFO_DIR="$OUTDIR/pipeline_info"
 FORWARD_ARGS+=(--provenance_stamp "$INFO_DIR/TABLE_STAMP.json")
 NF_LOG="$INFO_DIR/nextflow_$(date +%Y-%m-%d_%H-%M-%S).log"

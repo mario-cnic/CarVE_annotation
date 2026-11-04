@@ -70,3 +70,14 @@ def test_split_vcf_header_fidelity():
             assert vf.header.contigs["chr1"].length == 248956422
     finally:
         shutil.rmtree(temp_dir)
+
+
+def test_split_vcf_without_records_writes_one_header_only_chunk(tmp_path):
+    # CHUNK_VCF's output glob needs at least one chunk (e.g. an input with no site in the gene BED).
+    mock_vcf = str(tmp_path / "input.vcf")
+    create_mock_vcf(mock_vcf, num_records=0)
+    chunk_files = split_vcf_into_chunks(mock_vcf, str(tmp_path / "chunks"), chunk_size=10)
+    assert [os.path.basename(f) for f in chunk_files] == ["chunk_0000.vcf.gz"]
+    assert os.path.exists(chunk_files[0] + ".tbi")
+    with pysam.VariantFile(chunk_files[0]) as vf:
+        assert list(vf) == [] and "TEST_INFO" in vf.header.info

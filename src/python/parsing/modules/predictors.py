@@ -1,6 +1,7 @@
 """
 Missense Pathogenicity Ensembles, AlphaMissense, REVEL, and dbNSFP Predictors.
 """
+import os
 import re
 
 import numpy as np
@@ -219,6 +220,11 @@ def parse_dbnsfp(data: pd.DataFrame, transcript: str, dbnsfp_cols: str):
             logger.warning(f"Transcript {transcript} corresponds to multiple proteins {protein_vals}, skipping dbnsfp parsing")
             return data
     
+    # Reached only on a one-row frame (PRED-2). The CLI default path is not shipped and
+    # TSV_TO_TABLE does not pass one, so a missing file skips this legacy step instead of failing.
+    if not dbnsfp_cols or not os.path.isfile(dbnsfp_cols):
+        logger.warning(f"dbNSFP column file {dbnsfp_cols!r} not found, skipping dbnsfp parsing")
+        return data
     dbnsfp_cols_df = pd.read_csv(dbnsfp_cols, sep='\t')
 
     def extract_dbnsfp_value(row, col: str, target_id: str, id_column: str):

@@ -67,6 +67,12 @@ def split_vcf_into_chunks(input_vcf: str, output_dir: str, chunk_size: int = 200
     if current_out_vcf is not None:
         close_and_compress_chunk()
 
+    # No records (e.g. nothing inside the gene BED): one header-only chunk, so CHUNK_VCF's output
+    # glob still matches; CONCAT_CHUNKS already handles header-only chunks.
+    if not created_chunks:
+        start_new_chunk(0)
+        close_and_compress_chunk()
+
     in_vcf.close()
 
     print(f"[VCF Chunker] Split {record_count} records from {input_vcf} into {len(created_chunks)} chunks (size ~{chunk_size}) in {output_dir}")

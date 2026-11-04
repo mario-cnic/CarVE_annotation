@@ -3,10 +3,9 @@ import sys
 import pandas as pd
 import numpy as np
 
-# Add src/python and shared/utils/src to path via config.py
+# Repo parsing package only; config.py would put shared/utils/src (its own filter_variants/modules) first.
 PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python"))
-import config
+sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python", "parsing"))
 
 from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS
 

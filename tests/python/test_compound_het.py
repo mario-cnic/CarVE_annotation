@@ -15,8 +15,7 @@ import pandas as pd
 import unittest
 
 PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python"))
-import config
+sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python", "parsing"))
 
 from filter_variants import mark_compound_het, analyze_pedigree_inheritance
 
