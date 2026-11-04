@@ -183,8 +183,15 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
     return data
 
 
-def decode_splicevault_prediction(pred_str: str, var_pos: int, strand: str = '+') -> str:
-    """Parses colon-separated values into human-readable details."""
+def decode_splicevault_prediction(pred_str: str, site_pos: int | None, strand: str = '+') -> str:
+    """Parses `rank:type:transcript_impact:percent:frame` events into human-readable details.
+
+    For CD/CA the impact is the distance from the annotated splice site that SpliceAI predicts lost
+    (`SpliceVault_site_pos`) to the cryptic site, along the transcript (VEP SpliceVault plugin docs:
+    "Cryptic positions are relative to this genomic coordinate"; negative-strand distances are 5'->3').
+    So up/downstream are transcript-relative, and the genomic position is site_pos + offset on '+',
+    site_pos - offset on '-'. Without site_pos no position is given (PRED-7).
+    """
     if not pred_str or pd.isna(pred_str) or pred_str in ("N/A", "nan", "."):
         return "No prediction"
     
@@ -217,10 +224,14 @@ def decode_splicevault_prediction(pred_str: str, var_pos: int, strand: str = '+'
         else:
             try:
                 offset = int(impact)
-                predicted_site = var_pos - offset if strand == '-' else var_pos + offset
                 direction = "downstream" if offset > 0 else "upstream"
-                abs_offset = abs(offset)
-                rel_desc = "at mutation site" if offset == 0 else f"{abs_offset} bp {direction} (pos:{predicted_site})"
+                if offset == 0:
+                    rel_desc = "the annotated splice site"
+                elif site_pos is None:
+                    rel_desc = f"{abs(offset)} bp {direction} of the annotated splice site"
+                else:
+                    predicted_site = site_pos - offset if strand == '-' else site_pos + offset
+                    rel_desc = f"{abs(offset)} bp {direction} of the annotated splice site (pos:{predicted_site})"
                 impact_desc = f"Cryptic Site at {rel_desc}"
             except ValueError:
                 impact_desc = f"Offset {impact} bp"
@@ -258,11 +269,10 @@ def parse_splicevault(data: pd.DataFrame):
             else:
                 return ("Not covered", "not_covered")
         
-        pos_val = row.get("POS")
         try:
-            var_pos = int(pos_val)
+            site = int(float(site_pos))
         except (ValueError, TypeError):
-            var_pos = 0
+            site = None
             
         strand_val = row.get("STRAND")
         if pd.isna(strand_val) or str(strand_val) in ("", ".", "N/A"):
@@ -271,7 +281,7 @@ def parse_splicevault(data: pd.DataFrame):
         strand_str = str(strand_val).strip()
         strand = '-' if strand_str in ("-1", "-", "negative") else '+'
         
-        decoded = decode_splicevault_prediction(str(pred_str), var_pos, strand)
+        decoded = decode_splicevault_prediction(str(pred_str), site, strand)
         if decoded and decoded != "No prediction":
             status = "aberrant_event_detected"
         elif has_coverage:
@@ -285,7 +295,7 @@ def parse_splicevault(data: pd.DataFrame):
 
     try:
         res = apply_rows(data, process_row,
-                         ["SpliceVault_top_events", "SpliceVault_site_sample_count", "SpliceVault_site_pos", "POS",
+                         ["SpliceVault_top_events", "SpliceVault_site_sample_count", "SpliceVault_site_pos",
                           "STRAND", "strand"],
                          ["SpliceVault_Predictions_Decoded", "SpliceVault_status"])
         data["SpliceVault_Predictions_Decoded"] = res["SpliceVault_Predictions_Decoded"]
