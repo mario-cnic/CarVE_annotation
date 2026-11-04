@@ -346,3 +346,9 @@ def test_missense_scores_are_the_row_transcripts_not_the_max(tmp_path):
     assert out["MetaLR_score"].tolist() == [0.55] * 3                  # one value per variant
     assert out["REVEL_score_anytranscript_max"].tolist() == [0.90] * 3
     assert out["dbNSFP_match"].tolist() == ["matched_transcript", "matched_transcript", "no_entry_for_row_transcript"]
+
+
+def test_spip_without_column_needs_no_identity():
+    # Same order as parse_spliceai_custom: a table without SPiP is returned unchanged, not refused.
+    df = pd.DataFrame({"Feature": ["ENST00000000001"]})
+    pd.testing.assert_frame_equal(sp.parse_spip(df.copy(), identity=None), df)

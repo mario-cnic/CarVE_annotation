@@ -111,12 +111,12 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
     (maximum over the row's gene's SPiP transcripts), `SPiP_samegene_transcript` (the `NM_` it comes from),
     `SPiP_samegene_n_transcripts`. These describe the GENE, not the row's transcript.
     """
-    if identity is None:
-        raise ValueError("parse_spip requires a GeneIdentity (no silent fallback to unmatched scores)")
-    logger.info("Building expanded SPiP columns with mechanism classification (transcript-matched)")
     if spip_col not in data.columns:
         logger.warning(f"Column {spip_col} not found in data")
         return data
+    if identity is None:
+        raise ValueError("parse_spip requires a GeneIdentity (no silent fallback to unmatched scores)")
+    logger.info("Building expanded SPiP columns with mechanism classification (transcript-matched)")
 
     def col(name):
         return data[name].tolist() if name in data.columns else [None] * len(data)
