@@ -27,7 +27,7 @@ try:
     from .modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi,
+        parse_avi, parse_utrannotator,
     )
     from .modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -68,7 +68,7 @@ except ImportError:
     from modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense, parse_dbnsfp,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi,
+        parse_avi, parse_utrannotator,
     )
     from modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -325,6 +325,7 @@ def main(args: list[str] | None):
         "AVI_status",
         "5UTR_annotation",
         "5UTR_consequence",
+        "UTRAnnotator_status",
         "gene_priority",
         "SOURCE",
         "EVIDENCE",
@@ -433,6 +434,7 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = parse_nmd(data)
     data = parse_remm(data)
     data = parse_avi(data)
+    data = parse_utrannotator(data)
 
     data = build_qc_status(data)
     data = build_newImpact(data)

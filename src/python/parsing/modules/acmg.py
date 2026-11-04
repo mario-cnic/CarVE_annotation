@@ -7,6 +7,7 @@ from .io_qc import _safe_numeric_series, _safe_string_series
 from .population import resolve_population_af, rarity_af, GNOMAD_GRPMAX
 from .clinvar import annotate_clinvar, clinvar_masks
 from .splicing import build_spliceMAX, _extract_spliceai_score, NEW_SPIP_COLUMNS
+from .predictors import utr5_high_impact_mask
 
 
 def _extract_clinvar_status(df: pd.DataFrame):
@@ -81,27 +82,9 @@ def build_newImpact(data: pd.DataFrame):
     missense_high_mask = ((am_score >= 0.564) | (am_class == "pathogenic")) & (revel_score >= 0.75)
     data.loc[missense_high_mask, "NEW_IMPACT"] = "HIGH"
 
-    # 3. UTR ANNOTATIONS
-    utr_annot_cols = [
-        "lost_stop_codon", "lost_start_codon", "mrl_gainedOrLost",
-        "utr_num_kozak_gainedOrLost", "utr_num_uAUG_gainedOrLost",
-        "num_polyA_signal_gainedOrLost", "tss_kozak_score_gainedOrLost"
-    ]
-    existing_utr_cols = [col for col in utr_annot_cols if col in data.columns]
-    if existing_utr_cols:
-        utr_values_of_interest = ["gained", "lost", "true"]
-        utrann_high_mask = (
-            data[existing_utr_cols]
-            .astype(str)
-            .apply(lambda col: col.str.lower())
-            .isin(utr_values_of_interest)
-            .any(axis=1)
-        )
-        data.loc[utrann_high_mask, "NEW_IMPACT"] = "HIGH"
-
-    if "5UTR_consequence" in data.columns:
-        utrant_high_mask = data["5UTR_consequence"].notna() & (data["5UTR_consequence"].astype(str).str.strip() != "") & (data["5UTR_consequence"].astype(str) != "nan")
-        data.loc[utrant_high_mask, "NEW_IMPACT"] = "HIGH"
+    # 3. 5'UTR uORF: a high-impact change raises LOW/MODIFIER to MODERATE
+    utr5_mod_mask = data["NEW_IMPACT"].isin(["LOW", "MODIFIER"]) & utr5_high_impact_mask(data)
+    data.loc[utr5_mod_mask, "NEW_IMPACT"] = "MODERATE"
 
     # 4. CLINVAR PATHOGENIC EVIDENCE
     is_clinvar_path, _ = _extract_clinvar_status(data)

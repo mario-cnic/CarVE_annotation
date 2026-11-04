@@ -8,6 +8,7 @@ from .io_qc import _safe_numeric_series, _safe_string_series, build_qc_status
 from .splicing import _extract_spliceai_details, NEW_SPIP_COLUMNS
 from .disease_hpo import apply_disease_phenotype_curation, HPO_GENE_PANELS
 from .acmg import build_acmg_criteria, _extract_clinvar_status
+from .predictors import utr5_high_impact_mask
 from .population import annotate_population_af, resolve_population_af, rarity_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 
@@ -60,26 +61,7 @@ def build_priority_tier(
     sv_aberrant = _safe_string_series(data, "SpliceVault_status") == "aberrant_event_detected"
     bp_disrupt = _safe_string_series(data, "Branchpoint_status") == "disrupted"
 
-    utr_annot_cols = [
-        "lost_stop_codon", "lost_start_codon", "mrl_gainedOrLost",
-        "utr_num_kozak_gainedOrLost", "utr_num_uAUG_gainedOrLost",
-        "num_polyA_signal_gainedOrLost", "tss_kozak_score_gainedOrLost"
-    ]
-    existing_utr_cols = [col for col in utr_annot_cols if col in data.columns]
-    utr_disrupt = pd.Series(False, index=data.index)
-    if existing_utr_cols:
-        utr_values_of_interest = ["gained", "lost", "true"]
-        utr_disrupt = (
-            data[existing_utr_cols]
-            .astype(str)
-            .apply(lambda col: col.str.lower())
-            .isin(utr_values_of_interest)
-            .any(axis=1)
-        )
-
-    if "5UTR_consequence" in data.columns:
-        utr_5prime_mask = data["5UTR_consequence"].notna() & (data["5UTR_consequence"].astype(str).str.strip() != "") & (data["5UTR_consequence"].astype(str) != "nan")
-        utr_disrupt = utr_disrupt | utr_5prime_mask
+    utr_disrupt = utr5_high_impact_mask(data)
 
     is_clinvar_path, is_clinvar_benign = _extract_clinvar_status(data)
     clinvar_stars = pd.to_numeric(data["ClinVar_Stars"], errors="coerce")
@@ -412,7 +394,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
         "SPiP_prediction", "SPiP", "Pangolin_max_score", "Pangolin",
         "SpliceVault_status", "Branchpoint_status",
         "am_pathogenicity", "AlphaMissense", "REVEL_score", "REVEL",
-        "lost_stop_codon", "lost_start_codon", "mrl_gainedOrLost", "utr_num_kozak_gainedOrLost", "5UTR_consequence",
+        "UTRAnnotator_status", "5UTR_consequence",
         "QC_STATUS", "QC_DETAIL"
     ]
 
@@ -454,7 +436,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
         "AlphaGenome AVI (informational)": ["AVI_PHRED"],
         "ClinVar Pathogenicity": ["ClinVarVCF_CLNSIG", "clinvar_clnsig", "CLIN_SIG", "CLNSIG", "CLINVAR_DISPLAY", "ClinVar"],
         "pLI Gene LoF Intolerance": ["pLI_gene_value", "pLI"],
-        "5'/3' UTR & Kozak Regulatory": ["lost_stop_codon", "5UTR_consequence", "utr_num_kozak_gainedOrLost", "mrl_gainedOrLost"]
+        "5' UTR uORF (UTRAnnotator)": ["5UTR_consequence", "UTRAnnotator_status"]
     }
 
     audit_results = {}

@@ -1,6 +1,8 @@
 """
 Missense Pathogenicity Ensembles, AlphaMissense, REVEL, and dbNSFP Predictors.
 """
+import re
+
 import numpy as np
 import pandas as pd
 from . import logger
@@ -387,3 +389,125 @@ def parse_avi(data: pd.DataFrame) -> pd.DataFrame:
     data["AVI_status"] = status
     logger.info(f"New column `AVI_status` created with value counts: {dict(status.value_counts())}")
     return data
+
+
+UTR5_HIGH_IMPACT = "high_impact"
+UTR5_OTHER = "other"
+UTR5_UNCLASSIFIED = "unclassified"
+UTR5_NO_EFFECT = "no_uorf_effect"
+UTR5_NOT_EVALUATED = "not_evaluated"
+UTR5_NOT_APPLICABLE = "not_applicable"
+UTR5_NOT_ANNOTATED = "not_annotated"
+
+_UTR5_OORF = {"inframe_oorf", "outofframe_oorf"}
+_UTR5_KOZAK_HIGH = {"strong", "moderate"}
+_UTR5_KOZAK_KNOWN = _UTR5_KOZAK_HIGH | {"weak"}
+_UTR5_NEVER_HIGH = ("premature_start_codon_loss", "uorf_stop_codon_gain")
+
+
+def _utr5_entries(annotation) -> list[dict]:
+    """Split a 5UTR_annotation string into one key=value dict per affected uORF ('&' or ',' between uORFs)."""
+    entries = []
+    for chunk in re.split(r"[&,]", str(annotation)):
+        fields = {}
+        for item in chunk.split(":"):
+            key, sep, value = item.partition("=")
+            if sep:
+                fields[key.strip()] = value.strip()
+        if fields:
+            entries.append(fields)
+    return entries
+
+
+def _utr5_start_or_evidence(entry: dict) -> bool | None:
+    """True if the uORF start has a strong/moderate Kozak or translation evidence, False if neither, None if unknown."""
+    kozak = entry.get("KozakStrength", "").lower()
+    evidence = entry.get("Evidence", "").lower()
+    if kozak in _UTR5_KOZAK_HIGH or evidence == "true":
+        return True
+    if kozak == "weak" and evidence == "false":
+        return False
+    return None
+
+
+def _utr5_entry_class(consequence: str, entry: dict) -> str:
+    """High-impact uORF-perturbing variant as defined by Whiffin et al. 2020 (Nat Commun 11:2523, Methods)."""
+    if "premature_start_codon_gain" in consequence:
+        if entry.get("type", "").lower() not in _UTR5_OORF:
+            return UTR5_OTHER if entry.get("type") else UTR5_UNCLASSIFIED
+        kozak = entry.get("KozakStrength", "").lower()
+        if kozak in _UTR5_KOZAK_HIGH:
+            return UTR5_HIGH_IMPACT
+        return UTR5_OTHER if kozak in _UTR5_KOZAK_KNOWN else UTR5_UNCLASSIFIED
+    if "uorf_stop_codon_loss" in consequence:
+        alt_stop = entry.get("AltStop", "").lower()
+        if alt_stop == "true":
+            return UTR5_OTHER
+        if alt_stop != "false":
+            return UTR5_UNCLASSIFIED
+        strong = _utr5_start_or_evidence(entry)
+        return {True: UTR5_HIGH_IMPACT, False: UTR5_OTHER, None: UTR5_UNCLASSIFIED}[strong]
+    if "uorf_frameshift" in consequence:
+        ref_type = entry.get("ref_type", "").lower()
+        alt_type = entry.get("alt_type", "").lower()
+        if not ref_type or not alt_type:
+            return UTR5_UNCLASSIFIED
+        if ref_type in _UTR5_OORF or alt_type not in _UTR5_OORF:
+            return UTR5_OTHER
+        strong = _utr5_start_or_evidence(entry)
+        return {True: UTR5_HIGH_IMPACT, False: UTR5_OTHER, None: UTR5_UNCLASSIFIED}[strong]
+    return UTR5_UNCLASSIFIED
+
+
+def _utr5_row_class(consequence, annotation) -> str:
+    terms = [t.strip().lower() for t in re.split(r"[&,]", str(consequence)) if t.strip()]
+    classes = []
+    for term in terms:
+        if any(k in term for k in _UTR5_NEVER_HIGH):
+            classes.append(UTR5_OTHER)
+            continue
+        entries = _utr5_entries(annotation)
+        classes += [_utr5_entry_class(term, e) for e in entries] or [UTR5_UNCLASSIFIED]
+    for value in (UTR5_HIGH_IMPACT, UTR5_UNCLASSIFIED, UTR5_OTHER):
+        if value in classes:
+            return value
+    return UTR5_UNCLASSIFIED
+
+
+def parse_utrannotator(data: pd.DataFrame) -> pd.DataFrame:
+    """Derive UTRAnnotator_status per row from the VEP UTRAnnotator columns.
+
+    high_impact follows Whiffin et al. 2020: a uAUG gain that forms an in-frame or out-of-frame
+    overlapping ORF (oORF) from a strong/moderate Kozak start; a uORF stop loss with no other stop
+    in the UTR, from a strong/moderate Kozak start or a uORF with translation evidence; and, by the
+    same rule, a frameshift that turns a uORF into an oORF. uAUG losses, uSTOP gains and other
+    changes are `other`; `unclassified` when a deciding field is missing. 5'UTR rows the plugin
+    evaluated without a uORF change are no_uorf_effect; not_evaluated when the plugin left no output.
+    """
+    if "5UTR_consequence" not in data.columns:
+        data["UTRAnnotator_status"] = UTR5_NOT_ANNOTATED
+        logger.warning("5UTR_consequence column absent: UTRAnnotator_status set to not_annotated")
+        return data
+    conseq = data["5UTR_consequence"].astype(object).where(data["5UTR_consequence"].notna(), "").astype(str).str.strip()
+    has_effect = ~conseq.isin(["", "-", ".", "nan"])
+    vep_conseq = data["Consequence"].fillna("").astype(str) if "Consequence" in data.columns else pd.Series("", index=data.index)
+    utr5 = vep_conseq.str.contains("5_prime_UTR_variant", regex=False)
+    evaluated = data["Existing_uORFs"].notna() if "Existing_uORFs" in data.columns else pd.Series(False, index=data.index)
+    status = pd.Series(UTR5_NOT_APPLICABLE, index=data.index, dtype=object)
+    status.loc[utr5] = UTR5_NOT_EVALUATED
+    status.loc[utr5 & evaluated] = UTR5_NO_EFFECT
+    if has_effect.any():
+        annotation = data.loc[has_effect, "5UTR_annotation"] if "5UTR_annotation" in data.columns else pd.Series("", index=data.index[has_effect])
+        status.loc[has_effect] = [
+            _utr5_row_class(c, "" if pd.isna(a) else a) for c, a in zip(conseq[has_effect], annotation)
+        ]
+    data["UTRAnnotator_status"] = status
+    logger.info(f"New column `UTRAnnotator_status` created with value counts: {dict(status.value_counts())}")
+    return data
+
+
+def utr5_high_impact_mask(data: pd.DataFrame) -> pd.Series:
+    """Rows whose UTRAnnotator_status is high_impact; derives the status first when the column is absent."""
+    if "UTRAnnotator_status" not in data.columns:
+        data = parse_utrannotator(data.copy())
+    return data["UTRAnnotator_status"].eq(UTR5_HIGH_IMPACT)
