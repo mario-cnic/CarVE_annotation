@@ -30,6 +30,16 @@ HPO_GENE_PANELS = {
 }
 
 
+# Core gene panels per disease group, used by load_cardiac_disease_gene_curation and
+# apply_disease_phenotype_curation.
+DCM_CORE = {"BAG3", "DES", "DMD", "FLNC", "LMNA", "MYH7", "NKX2-5", "RBM20", "SCN5A", "TNNC1", "TNNT2", "TTN", "DSP", "ACTC1", "ACTN2", "JPH2", "NEXN", "PLN", "TPM1", "VCL", "MYBPC3", "PKP2", "DSG2", "DSC2", "PRDM16", "TBX20"}
+HCM_CORE = {"MYBPC3", "MYH7", "TNNT2", "TNNI3", "TPM1", "MYL2", "MYL3", "ACTC1", "CSRP3", "TNNC1", "JPH2", "PLN", "FHOD3", "GLA", "LAMP2", "PRKAG2", "TTR"}
+ARVC_CORE = {"PKP2", "DSP", "DSG2", "DSC2", "JUP", "TMEM43", "FLNC", "DES", "LMNA", "PLN", "CTNNA3", "RYR2"}
+CHANNELOPATHY_CORE = {"KCNQ1", "KCNH2", "SCN5A", "RYR2", "CASQ2", "CALM1", "CALM2", "CALM3", "TRDN", "KCNJ2", "CACNA1C", "TRPM4", "AKAP9", "ANK2", "KCNE1", "KCNE2"}
+AORTIC_CORE = {"FBN1", "TGFBR1", "TGFBR2", "SMAD3", "TGFB2", "ACTA2", "MYH11", "COL3A1", "MYLK", "LOX", "PRKG1", "EFEMP2", "ELN", "FLNA", "NOTCH1", "SLC2A10"}
+STORAGE_INFILTRATIVE_CORE = {"GLA", "LAMP2", "TTR", "PRKAG2", "GAA", "ALPK3", "AGGL"}
+
+
 @functools.lru_cache(maxsize=4)
 def load_cardiac_disease_gene_curation(v4_path: str, v2_path: str | None = None) -> dict[str, dict]:
     """Loads and merges curated disease gene evidence databases; a missing or empty V4 list is an error."""
@@ -70,13 +80,6 @@ def load_cardiac_disease_gene_curation(v4_path: str, v2_path: str | None = None)
                     "v2_priority": prio
                 }
 
-    DCM_CORE = {"BAG3", "DES", "DMD", "FLNC", "LMNA", "MYH7", "NKX2-5", "RBM20", "SCN5A", "TNNC1", "TNNT2", "TTN", "DSP", "ACTC1", "ACTN2", "JPH2", "NEXN", "PLN", "TPM1", "VCL", "MYBPC3", "PKP2", "DSG2", "DSC2", "PRDM16", "TBX20"}
-    HCM_CORE = {"MYBPC3", "MYH7", "TNNT2", "TNNI3", "TPM1", "MYL2", "MYL3", "ACTC1", "CSRP3", "TNNC1", "JPH2", "PLN", "FHOD3", "GLA", "LAMP2", "PRKAG2", "TTR"}
-    ARVC_CORE = {"PKP2", "DSP", "DSG2", "DSC2", "JUP", "TMEM43", "FLNC", "DES", "LMNA", "PLN", "CTNNA3", "RYR2"}
-    CHANNELOPATHY_CORE = {"KCNQ1", "KCNH2", "SCN5A", "RYR2", "CASQ2", "CALM1", "CALM2", "CALM3", "TRDN", "KCNJ2", "CACNA1C", "TRPM4", "AKAP9", "ANK2", "KCNE1", "KCNE2"}
-    AORTIC_CORE = {"FBN1", "TGFBR1", "TGFBR2", "SMAD3", "TGFB2", "ACTA2", "MYH11", "COL3A1", "MYLK", "LOX", "PRKG1", "EFEMP2", "ELN", "FLNA", "NOTCH1", "SLC2A10"}
-    STORAGE_INFILTRATIVE_CORE = {"GLA", "LAMP2", "TTR", "PRKAG2", "GAA", "ALPK3", "AGGL"}
-
     for g, info in curation.items():
         v4_ev = info["v4_evidence"]
         v2_p = info["v2_priority"]
@@ -116,12 +119,6 @@ def apply_disease_phenotype_curation(
     phenotype_clean = disease_phenotype.lower()
     symbol_col = "SYMBOL" if "SYMBOL" in data.columns else ("Gene" if "Gene" in data.columns else None)
 
-    DCM_CORE = {"BAG3", "DES", "DMD", "FLNC", "LMNA", "MYH7", "NKX2-5", "RBM20", "SCN5A", "TNNC1", "TNNT2", "TTN", "DSP", "ACTC1", "ACTN2", "JPH2", "NEXN", "PLN", "TPM1", "VCL", "MYBPC3", "PKP2", "DSG2", "DSC2", "PRDM16", "TBX20"}
-    HCM_CORE = {"MYBPC3", "MYH7", "TNNT2", "TNNI3", "TPM1", "MYL2", "MYL3", "ACTC1", "CSRP3", "TNNC1", "JPH2", "PLN", "FHOD3", "GLA", "LAMP2", "PRKAG2", "TTR"}
-    ARVC_CORE = {"PKP2", "DSP", "DSG2", "DSC2", "JUP", "TMEM43", "FLNC", "DES", "LMNA", "PLN", "CTNNA3", "RYR2"}
-    CHANNELOPATHY_CORE = {"KCNQ1", "KCNH2", "SCN5A", "RYR2", "CASQ2", "CALM1", "CALM2", "CALM3", "TRDN", "KCNJ2", "CACNA1C", "TRPM4", "AKAP9", "ANK2", "KCNE1", "KCNE2"}
-    AORTIC_CORE = {"FBN1", "TGFBR1", "TGFBR2", "SMAD3", "TGFB2", "ACTA2", "MYH11", "COL3A1", "MYLK", "LOX", "PRKG1", "EFEMP2", "ELN", "FLNA", "NOTCH1", "SLC2A10"}
-    STORAGE_INFILTRATIVE_CORE = {"GLA", "LAMP2", "TTR", "PRKAG2", "GAA", "ALPK3", "AGGL"}
 
     if "dcm" in phenotype_clean:
         primary_panel = DCM_CORE
