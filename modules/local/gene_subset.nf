@@ -15,9 +15,13 @@ process GENE_SUBSET {
     output:
     tuple val(meta), path("subset.vcf.gz"), path("subset.vcf.gz.tbi"), emit: vcf
 
+    // `view -R` writes records in the BED's contig order; `sort` restores the header's order.
+    // Sort temp files go in the task directory, not the node's TMPDIR.
     script:
     """
-    ${params.bcftools} view -R ${gene_bed} ${vcf} -Oz -o subset.vcf.gz
+    set -o pipefail
+    ${params.bcftools} view -R ${gene_bed} ${vcf} -Ou \\
+        | ${params.bcftools} sort -T ./bcftools-sort.XXXXXX -Oz -o subset.vcf.gz -
     ${params.tabix} -p vcf subset.vcf.gz
     """
 }
