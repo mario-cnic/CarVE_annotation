@@ -26,6 +26,13 @@ process MERGE_ANNOTATIONS {
 
     ${params.bcftools} annotate -a ${bp_vcf} -c Branchpointer_prob,Branchpointer_U2_energy,Branchpoint_disrupted,LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
     ${params.tabix} -f ${meta.partition_id}.annotated.vcf.gz
+
+    # The merged VCF keeps exactly VEP's CHROM/POS/REF/ALT records (MISC-6).
+    site_keys() { ${params.bcftools} query -f '%CHROM\\t%POS\\t%REF\\t%ALT\\n' "\$1" | LC_ALL=C sort -S 1G -T . | sha256sum | cut -d' ' -f1; }
+    if [ "\$(site_keys ${vep_vcf})" != "\$(site_keys ${meta.partition_id}.annotated.vcf.gz)" ]; then
+        echo "MERGE_ANNOTATIONS: CHROM/POS/REF/ALT of the merged VCF differ from VEP's" >&2
+        exit 1
+    fi
     """
 
     stub:

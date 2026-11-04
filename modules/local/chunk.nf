@@ -80,5 +80,13 @@ process CONCAT_CHUNKS {
         exit 1
     fi
     echo "CONCAT_CHUNKS (${suffix}): record count parity confirmed (\$final_count records)"
+
+    # Same CHROM/POS/REF/ALT multiset as the input, not only the same count (MISC-6).
+    site_keys() { ${params.bcftools} query -f '%CHROM\\t%POS\\t%REF\\t%ALT\\n' "\$1" | LC_ALL=C sort -S 1G -T . | sha256sum | cut -d' ' -f1; }
+    if [ "\$(site_keys ${orig_vcf})" != "\$(site_keys ${final_vcf})" ]; then
+        echo "CONCAT_CHUNKS (${suffix}): CHROM/POS/REF/ALT of the output differ from the input" >&2
+        exit 1
+    fi
+    echo "CONCAT_CHUNKS (${suffix}): CHROM/POS/REF/ALT identical to the input"
     """
 }
