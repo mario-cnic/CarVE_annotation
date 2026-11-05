@@ -8,8 +8,11 @@ import pytest
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../../src/python")))
 import annotate_branchpointer as ab  # noqa: E402
 
-# chrom, bp_start, bp_end, acceptor, score, strand
-BED = [("chr1", 1000, 1001, 1030, 0.91, "+"), ("chr1", 5000, 5001, 4970, 0.35, "-")]
+# chrom, bp_start, bp_end, acceptor (0-based exon first base), score, strand. Branchpoints at 1-based 1001
+# (+, exon starts at 1031) and 5001 (-, exon starts at 4971): both 30 bases from the 3'SS. The 8001 one is
+# 100 bases away, so it matches only on the branchpoint itself.
+BED = [("chr1", 1000, 1001, 1030, 0.91, "+"), ("chr1", 5000, 5001, 4970, 0.35, "-"),
+       ("chr1", 8000, 8001, 8100, 0.50, "+")]
 
 
 @pytest.fixture
@@ -32,13 +35,24 @@ def write_vcf(path, records, contigs=("chr1", "chr2")):
 
 def test_lookup_fields_only(tmp_path, bed):
     vcf, out = tmp_path / "in.vcf", tmp_path / "out.vcf"
-    write_vcf(vcf, [("chr1", 1001), ("chr1", 5001), ("chr1", 3000), ("chr2", 1001)])
+    write_vcf(vcf, [("chr1", 1001), ("chr1", 5001), ("chr1", 3000), ("chr1", 8000), ("chr1", 8001), ("chr2", 1001)])
     ab.annotate_branchpoint_vcf(str(vcf), str(out), bed)
     with pysam.VariantFile(str(out)) as vf:
         assert set(vf.header.info) == {"LaBranchoR_score", "LaBranchoR_acc_dist"} | {t for t, _, _ in ab.ISM_INFO}
         got = [(r.pos, r.info.get("LaBranchoR_score"), r.info.get("LaBranchoR_acc_dist")) for r in vf]
-    # on each predicted branchpoint; off any; chr2 not in the BED index
-    assert got == [(1001, pytest.approx(0.91), 29), (5001, pytest.approx(0.35), 31), (3000, None, None), (1001, None, None)]
+    # on each predicted branchpoint; off any; the base before an out-of-range branchpoint; on it; chr2 not in the BED index
+    assert got == [(1001, pytest.approx(0.91), 30), (5001, pytest.approx(0.35), 30), (3000, None, None),
+                   (8000, None, None), (8001, pytest.approx(0.50), 100), (1001, None, None)]
+
+
+def test_acc_dist_matches_ism_dist(tmp_path, bed, ism_table):
+    # the + BED branchpoint and the + ISM row share the 3'SS (1030): both distances count the same bases
+    vcf, out = tmp_path / "in.vcf", tmp_path / "out.vcf"
+    write_alleles(vcf, [("chr1", 1001, "A", "T")])
+    ab.annotate_branchpoint_vcf(str(vcf), str(out), bed, ism_table)
+    with pysam.VariantFile(str(out)) as vf:
+        r = next(iter(vf))
+        assert r.info["LaBranchoR_acc_dist"] == r.info["LaBranchoR_ISM_dist"] == 30
 
 
 def test_missing_bed_fails(tmp_path):

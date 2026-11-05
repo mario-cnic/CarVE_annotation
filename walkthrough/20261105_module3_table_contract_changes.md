@@ -26,6 +26,7 @@ Notes on the ISM columns:
 Kept, with corrected meaning (PRED-18):
 - `LaBranchoR_score` is the probability of LaBranchoR's top branch point within 2 bp of the variant. It describes the site; the alleles are not scored.
 - `LaBranchoR_acc_dist` is the distance from the variant to that branch point's 3' splice site. The old dictionary said "from the branch point".
+  2026-11-05T15:45+01:00: corrected by PRED-21. It counted one base too few on + and one too many on −; it now counts like `LaBranchoR_ISM_dist` and the HGVS intron offset (1 = last intron base). Values in tables built before this change are off by one.
 - `LaBranchoR_status` stays `scored` / `not_covered`.
 
 ## B. Value changes in existing columns

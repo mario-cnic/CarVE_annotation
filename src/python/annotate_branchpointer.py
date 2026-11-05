@@ -6,7 +6,8 @@ The LaBranchoR BED holds the top predicted branchpoint per 3' splice site (GENCO
 GRCh38; built by src/tools/build_labranchor_grch38.py). A variant within 2 bp of such a branchpoint gets:
 - LaBranchoR_score: LaBranchoR's probability for that branchpoint (0.0 - 1.0), a property of the site, not
   of the variant's alleles.
-- LaBranchoR_acc_dist: distance in bp from the variant to that intron's 3' splice site.
+- LaBranchoR_acc_dist: bases from the variant to that intron's 3' splice site (1 = last intron base, as
+  LaBranchoR_ISM_dist and the HGVS intron offset).
 
 These two fields score no REF/ALT sequence (PRED-18): they show that a variant sits on a predicted
 branchpoint, not that it disrupts it. The allele-aware fields come from LaBranchoR's in silico mutagenesis
@@ -31,8 +32,9 @@ DEFAULT_LABRANCHOR_BED = "/home/mruizp/data_lab_PGP/resources/annotation/labranc
 def nearby_branchpoint(tbx, chrom: str, pos: int):
     """(score, distance to the 3'SS) of the first BED branchpoint within 2 bp of `pos`, or None.
 
-    BED columns: chrom, bp_start, bp_end, acceptor, score, strand. A row qualifies when the variant lies in
-    the branchpoint interval, or 18-44 bp from the acceptor (LaBranchoR's usual branchpoint range)."""
+    BED columns: chrom, bp_start, bp_end (0-based, half-open), acceptor (0-based coordinate of the exon's
+    first base), score, strand. `pos` is 1-based. A row qualifies when the variant lies in the branchpoint
+    interval, or 18-44 bases from the 3' splice site (LaBranchoR's usual branchpoint range)."""
     query_chrom = chrom if chrom.startswith("chr") else "chr" + chrom
     try:
         rows = tbx.fetch(query_chrom, max(0, pos - 2), pos + 2)
@@ -40,11 +42,12 @@ def nearby_branchpoint(tbx, chrom: str, pos: int):
         return None
     for row in rows:
         parts = row.rstrip("\n").split("\t")
-        if len(parts) < 6:
+        if len(parts) < 6 or parts[5].strip() not in ("+", "-"):
             continue
         bp_start, bp_end, acc_pos, score = int(parts[1]), int(parts[2]), int(parts[3]), float(parts[4])
-        dist = abs(acc_pos - pos)
-        if bp_start <= pos <= bp_end or 18 <= dist <= 44:
+        # last intron base: 1-based acc_pos on '+', acc_pos + 2 on '-'
+        dist = acc_pos + 1 - pos if parts[5].strip() == "+" else pos - acc_pos - 1
+        if bp_start < pos <= bp_end or 18 <= dist <= 44:
             return score, dist
     return None
 
@@ -100,7 +103,8 @@ def annotate_branchpoint_vcf(in_vcf: str, out_vcf: str, labranchor_bed: str = DE
         header.info.add("LaBranchoR_score", "1", "Float",
                         "LaBranchoR probability of the predicted branchpoint within 2 bp of the variant (site property, alleles not scored)")
     if "LaBranchoR_acc_dist" not in header.info:
-        header.info.add("LaBranchoR_acc_dist", "1", "Integer", "Distance in bp from the variant to that branchpoint's 3' splice site")
+        header.info.add("LaBranchoR_acc_dist", "1", "Integer",
+                        "Bases from the variant to that branchpoint's 3' splice site (1 = last intron base)")
     for tag, typ, desc in ISM_INFO:   # declared even without the table: the merge transfers these tags
         if tag not in header.info:
             header.info.add(tag, "1", typ, desc)
