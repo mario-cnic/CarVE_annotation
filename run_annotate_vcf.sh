@@ -53,6 +53,33 @@ if [[ -z "$INPUT" ]]; then
 	echo "error: --input_vcf is required (same as annotate_vcf.nf itself needs it)" >&2
 	exit 2
 fi
+# The documented default profile is passed explicitly, so the run uses the profile the manifest records.
+[[ " ${FORWARD_ARGS[*]} " == *" -profile "* ]] || FORWARD_ARGS=(-profile "$PROFILE" "${FORWARD_ARGS[@]}")
+
+# nextflow is launched from $REPO_ROOT: a relative path given here (a --param value naming an existing
+# file or directory, a -c / -params-file file) is made absolute from the caller's directory (MISC-42).
+# PARAM_ARGS are the arguments that decide the params (-profile, -c, -params-file, --name [value]).
+abs_if_path() { if [[ -n "$1" && "$1" != /* && -e "$PWD/$1" ]]; then printf '%s\n' "$PWD/$1"; else printf '%s\n' "$1"; fi; }
+ABS_ARGS=() PARAM_ARGS=()
+j=0
+while [[ $j -lt ${#FORWARD_ARGS[@]} ]]; do
+	a="${FORWARD_ARGS[$j]}" next="${FORWARD_ARGS[$((j + 1))]:-}"
+	case "$a" in
+	-profile | -c | -config | -params-file)
+		v="$(abs_if_path "$next")"; ABS_ARGS+=("$a" "$v"); PARAM_ARGS+=("$a" "$v"); j=$((j + 1)) ;;
+	--*=*)
+		v="${a#*=}"; a="${a%%=*}=$(abs_if_path "$v")"; ABS_ARGS+=("$a"); PARAM_ARGS+=("$a") ;;
+	--*)
+		if [[ -n "$next" && "$next" != -* ]]; then
+			v="$(abs_if_path "$next")"; ABS_ARGS+=("$a" "$v"); PARAM_ARGS+=("$a" "$v"); j=$((j + 1))
+		else
+			ABS_ARGS+=("$a"); PARAM_ARGS+=("$a")
+		fi ;;
+	*) ABS_ARGS+=("$a") ;;
+	esac
+	j=$((j + 1))
+done
+FORWARD_ARGS=("${ABS_ARGS[@]}")
 # Relative paths are resolved from the caller's directory here and from $REPO_ROOT by nextflow.
 [[ "$INPUT" = /* ]] || INPUT="$PWD/$INPUT"
 FORWARD_ARGS+=(--input_vcf "$INPUT")
@@ -65,13 +92,26 @@ if [[ -z "$RUN_ID" ]]; then
 fi
 FORWARD_ARGS+=(--run_id "$RUN_ID")
 
-# Resolve the same binary paths/config values this run will actually use, from the SAME
-# nextflow.config the real run reads — not re-derived or hardcoded here.
-# The config is dumped once (each `nextflow config` call is a JVM start) and queried from memory.
-CONFIG_DUMP="$("$NEXTFLOW_BIN" config -profile "$PROFILE" "$REPO_ROOT" 2>/dev/null)"
+# The params this run will use, resolved by Nextflow itself from the same profile, -c files, -params-file
+# and --param values (and the config values derived from them), not from `nextflow config`, which sees
+# neither command-line params nor what they change (MISC-42). annotate_vcf.nf --dump_params writes them
+# and stops; it runs in a scratch directory, without reports, so the real run's -resume history and
+# pipeline_info are untouched.
+DUMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$DUMP_DIR"' EXIT
+printf 'trace.enabled = false\ntimeline.enabled = false\nreport.enabled = false\n' > "$DUMP_DIR/quiet.config"
+if ! (cd "$DUMP_DIR" && "$NEXTFLOW_BIN" -q -log "$DUMP_DIR/nextflow.log" run "$MAIN_NF" "${PARAM_ARGS[@]}" \
+		-c "$DUMP_DIR/quiet.config" --dump_params "$DUMP_DIR/params.json" >/dev/null 2>&1) || [[ ! -s "$DUMP_DIR/params.json" ]]; then
+	echo "error: could not resolve the run's params (nextflow log: $DUMP_DIR/nextflow.log)" >&2
+	trap - EXIT
+	exit 2
+fi
+PARAMS_TSV="$(python3 -c 'import json, sys
+for k, v in json.load(open(sys.argv[1])).items():
+    if v is not None and not isinstance(v, (dict, list)):
+        print(f"{k}\t{str(v).lower() if isinstance(v, bool) else v}")' "$DUMP_DIR/params.json")"
 resolve_param() {
-	printf '%s\n' "$CONFIG_DUMP" | \
-		grep -E "^\s*$1\s*=" | head -1 | sed -E "s/^\s*$1\s*=\s*'?([^']*)'?\s*\$/\1/"
+	printf '%s\n' "$PARAMS_TSV" | awk -F'\t' -v k="$1" '$1 == k { print $2; exit }'
 }
 BCFTOOLS="$(resolve_param bcftools)"
 VEP_SIF="$(resolve_param vep_sif)"

@@ -58,6 +58,12 @@ include { TAG_TRANSCRIPT_PRIORITY } from './modules/local/tag_transcript_priorit
 include { EXTRACT_GENOTYPES; ADD_WIDE_GENOTYPES } from './modules/local/genotypes.nf'
 
 workflow {
+    // run_annotate_vcf.sh reads the params this exact command line resolves to (profile, -c files, CLI
+    // values and the config values derived from them) from here, then launches the real run.
+    if (params.dump_params) {
+        file(params.dump_params).text = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(params))
+        return
+    }
     if (!params.input_vcf) {
         error "Missing required --input_vcf <file>.vcf.gz (must have a sibling .tbi index)"
     }

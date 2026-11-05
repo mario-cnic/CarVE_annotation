@@ -117,7 +117,7 @@ bash run_annotate_vcf.sh -profile standard \
 | `--annotation_cache_dir <DIR>` | `/data_lab_PGP/resources/annotation_cache` (`false` under `local_dev`) | SpliceAI/Pangolin score cache: sites already scored by the same predictor version are copied from it, only the rest are computed, and those are added to it. `false` turns it off. Needs the wrapper, which derives each version id from the run manifest; `-stub-run` never writes to it; see [the walkthrough](walkthrough/20261022_predictor_score_cache.md) |
 | `--annotation_cache_write` | `true` | `false` reads the cache without adding this run's sites |
 
-`-resume` reruns a step whose code changed: `annotate_vcf.nf` hashes the content of each process's scripts and small inputs read by path (`params.code_md5`, MISC-41). Large resources (FASTA, VEP cache, gnomAD, ...) are not hashed: after replacing one at the same path, start a fresh run.
+The launcher records in the manifest the params this exact command line resolves to (Nextflow itself evaluates the profile, `-c` files and `--param` values; MISC-42), and makes relative paths absolute from the directory you launch from. `-resume` reruns a step whose code changed: `annotate_vcf.nf` hashes the content of each process's scripts and small inputs read by path (`params.code_md5`, MISC-41). Large resources (FASTA, VEP cache, gnomAD, ...) are not hashed: after replacing one at the same path, start a fresh run.
 
 ### Two predictor tiers
 
