@@ -115,3 +115,27 @@ def test_cache_identity_ignores_the_resources_line():
             '    # resources ${params.resource_id.fasta}\n    run it\n    """\n}\n')
     bare = 'process P {\n    script:\n    """\n    run it\n    """\n}\n'
     assert ac.script_block(text, "P") == ac.script_block(bare, "P")
+
+
+def config_params_under_resource_trees() -> set:
+    """Params whose config default lies in the shared resource trees (not a conda env, not the score cache)."""
+    cfg = (REPO / "nextflow.config").read_text()
+    roots = r"\$\{params\.(data_lab_pgp|references_dir|vep_plugins_dir|vep_dir|shared_utils)\}"
+    names = {n for n, v in re.findall(r'^\s{4}(\w+)\s*=\s*"([^"]*)"', cfg, re.M)
+             if re.search(roots, v) and "conda_envs" not in v}
+    return names - {"shared_utils", "vep_plugins_dir", "annotation_cache_dir"}
+
+
+def code_params() -> set:
+    text = (REPO / "annotate_vcf.nf").read_text()
+    return {p for body in re.findall(r"codeMd5\(\[(.*?)\]\)", text, re.S) for p in re.findall(r"params\.(\w+)", body)}
+
+
+@pytest.mark.parametrize("nf,process", PROCESSES, ids=[p for _, p in PROCESSES])
+def test_every_shared_resource_a_process_reads_is_hashed(nf, process):
+    # A param pointing into the resource trees that is in neither code_md5 nor resource_id would let -resume
+    # reuse the task after that file changed (MISC-44).
+    block = ac.script_block(nf.read_text(), process)
+    used = set(re.findall(r"params\.(\w+)", block)) & config_params_under_resource_trees()
+    missing = used - RESOURCE_PARAMS - code_params()
+    assert not missing, f"{process}: {sorted(missing)} not in params.resource_id or params.code_md5 (annotate_vcf.nf)"
