@@ -119,7 +119,7 @@ def header_sample_names(vcf_path):
 
 def scan_records(vcf):
     """One pass over all records. Returns a dict of counts."""
-    c = dict(records=0, symbolic=0, gvcf=0, no_alt=0, duplicates=0, alt_is_ref=0)
+    c = dict(records=0, symbolic=0, gvcf=0, no_alt=0, duplicates=0, alt_is_ref=0, angle_bracket_alt=0)
     group, seen = None, set()
     for rec in vcf:
         c["records"] += 1
@@ -132,6 +132,8 @@ def scan_records(vcf):
             continue
         if any(a in ("<NON_REF>", "<*>") for a in alts):
             c["gvcf"] += 1
+        if any(a.startswith("<") for a in alts):
+            c["angle_bracket_alt"] += 1
         sig = (rec.ref, alts)
         if sig in seen:
             c["duplicates"] += 1
@@ -267,6 +269,10 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
     fix = f"bcftools norm -m -any -f {fasta_path}"
     if scan["gvcf"] or any(r.key.startswith("GVCFBlock") for r in vcf.header.records):
         failures.append("input is a gVCF (<NON_REF>/<*> ALT or ##GVCFBlock header); use the genotyped VCF")
+    if scan["angle_bracket_alt"] and "END" not in vcf.header.info:
+        # htslib (pysam, used by the chunker and the LaBranchoR step) cannot write such records then.
+        failures.append(f"{scan['angle_bracket_alt']} record(s) with a symbolic ALT (<...>) but no ##INFO=<ID=END> line; "
+                        "add it: bcftools annotate -H '##INFO=<ID=END,Number=1,Type=Integer,Description=\"End position\">' <in> -Oz -o <out>")
     if scan["duplicates"]:
         warnings.append(f"{scan['duplicates']} duplicate chrom:pos:ref:alt record(s)")
     if scan["alt_is_ref"]:

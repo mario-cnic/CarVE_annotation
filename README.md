@@ -126,7 +126,7 @@ bash run_annotate_vcf.sh -profile standard \
 
 Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A missing score there means the tool was not run, not that the variant is predicted benign.
 
-**Structural variants are not a supported input.** Symbolic alleles (`<DEL>`, `<CNV>`, `<DUP:TANDEM>`, ...), breakends and `*` alleles pass the input check (counted as `symbolic_or_non_acgt_records` in the assembly-check report) and are annotated by VEP and Branchpointer only; `GENE_SUBSET` leaves them out of the gene-restricted tier, whose tools cannot score them (`PRED-17`; the `GENE_SUBSET` log line gives the count). Call SVs with a dedicated caller and annotate them separately.
+**Structural variants are not a supported input.** Symbolic alleles (`<DEL>`, `<CNV>`, `<DUP:TANDEM>`, ...), breakends and `*` alleles pass the input check when the header declares `INFO/END` (otherwise it fails: htslib cannot write such records) and each record is well formed (counted as `symbolic_or_non_acgt_records` in the assembly-check report) and are annotated by VEP and Branchpointer only; `GENE_SUBSET` leaves them out of the gene-restricted tier, whose tools cannot score them (`PRED-17`; the `GENE_SUBSET` log line gives the count). Call SVs with a dedicated caller and annotate them separately.
 
 ### Outputs
 

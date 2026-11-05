@@ -164,7 +164,7 @@ def test_iupac_fasta_base_is_not_a_mismatch(tmp_path, fasta):
 def test_symbolic_and_out_of_range_records_skipped(tmp_path, fasta):
     fa, seqs = fasta
     recs = true_records(seqs) + [("chr2", 10, "N", "<DEL>"), ("chr2", CHR2_LEN + 5, "A", "G")]
-    vcf = write_vcf(tmp_path / "skip.vcf.gz", GRCH38_LIKE, recs)
+    vcf = write_vcf(tmp_path / "skip.vcf.gz", GRCH38_LIKE + ['##INFO=<ID=END,Number=1,Type=Integer,Description="end">'], recs)
     assert go(tmp_path, vcf, fa) == 0
     assert report(tmp_path)["ref_records_skipped"] == "2"
 
@@ -345,3 +345,19 @@ def test_protected_tags_cover_every_merged_tag():
     merge = open(os.path.join(os.path.dirname(__file__), "../../modules/local/merge.nf")).read()
     merged = {t for cols in re.findall(r"annotate -a \S+ -c (\S+)", merge) for t in cols.split(",")}
     assert merged and merged <= set(PIPELINE_INFO_TAGS)
+
+
+def test_symbolic_alt_without_end_header_fails(tmp_path, fasta):
+    # MISC-39: htslib cannot write a <...> ALT record when the header lacks INFO/END (pysam in CHUNK_VCF failed).
+    fa, seqs = fasta
+    recs = true_records(seqs) + [("chr1", 2900, seqs["chr1"][2899], "<DEL>")]
+    vcf = write_vcf(tmp_path / "sym.vcf.gz", GRCH38_LIKE, recs)
+    assert go(tmp_path, vcf, fa) == 1
+    assert "##INFO=<ID=END" in open(tmp_path / "r.tsv").read()
+    # the same record with END declared and set passes (bcftools norm moves a <DEL> without an END value)
+    txt = tmp_path / "sym_end.vcf"
+    txt.write_text("##fileformat=VCFv4.2\n" + "\n".join(GRCH38_LIKE) + '\n##INFO=<ID=END,Number=1,Type=Integer,Description="end">\n'
+                   "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+                   + "".join(f"{c}\t{p}\t.\t{r}\t{a}\t.\t.\t{'END=2950' if a == '<DEL>' else '.'}\n" for c, p, r, a in recs))
+    pysam.tabix_index(str(txt), preset="vcf", force=True)
+    assert go(tmp_path, str(txt) + ".gz", fa) == 0
