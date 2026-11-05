@@ -293,17 +293,13 @@ def parse_splicevault(data: pd.DataFrame):
             
         return (decoded, status)
 
-    try:
-        res = apply_rows(data, process_row,
-                         ["SpliceVault_top_events", "SpliceVault_site_sample_count", "SpliceVault_site_pos",
-                          "STRAND", "strand"],
-                         ["SpliceVault_Predictions_Decoded", "SpliceVault_status"])
-        data["SpliceVault_Predictions_Decoded"] = res["SpliceVault_Predictions_Decoded"]
-        data["SpliceVault_status"] = res["SpliceVault_status"]
-        logger.info("SpliceVault predictions decoded and status contract applied successfully")
-    except Exception as e:
-        logger.error(f"Error parsing SpliceVault predictions: {e}")
-
+    res = apply_rows(data, process_row,
+                     ["SpliceVault_top_events", "SpliceVault_site_sample_count", "SpliceVault_site_pos",
+                      "STRAND", "strand"],
+                     ["SpliceVault_Predictions_Decoded", "SpliceVault_status"])
+    data["SpliceVault_Predictions_Decoded"] = res["SpliceVault_Predictions_Decoded"]
+    data["SpliceVault_status"] = res["SpliceVault_status"]
+    logger.info("SpliceVault predictions decoded and status contract applied successfully")
     return data
 
 
@@ -471,14 +467,10 @@ def parse_maxentscan(data: pd.DataFrame):
         disrupted = "YES" if pct_decrease >= MAXENTSCAN_DISRUPTION_THRESHOLD else "NO"
         return (pct_decrease, disrupted, "scored")
 
-    try:
-        res = apply_rows(data, process_row, ["MaxEntScan_ref", "MaxEntScan_alt"], list(NEW_MAXENTSCAN_COLUMNS.values()))
-        for col_name in res.columns:
-            data[col_name] = res[col_name]
-        logger.info("MaxEntScan columns parsed and status contract applied successfully")
-    except Exception as e:
-        logger.error(f"Error parsing MaxEntScan columns: {e}")
-
+    res = apply_rows(data, process_row, ["MaxEntScan_ref", "MaxEntScan_alt"], list(NEW_MAXENTSCAN_COLUMNS.values()))
+    for col_name in res.columns:
+        data[col_name] = res[col_name]
+    logger.info("MaxEntScan columns parsed and status contract applied successfully")
     return data
 
 

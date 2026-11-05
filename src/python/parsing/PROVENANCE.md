@@ -98,3 +98,5 @@ Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_p
 - 2026-11-05: `vcf_parser_pysam.py`: a record without CSQ keeps one row (`MISC-28`); an error on a record fails the run (`MISC-29`); `include_dp`/`include_ad` order (`MISC-30`); `AD_<sample>` = `ref_depth,alt_depth` (`MISC-31`); all CSQ fields without `--vep_columns` (`MISC-32`).
 
 - 2026-11-05: `modules/io_qc.py` `build_cDNA_MANE` no longer turns a missing `HGVSc` into the text "nan" (`MISC-33`).
+
+- 2026-11-05: `modules/splicing.py` `parse_splicevault` / `parse_maxentscan` no longer swallow errors (`MISC-36`).
