@@ -366,44 +366,47 @@ def _process_vep_columns(
 ) -> int:
     """Processes VEP columns and writes to file."""
     skipped_variants = 0
-    for transcript in variant.get("vep_info", {}).values():
-        for entry in transcript:
-            # Filter by `filter_by` column (gene) if values are provided (e.g., SYMBOL and ACTC1 or Feature and ENST00000361445)
-            if selected_genes and (entry.get(filter_by) not in selected_genes):
-                logger.debug(
-                    f"[{variant['variant_id']}] Skipping variant because {filter_by} {entry.get(filter_by)} is not in the selected {filter_by.lower()} set"
-                )
-                skipped_variants += 1
-                continue
+    entries = [entry for transcript in variant.get("vep_info", {}).values() for entry in transcript]
+    if not entries and not selected_genes:
+        # A record without CSQ entries still gets one row (VEP fields empty), so it reaches the table.
+        entries = [{}]
+    for entry in entries:
+        # Filter by `filter_by` column (gene) if values are provided (e.g., SYMBOL and ACTC1 or Feature and ENST00000361445)
+        if selected_genes and (entry.get(filter_by) not in selected_genes):
+            logger.debug(
+                f"[{variant['variant_id']}] Skipping variant because {filter_by} {entry.get(filter_by)} is not in the selected {filter_by.lower()} set"
+            )
+            skipped_variants += 1
+            continue
 
-            vep_values = [entry.get(col, ".") for col in vep_cols]
-            logger.debug(f"[{variant['variant_id']}] VEP values for {dict((col, entry.get(col, '.')) for col in vep_cols)}")
-            gnomAD_cols = [col for col in vep_cols if "gnomADv4" in col]
-            logger.debug(f"[{variant['variant_id']}] gnomAD values: {dict((col, entry.get(col, '.')) for col in gnomAD_cols)}")
-            if "gnomADv4_AF_grpmax_joint" in entry:
-                # logger.debug(
-                #     f"[{variant['variant_id']}] gnomADv4_AF_grpmax_joint value: {entry['gnomADv4_AF_grpmax_joint']}"
-                # )
-                pass
-            # logger.debug(f"[{variant['variant_id']}] VEP values: {vep_values} that will be added")
-            info_values = _get_info_values(variant, info_cols)
-            # base_variant is now a list, so concatenate all values in order
-            row_values = base_variant + info_values + vep_values
+        vep_values = [entry.get(col, ".") for col in vep_cols]
+        logger.debug(f"[{variant['variant_id']}] VEP values for {dict((col, entry.get(col, '.')) for col in vep_cols)}")
+        gnomAD_cols = [col for col in vep_cols if "gnomADv4" in col]
+        logger.debug(f"[{variant['variant_id']}] gnomAD values: {dict((col, entry.get(col, '.')) for col in gnomAD_cols)}")
+        if "gnomADv4_AF_grpmax_joint" in entry:
+            # logger.debug(
+            #     f"[{variant['variant_id']}] gnomADv4_AF_grpmax_joint value: {entry['gnomADv4_AF_grpmax_joint']}"
+            # )
+            pass
+        # logger.debug(f"[{variant['variant_id']}] VEP values: {vep_values} that will be added")
+        info_values = _get_info_values(variant, info_cols)
+        # base_variant is now a list, so concatenate all values in order
+        row_values = base_variant + info_values + vep_values
 
-            if include_gt or include_gq or include_dp or include_ad:
-                # Pass as a list, not a string
-                skipped_variants += _process_and_write_genotype_data(
-                    variant,
-                    file,
-                    row_values,
-                    include_gt,
-                    include_gq,
-                    include_ad,
-                    include_dp,
-                    selected_individuals,
-                )
-            else:
-                file.write("\t".join(str(x) for x in row_values) + "\n")
+        if include_gt or include_gq or include_dp or include_ad:
+            # Pass as a list, not a string
+            skipped_variants += _process_and_write_genotype_data(
+                variant,
+                file,
+                row_values,
+                include_gt,
+                include_gq,
+                include_ad,
+                include_dp,
+                selected_individuals,
+            )
+        else:
+            file.write("\t".join(str(x) for x in row_values) + "\n")
     return skipped_variants
 
 
