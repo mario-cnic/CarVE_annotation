@@ -1,5 +1,5 @@
-// LaBranchoR: positional lookup against the precomputed top-branchpoint BED (broad tier); alleles are
-// not scored (PRED-18).
+// LaBranchoR (broad tier): positional lookup against the precomputed top-branchpoint BED (PRED-18) and,
+// for SNVs, the allele-aware in silico mutagenesis scores.
 
 process BRANCHPOINT_ANNOTATE {
     tag "${meta.partition_id}"
@@ -18,7 +18,8 @@ process BRANCHPOINT_ANNOTATE {
     zcat ${vcf} > raw_input.vcf
     ${params.branchpointer_python} ${params.branchpointer_script} \\
         raw_input.vcf ${meta.partition_id}.annBranchpoint.vcf \\
-        --labranchor-bed ${params.labranchor_bed}
+        --labranchor-bed ${params.labranchor_bed} \\
+        --labranchor-ism ${params.labranchor_ism}
     ${params.bgzip} -f ${meta.partition_id}.annBranchpoint.vcf
     ${params.tabix} -f ${meta.partition_id}.annBranchpoint.vcf.gz
     """

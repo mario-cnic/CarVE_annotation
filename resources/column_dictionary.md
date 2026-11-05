@@ -32,6 +32,11 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_score` | Float | Probability of the LaBranchoR top branch point within 2 bp of the variant: a property of the site, alleles not scored (PRED-18). Informational. |
 | **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_acc_dist` | Integer | Distance in bp from the variant to that branch point's 3' splice site. |
 | **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_status` | String | `scored` (near a predicted branch point) or `not_covered`. |
+| **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_d_best` | Float | SNV only: change (ALT - REF) of the probability of the reference top branch point; negative = loss. Worst 3'SS when the SNV is in several windows. Informational. |
+| **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_d_max` | Float | Same 3'SS: change of the best branch point probability anywhere in the 70-base window (a new or shifted branch point can raise it). |
+| **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_dist` | Integer | Bases from the SNV to that 3' splice site (1-70, upstream). |
+| **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_n_3pss` | Integer | Number of 3' splice sites (GENCODE v19) whose window holds the SNV. |
+| **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_status` | String | `scored`, `not_covered` (SNV outside every window) or `not_applicable` (not an SNV). |
 
 ---
 
@@ -95,6 +100,7 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `LaBranchoR_score`: probability of LaBranchoR's top branch point within 2 bp of the variant (site property; the variant's alleles are not scored). Informational: no effect on `NEW_IMPACT` or the score (PRED-18).
 - `LaBranchoR_acc_dist`: distance in bp from the variant to that branch point's 3' splice site.
 - `LaBranchoR_status`: `scored` or `not_covered`.
+- `LaBranchoR_ISM_d_best`, `_d_max`, `_dist`, `_n_3pss`, `_status`: allele-aware LaBranchoR effect for SNVs, from the authors' in silico mutagenesis of GENCODE v19 introns (model on REF and ALT); variant-level (worst 3'SS), not matched to the row's transcript. Informational.
 - Removed 2026-11-05: `Branchpointer_prob` (a copy of `LaBranchoR_score`), `Branchpointer_U2_energy` (a constant -6.2), `Branchpoint_disrupted`, `Branchpoint_status`; Branchpointer was never run.
 
 ### F2. MaxEntScan (VEP plugin)

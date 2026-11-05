@@ -24,7 +24,7 @@ process MERGE_ANNOTATIONS {
 
     ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.bcf -Ob1 -W -o tmp_spliceai.bcf
 
-    ${params.bcftools} annotate -a ${bp_vcf} -c LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
+    ${params.bcftools} annotate -a ${bp_vcf} -c LaBranchoR_score,LaBranchoR_acc_dist,LaBranchoR_ISM_d_best,LaBranchoR_ISM_d_max,LaBranchoR_ISM_dist,LaBranchoR_ISM_n_3pss tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
     ${params.tabix} -f ${meta.partition_id}.annotated.vcf.gz
 
     # The merged VCF keeps exactly VEP's CHROM/POS/REF/ALT records (MISC-6).

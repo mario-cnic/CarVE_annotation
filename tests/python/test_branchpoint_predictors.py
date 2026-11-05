@@ -31,3 +31,17 @@ def test_labranchor_score_alone_does_not_raise_new_impact():
     df = pd.DataFrame({"IMPACT": ["MODIFIER", "LOW"], "LaBranchoR_score": [0.95, 0.80], "Locus": ["chr1:1-A-G", "chr1:2-C-T"]})
     out = build_newImpact(parse_branchpointer(df))
     assert out["NEW_IMPACT"].astype(str).tolist() == ["MODIFIER", "LOW"]
+
+
+def test_labranchor_ism_columns_and_status():
+    from modules.splicing import LABRANCHOR_ISM_COLUMNS
+    df = pd.DataFrame({"LaBranchoR_score": [np.nan] * 3, "LaBranchoR_acc_dist": [np.nan] * 3,
+                       "LaBranchoR_ISM_d_best": ["-0.8", np.nan, np.nan], "LaBranchoR_ISM_d_max": ["-0.3", np.nan, np.nan],
+                       "LaBranchoR_ISM_dist": ["30", np.nan, np.nan], "LaBranchoR_ISM_n_3pss": ["2", np.nan, np.nan],
+                       "Locus": ["chr1:1001-A-G", "chr1:5-C-T", "chr1:9-TA-T"]})
+    res = parse_branchpointer(df)
+    assert res["LaBranchoR_ISM_status"].tolist() == ["scored", "not_covered", "not_applicable"]
+    assert res.loc[0, "LaBranchoR_ISM_d_best"] == -0.8 and res.loc[0, "LaBranchoR_ISM_dist"] == 30
+    assert all(c in res.columns for c in LABRANCHOR_ISM_COLUMNS)
+    out = build_newImpact(res.assign(IMPACT="MODIFIER"))
+    assert (out["NEW_IMPACT"].astype(str) == "MODIFIER").all()           # informational only
