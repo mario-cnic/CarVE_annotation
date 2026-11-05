@@ -76,6 +76,7 @@ These change no table column, row or value:
 - ACMG-4 and ACMG-8: one definition instead of two, output identical.
 - MISC-26: pandas metadata in the `withGT` table; no visible change on read.
 - MISC-6: identity checks.
+- MISC-44: resource identity in the `-resume` hash.
 - MISC-40: local profile.
 - LIFT-1/2: standalone liftover tool.
 - PRED-19, MISC-22.

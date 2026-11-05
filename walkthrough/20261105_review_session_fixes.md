@@ -21,6 +21,7 @@ Merge order: `ccr`, then `pred18`, then `labranchor-ism`. They stack, so merging
     - `annotation_cache.py migrate` copies the scored sites of the old cache version into the new one.
   - MISC-35: a resumed run lists the cache segments of its own version.
   - MISC-41: `-resume` reruns a task whose code changed. A `# code ${params.code_md5.<key>}` line is in every process that runs repo code. Cache version ids are unchanged.
+  - MISC-44: the same for large resources read by path (`# resources ${params.resource_id.<key>}`: path, size and mtime of every file), and `codeMd5` now follows a symlinked directory.
 - **Gene-restricted tier input**
   - PRED-17 / SV-1: symbolic, breakend and `*` records are kept out of SpliceAI/Pangolin/SPiP.
   - MISC-22: an input with no site in the gene BED still gives one, header-only, chunk.
@@ -115,4 +116,7 @@ Merge order: `ccr`, then `pred18`, then `labranchor-ism`. They stack, so merging
   - MISC-25: support pandas 3 or pin 2.x.
   - A threshold for `LaBranchoR_ISM_*`, if they should ever affect tiering.
   - Whether a resumed run should rewrite `TABLE_STAMP.json`.
-- **Next in this session**: `TODO.md` ordered item 6, resource identity in the `-resume` key. Large references read by path (FASTA, VEP cache, gnomAD, ...) do not enter the task hash, the same gap MISC-41 closed for code.
+- **Done after this note was first written**: MISC-44, resource identity in the `-resume` key (`TODO.md` ordered item 6).
+  - Large references read by path (FASTA, VEP cache and plugin data, ...) now enter the task hash by path, size and mtime.
+  - Checked with local stub runs. Its launch-time cost on the cluster is step 7a of the checklist.
+  - Still open in item 6: conda envs and the provenance stamp on resume.
