@@ -106,3 +106,5 @@ Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_p
 - 2026-11-05: `modules/predictors.py` `parse_missense` no longer removes names from the caller's column list, i.e. from `MISSENSE_COLUMNS` (`MISC-43`).
 
 - 2026-11-05: `modules/splicing.py` `parse_branchpointer` / `NEW_BRANCHPOINT_COLUMNS` keep only `LaBranchoR_score`, `LaBranchoR_acc_dist`, `LaBranchoR_status`; `modules/acmg.py` no LaBranchoR HIGH rule; `modules/scoring.py` no `Branchpoint_status` rules; `filter_variants.py` column order (`PRED-18`).
+
+- 2026-11-05: `modules/splicing.py` `parse_branchpointer` parses the LaBranchoR ISM columns (`LABRANCHOR_ISM_COLUMNS`, `LaBranchoR_ISM_status`); `filter_variants.py` column order.

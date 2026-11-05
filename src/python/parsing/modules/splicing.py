@@ -48,6 +48,9 @@ NEW_BRANCHPOINT_COLUMNS = {
     "labranchor_acc_dist": "LaBranchoR_acc_dist",
     "labranchor_status": "LaBranchoR_status",
 }
+# LaBranchoR in silico mutagenesis (allele-aware, SNVs only; informational).
+LABRANCHOR_ISM_COLUMNS = ["LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBranchoR_ISM_dist",
+                          "LaBranchoR_ISM_n_3pss", "LaBranchoR_ISM_status"]
 
 # Informational only: normalized MaxEntScan decrease and disruption flag, derived from VEP's
 # MaxEntScan_ref/_alt/_diff; neither feeds NEW_IMPACT or PRIORITY_TIER.
@@ -376,25 +379,50 @@ def parse_pangolin(data: pd.DataFrame, pangolin_col: str = "Pangolin"):
     return data
 
 
+def _ref_alt(row):
+    ref, alt = row.get("REF"), row.get("ALT")
+    if is_missing(ref) or is_missing(alt):
+        locus = row.get("Locus")
+        parts = str(locus).rsplit("-", 2) if not is_missing(locus) else []
+        ref, alt = (parts[1], parts[2]) if len(parts) == 3 else (None, None)
+    return ref, alt
+
+
 def parse_branchpointer(data: pd.DataFrame):
-    """LaBranchoR positional lookup: `LaBranchoR_score` / `LaBranchoR_acc_dist` as numbers and
-    `LaBranchoR_status` (`scored` near a predicted branchpoint, else `not_covered`). Informational only:
-    the score belongs to the branchpoint site, the variant's alleles are not scored (PRED-18)."""
-    if "LaBranchoR_score" not in data.columns:
+    """LaBranchoR columns, informational only (nothing here changes NEW_IMPACT or the score).
+
+    Positional lookup (PRED-18): `LaBranchoR_score` / `LaBranchoR_acc_dist` as numbers and `LaBranchoR_status`
+    (`scored` near a predicted branchpoint, else `not_covered`); the score belongs to the site.
+    In silico mutagenesis, allele-aware: `LaBranchoR_ISM_*` as numbers and `LaBranchoR_ISM_status`:
+    `scored`; `not_covered` (an SNV outside the 70-base windows of GENCODE v19 3' splice sites);
+    `not_applicable` (not an SNV: the table holds SNVs only)."""
+    if "LaBranchoR_score" in data.columns:
+        def process_row(row):
+            score, dist = row.get("LaBranchoR_score"), row.get("LaBranchoR_acc_dist")
+            has_score = not is_missing(score)
+            return (float(score) if has_score else np.nan,
+                    int(float(dist)) if not is_missing(dist) else np.nan,
+                    "scored" if has_score else "not_covered")
+
+        res = apply_rows(data, process_row, ["LaBranchoR_score", "LaBranchoR_acc_dist"],
+                         list(NEW_BRANCHPOINT_COLUMNS.values()))
+        for col_name in res.columns:
+            data[col_name] = res[col_name]
+    else:
         logger.info("LaBranchoR columns not found in data, skipping LaBranchoR parsing")
-        return data
 
-    def process_row(row):
-        score, dist = row.get("LaBranchoR_score"), row.get("LaBranchoR_acc_dist")
-        has_score = not is_missing(score)
-        return (float(score) if has_score else np.nan,
-                int(float(dist)) if not is_missing(dist) else np.nan,
-                "scored" if has_score else "not_covered")
+    if "LaBranchoR_ISM_d_best" in data.columns:
+        def process_ism(row):
+            values = [row.get(c) for c in LABRANCHOR_ISM_COLUMNS[:4]]
+            if not is_missing(values[0]):
+                return (float(values[0]), float(values[1]), int(float(values[2])), int(float(values[3])), "scored")
+            ref, alt = _ref_alt(row)
+            snv = ref is not None and len(str(ref)) == 1 and len(str(alt)) == 1
+            return (np.nan, np.nan, np.nan, np.nan, "not_covered" if snv else "not_applicable")
 
-    res = apply_rows(data, process_row, ["LaBranchoR_score", "LaBranchoR_acc_dist"],
-                     list(NEW_BRANCHPOINT_COLUMNS.values()))
-    for col_name in res.columns:
-        data[col_name] = res[col_name]
+        res = apply_rows(data, process_ism, LABRANCHOR_ISM_COLUMNS[:4] + ["REF", "ALT", "Locus"], LABRANCHOR_ISM_COLUMNS)
+        for col_name in res.columns:
+            data[col_name] = res[col_name]
     return data
 
 
