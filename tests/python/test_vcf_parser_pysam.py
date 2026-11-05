@@ -56,3 +56,9 @@ def test_an_error_on_a_record_fails_instead_of_dropping_it():
         vp.write_values(vcf=[bad], file=io.StringIO(), base_header=["CHROM"], vep_cols=["SYMBOL"], info_cols=[],
                         include_gt=False, include_gq=False, include_dp=False, include_ad=False,
                         selected_individuals=[], filter_by="SYMBOL")
+
+
+def test_depth_column_holds_depth(tmp_path):
+    # MISC-30: include_dp / include_ad were passed swapped, so DP_<sample> got the AD field.
+    rows = run(tmp_path, "--add_vep", "--add_dp")
+    assert [r["DP_S1"] for r in rows] == ["30", "30", "40", "25"]

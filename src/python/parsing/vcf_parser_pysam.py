@@ -401,8 +401,8 @@ def _process_vep_columns(
                 row_values,
                 include_gt,
                 include_gq,
-                include_ad,
                 include_dp,
+                include_ad,
                 selected_individuals,
             )
         else:
