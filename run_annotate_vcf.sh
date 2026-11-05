@@ -146,7 +146,8 @@ if [[ -n "$CACHE_DIR" && "$CACHE_DIR" != "null" && "$CACHE_DIR" != "false" ]]; t
 			echo "error: no $p cache version for this run — aborting before launching nextflow" >&2
 			exit 1
 		}
-		SEG_LIST="$INFO_DIR/annotation_cache_segments.$p.txt"
+		# Named after the version: a -resume with other scoring code lists that version's segments.
+		SEG_LIST="$INFO_DIR/annotation_cache_segments.$p.$VID.txt"
 		if [[ $RESUME -eq 0 || ! -f "$SEG_LIST" ]]; then
 			python3 "$REPO_ROOT/src/python/annotation_cache.py" list-segments \
 				--version-dir "$CACHE_DIR/$p/$VID" --output "$SEG_LIST" >/dev/null || {
