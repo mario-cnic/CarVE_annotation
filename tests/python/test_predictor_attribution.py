@@ -352,3 +352,14 @@ def test_spip_without_column_needs_no_identity():
     # Same order as parse_spliceai_custom: a table without SPiP is returned unchanged, not refused.
     df = pd.DataFrame({"Feature": ["ENST00000000001"]})
     pd.testing.assert_frame_equal(sp.parse_spip(df.copy(), identity=None), df)
+
+
+def test_parse_missense_leaves_the_column_list_alone():
+    # MISC-43: columns missing from one frame were removed from the caller's list, i.e. from the
+    # module-level MISSENSE_COLUMNS, so every later frame in the process skipped them.
+    from modules import predictors as pr
+    before = list(pr.MISSENSE_COLUMNS)
+    pr.parse_missense(pd.DataFrame({"Feature": ["ENST00000000001"]}), pr.MISSENSE_COLUMNS)
+    assert pr.MISSENSE_COLUMNS == before
+    out = pr.parse_missense(pd.DataFrame({"REVEL_score": ["0.20&0.90"]}), pr.MISSENSE_COLUMNS)
+    assert out["REVEL_score"].tolist() == [0.90]

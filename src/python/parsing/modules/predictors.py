@@ -64,11 +64,12 @@ MISSENSE_COLUMNS = [
 
 
 def parse_missense(data, missense_cols: list[str]):
-    """Transform missense columns to float, capturing MAX value if ambiguous."""
-    for col in list(missense_cols):
+    """Transform missense columns to float, capturing MAX value if ambiguous.
+    `missense_cols` is not modified (callers pass the module-level MISSENSE_COLUMNS; MISC-43)."""
+    for col in missense_cols:
         if col not in data.columns:
             logger.warning(f"Column {col} not found in data, won't be parsed")
-            missense_cols.remove(col)
+    missense_cols = [c for c in missense_cols if c in data.columns]
 
     def _parse_missense_value(x):
         if isinstance(x, float):

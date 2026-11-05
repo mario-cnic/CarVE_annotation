@@ -102,3 +102,5 @@ Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_p
 - 2026-11-05: `modules/splicing.py` `parse_splicevault` / `parse_maxentscan` no longer swallow errors (`MISC-36`).
 
 - 2026-11-05: `modules/chunked.py` keeps a categorical column's categories when a chunk has it all null (`MISC-37`).
+
+- 2026-11-05: `modules/predictors.py` `parse_missense` no longer removes names from the caller's column list, i.e. from `MISSENSE_COLUMNS` (`MISC-43`).
