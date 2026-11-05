@@ -68,3 +68,9 @@ def test_allele_depth_column_holds_ref_and_alt_depths(tmp_path):
     # MISC-31: AD_<sample> was str(Genotype.allele_depth), a flag of the vcf_parser package: always "False".
     rows = run(tmp_path, "--add_vep", "--add_dp", "--add_ad")
     assert [(r["DP_S1"], r["AD_S1"]) for r in rows] == [("30", "12,18"), ("30", "12,18"), ("40", "20,20"), ("25", "0,25")]
+
+
+def test_all_vep_columns_without_a_column_file(tmp_path):
+    # MISC-32: without --vep_columns get_vep_header raised UnboundLocalError instead of using every CSQ field.
+    rows = run(tmp_path, "--add_vep", cols=False)
+    assert {"Allele", "Consequence", "SYMBOL", "Feature"} <= set(rows[0])

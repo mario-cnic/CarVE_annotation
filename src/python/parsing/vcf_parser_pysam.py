@@ -26,7 +26,7 @@ def get_vep_header(vcf, arg_vep_columns) -> list[str]:
     final_vep_columns = []
     if not arg_vep_columns:
         logger.info("No VEP columns specified, using all VEP columns")
-        arg_vep_columns = []
+        selected_vep_columns = []
     elif arg_vep_columns.endswith(".txt"):
         with open(arg_vep_columns, "r") as f:
             lines = f.readlines()
