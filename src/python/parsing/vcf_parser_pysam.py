@@ -326,9 +326,9 @@ def write_values(
                 logger.info(f"{progress} variants processed...")
 
         except Exception as e:
-            logger.error(f"Unexpected error at variant #{progress}: {e}")
-            skipped_variants += 1
-            continue
+            # A record that cannot be written fails the run instead of silently missing from the table.
+            logger.error(f"Unexpected error at variant #{progress} ({variant.get('variant_id')}): {e}")
+            raise
     else:
         logger.info(f"Processed {progress} variants.")
 

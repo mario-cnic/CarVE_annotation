@@ -44,3 +44,15 @@ def test_record_without_csq_keeps_a_row(tmp_path):
 def test_gene_filter_still_drops_records_without_csq(tmp_path):
     rows = run(tmp_path, "--add_vep", "--gene_set", "GENEA")
     assert [r["POS"] for r in rows] == ["100", "300"]
+
+
+def test_an_error_on_a_record_fails_instead_of_dropping_it():
+    # MISC-29: the exception was logged and the record skipped, so the run passed with a record missing.
+    import io
+    sys.path.insert(0, str(SCRIPT.parent))
+    import vcf_parser_pysam as vp
+    bad = {"variant_id": "chr1_1_A_G", "CHROM": "chr1", "vep_info": {"G": 5}}   # not a list of entries
+    with pytest.raises(TypeError):
+        vp.write_values(vcf=[bad], file=io.StringIO(), base_header=["CHROM"], vep_cols=["SYMBOL"], info_cols=[],
+                        include_gt=False, include_gq=False, include_dp=False, include_ad=False,
+                        selected_individuals=[], filter_by="SYMBOL")
