@@ -565,15 +565,37 @@ def table_provenance(manifest: dict, manifest_path: Path, table: Path) -> dict:
     return out
 
 
+def _describes(side: Path, table: Path) -> bool | None:
+    """Whether an existing provenance file describes this very table file (same size and mtime);
+    None when it cannot tell (unreadable, or no table facts)."""
+    try:
+        facts = json.loads(side.read_text())["table"]
+        st = table.stat()
+        mtime = datetime.fromtimestamp(st.st_mtime, timezone.utc).isoformat()
+        return facts["size_bytes"] == st.st_size and facts["mtime_utc"] == mtime
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def write_table_provenance(outdir: Path, manifest: dict, manifest_path: Path) -> list:
-    """Write <table>.provenance.json next to each published table; never overwrites one."""
+    """Write <table>.provenance.json next to each published table; never overwrites one.
+
+    An existing file that describes this very table is kept. One that describes another file (a later
+    run republished the table under the same name) is moved to <table>.provenance.superseded.<ts>.json
+    and a new one written, so the current name always describes the current table."""
     written = []
     for subdir, pattern in TABLE_PATTERNS:
         for table in run_files(outdir, subdir, pattern):
             side = table.with_name(table.name + ".provenance.json")
             if side.exists():
-                print("warning: %s exists; not overwritten" % side, file=sys.stderr)
-                continue
+                same = _describes(side, table)
+                if same is not False:
+                    print("warning: %s exists; not overwritten" % side, file=sys.stderr)
+                    continue
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+                old = side.with_name(table.name + ".provenance.superseded.%s.json" % stamp)
+                side.rename(old)
+                print("note: %s describes an earlier table; moved to %s" % (side.name, old.name), file=sys.stderr)
             side.write_text(json.dumps(table_provenance(manifest, manifest_path, table), indent=2) + "\n")
             written.append(side.name)
     return written

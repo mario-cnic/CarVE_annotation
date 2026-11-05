@@ -129,3 +129,21 @@ def test_existing_provenance_file_is_not_overwritten(tmp_path):
     side.write_text("{\"keep\": true}")
     wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
     assert json.loads(side.read_text()) == {"keep": True}
+
+
+def test_provenance_of_a_republished_table_is_replaced_and_the_old_one_kept(tmp_path):
+    # MISC-38: a table republished under the same name kept the earlier run's provenance file.
+    out = make_manifest(tmp_path)
+    wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
+    table = out / "tables" / "r1.parsed.clean.pq"
+    side = out / "tables" / "r1.parsed.clean.pq.provenance.json"
+    first = json.loads(side.read_text())
+    # same table again: kept as is
+    wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
+    assert json.loads(side.read_text()) == first
+    # a new run republishes a different table under the same name
+    table.write_bytes(b"PAR1 new content")
+    wrm.cmd_completed(argparse.Namespace(outdir=str(out), exit_code=0, nextflow_log=None))
+    assert json.loads(side.read_text())["table"]["size_bytes"] == len(b"PAR1 new content")
+    superseded = list((out / "tables").glob("r1.parsed.clean.pq.provenance.superseded.*.json"))
+    assert len(superseded) == 1 and json.loads(superseded[0].read_text()) == first
