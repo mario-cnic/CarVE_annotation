@@ -61,17 +61,13 @@ def build_newImpact(data: pd.DataFrame):
     sv_mod_mask = (data["NEW_IMPACT"] != "HIGH") & sv_aberrant
     sv_high_mask = sv_aberrant & (spliceai_score >= 0.20)
 
-    bp_status = _safe_string_series(data, "Branchpoint_status")
-    labranchor_score = _safe_numeric_series(data, "LaBranchoR_score")
-    bp_high_mask = (bp_status == "disrupted") | (labranchor_score >= 0.50)
-
     if "splicevardb_classification" in data.columns:
         splicevardb_high_mask = data["splicevardb_classification"].notna() & (data["splicevardb_classification"].astype(str).str.strip() != "") & (data["splicevardb_classification"].astype(str) != "nan")
     else:
         splicevardb_high_mask = pd.Series(False, index=data.index)
 
     splicing_mod = spliceai_mod_mask | spip_mod_mask | pangolin_mod_mask | sv_mod_mask
-    splicing_high = spliceai_high_mask | spip_high_mask | pangolin_high_mask | sv_high_mask | bp_high_mask | splicevardb_high_mask
+    splicing_high = spliceai_high_mask | spip_high_mask | pangolin_high_mask | sv_high_mask | splicevardb_high_mask
 
     data.loc[splicing_mod, "NEW_IMPACT"] = "MODERATE"
     data.loc[splicing_high, "NEW_IMPACT"] = "HIGH"

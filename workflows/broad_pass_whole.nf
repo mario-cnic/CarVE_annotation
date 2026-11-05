@@ -1,4 +1,4 @@
-// Broad tier: chunks the full input, runs VEP, Branchpointer (and SPiP when spip_tier == 'broad')
+// Broad tier: chunks the full input, runs VEP, the LaBranchoR lookup (and SPiP when spip_tier == 'broad')
 // per chunk, and reassembles each predictor's chunks. CONCAT_CHUNKS needs one alias per call site.
 
 include { CHUNK_VCF } from '../modules/local/chunk.nf'

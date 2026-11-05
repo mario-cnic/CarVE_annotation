@@ -440,10 +440,6 @@ Pangolin_heart_lv_score
 Pangolin_heart_aa_score
 Pangolin_status
 SpliceAI_status
-Branchpointer_prob
-Branchpointer_U2_energy
-Branchpoint_disrupted
-Branchpoint_status
 LaBranchoR_score
 LaBranchoR_acc_dist
 LaBranchoR_status

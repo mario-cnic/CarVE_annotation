@@ -1,42 +1,33 @@
 import os
 import sys
-import pandas as pd
+
 import numpy as np
+import pandas as pd
 
 # Repo parsing package only; config.py would put shared/utils/src (its own filter_variants/modules) first.
 PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python", "parsing"))
 
-from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS
+from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS, build_newImpact  # noqa: E402
 
-def test_parse_branchpointer_status():
-    df = pd.DataFrame({
-        "Branchpointer_prob": [0.95, np.nan, 0.40],
-        "Branchpointer_U2_energy": [-6.2, np.nan, -4.5],
-        "Branchpoint_disrupted": ["YES", "NO", "YES"],
-        "LaBranchoR_score": [0.95, np.nan, np.nan],
-        "LaBranchoR_acc_dist": [24, np.nan, np.nan],
-    })
-    
+
+def test_labranchor_positional_columns_only():
+    df = pd.DataFrame({"LaBranchoR_score": [0.95, np.nan, "0.40"], "LaBranchoR_acc_dist": [24, np.nan, "31"]})
     res = parse_branchpointer(df.copy())
-    
-    # Verify all expected columns exist
-    for col in NEW_BRANCHPOINT_COLUMNS.values():
-        assert col in res.columns
-        
-    # Check status contract semantics
-    assert res.loc[0, "Branchpoint_status"] == "scored"
-    assert res.loc[0, "LaBranchoR_status"] == "scored"
-    assert res.loc[0, "Branchpoint_disrupted"] == "YES"
-    
-    assert res.loc[1, "Branchpoint_status"] == "not_covered"
-    assert res.loc[1, "LaBranchoR_status"] == "not_covered"
-    assert res.loc[1, "Branchpoint_disrupted"] == "NO"
-    
-    assert res.loc[2, "Branchpoint_status"] == "scored"
-    assert res.loc[2, "LaBranchoR_status"] == "not_covered"
+    assert list(NEW_BRANCHPOINT_COLUMNS.values()) == ["LaBranchoR_score", "LaBranchoR_acc_dist", "LaBranchoR_status"]
+    assert res["LaBranchoR_status"].tolist() == ["scored", "not_covered", "scored"]
+    assert res.loc[2, "LaBranchoR_score"] == 0.40 and res.loc[2, "LaBranchoR_acc_dist"] == 31
+    assert not any(c.startswith(("Branchpointer_", "Branchpoint_")) for c in res.columns)
+
 
 def test_parse_branchpointer_missing_columns():
     df = pd.DataFrame({"Locus": ["chr1:100-A-G"]})
     res = parse_branchpointer(df.copy())
-    assert "Locus" in res.columns
+    assert list(res.columns) == ["Locus"]
+
+
+def test_labranchor_score_alone_does_not_raise_new_impact():
+    # PRED-18: a positional LaBranchoR hit (site score >= 0.5) made NEW_IMPACT HIGH whatever the alleles.
+    df = pd.DataFrame({"IMPACT": ["MODIFIER", "LOW"], "LaBranchoR_score": [0.95, 0.80], "Locus": ["chr1:1-A-G", "chr1:2-C-T"]})
+    out = build_newImpact(parse_branchpointer(df))
+    assert out["NEW_IMPACT"].astype(str).tolist() == ["MODIFIER", "LOW"]

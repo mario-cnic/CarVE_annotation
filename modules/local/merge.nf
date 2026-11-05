@@ -1,5 +1,5 @@
 // Merges the five predictor VCFs into one annotated VCF. VEP is the record set; SPiP, Pangolin,
-// SpliceAI and Branchpointer INFO tags are transferred onto it in that order. Any failure fails the task.
+// SpliceAI and LaBranchoR INFO tags are transferred onto it in that order. Any failure fails the task.
 
 process MERGE_ANNOTATIONS {
     tag "${meta.partition_id}"
@@ -24,7 +24,7 @@ process MERGE_ANNOTATIONS {
 
     ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.bcf -Ob1 -W -o tmp_spliceai.bcf
 
-    ${params.bcftools} annotate -a ${bp_vcf} -c Branchpointer_prob,Branchpointer_U2_energy,Branchpoint_disrupted,LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
+    ${params.bcftools} annotate -a ${bp_vcf} -c LaBranchoR_score,LaBranchoR_acc_dist tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
     ${params.tabix} -f ${meta.partition_id}.annotated.vcf.gz
 
     # The merged VCF keeps exactly VEP's CHROM/POS/REF/ALT records (MISC-6).

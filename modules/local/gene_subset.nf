@@ -19,7 +19,7 @@ process GENE_SUBSET {
     // Sort temp files go in the task directory, not the node's TMPDIR.
     // Only sequence-resolved alleles (SNV, indel, MNP) reach SpliceAI / Pangolin / SPiP: symbolic
     // (<CNV>, <DUP:TANDEM>, ...), breakend and `*` records are left out, since SpliceAI and Pangolin
-    // would score some of them as literal inserted text (PRED-17). VEP and Branchpointer see every record.
+    // would score some of them as literal inserted text (PRED-17). VEP and the LaBranchoR lookup see every record.
     script:
     """
     set -o pipefail

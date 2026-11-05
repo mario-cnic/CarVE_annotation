@@ -60,7 +60,6 @@ def build_priority_tier(
     pli_val = _safe_numeric_series(data, "pLI_gene_value")
     
     sv_aberrant = _safe_string_series(data, "SpliceVault_status") == "aberrant_event_detected"
-    bp_disrupt = _safe_string_series(data, "Branchpoint_status") == "disrupted"
 
     utr_disrupt = utr5_high_impact_mask(data)
 
@@ -73,7 +72,6 @@ def build_priority_tier(
     splicing_composite = np.fmax(splice_max, np.maximum(spip_score, pangolin_score))
     score += splicing_composite * 30.0
     score += np.where(sv_aberrant, 5.0, 0.0)
-    score += np.where(bp_disrupt, 5.0, 0.0)
     
     # Phase 1: Calibrated In Silico Predictors (REVEL / AlphaMissense) - Inhibited if LoF
     # Plain arrays: element access per row without Series.iloc overhead.
@@ -179,7 +177,6 @@ def build_priority_tier(
         (spip_score >= 0.20) |
         (pangolin_score >= 0.20) |
         (sv_aberrant) |
-        (bp_disrupt) |
         (utr_disrupt) |
         (revel_score >= 0.25) |
         (am_score >= 0.34) |
@@ -202,7 +199,6 @@ def build_priority_tier(
         (splice_max >= 0.50) |
         (spip_score >= 0.30) |
         (pangolin_score >= 0.30) |
-        (bp_disrupt) |
         (utr_disrupt) |
         (am_score >= 0.750) |
         (revel_score >= 0.773) |
@@ -236,7 +232,6 @@ def build_priority_tier(
     af_series_a = af_series.to_numpy()
     am_score_a = am_score.to_numpy()
     ba1_thresh_a = ba1_thresh.to_numpy()
-    bp_disrupt_a = bp_disrupt.to_numpy()
     bs1_thresh_a = bs1_thresh.to_numpy()
     concordant_path_mask_a = concordant_path_mask.to_numpy()
     has_splice_effect_a = has_splice_effect.to_numpy()
@@ -275,7 +270,6 @@ def build_priority_tier(
             else:
                 parts.append(f"Splicing (+{s_comp*30.0:.1f})")
         if sv_aberrant_a[i]: parts.append("SpliceVault (+5.0)")
-        if bp_disrupt_a[i]: parts.append("Branchpoint (+5.0)")
 
         # Phase 1 In Silico Explanation
         in_pts = insilico_points[i]
@@ -392,7 +386,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
         "pLI_gene_value", "pLI", "NMD_STATUS", "NMD",
         "spliceai_custom_MAX", "spliceAI_MAX", "SPLICE_MAX_UNIFIED", "SPLICEAI_METHOD", "SPLICEAI_STATUS",
         "SPiP_prediction", "SPiP", "Pangolin_max_score", "Pangolin",
-        "SpliceVault_status", "Branchpoint_status",
+        "SpliceVault_status", "LaBranchoR_status",
         "am_pathogenicity", "AlphaMissense", "REVEL_score", "REVEL",
         "UTRAnnotator_status", "5UTR_consequence",
         "QC_STATUS", "QC_DETAIL"
@@ -431,7 +425,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
         "AlphaMissense": ["am_pathogenicity", "AlphaMissense"],
         "REVEL Missense Ensemble": ["REVEL_score", "REVEL"],
         "SpliceVault RNA-Seq Cohort": ["SpliceVault_status", "SpliceVault"],
-        "Branchpoint Disruption": ["Branchpoint_status", "Branchpoint"],
+        "LaBranchoR branchpoint (positional, informational)": ["LaBranchoR_score"],
         "ReMM Non-Coding (informational)": ["ReMM_score"],
         "AlphaGenome AVI (informational)": ["AVI_PHRED"],
         "ClinVar Pathogenicity": ["ClinVarVCF_CLNSIG", "clinvar_clnsig", "CLIN_SIG", "CLNSIG", "CLINVAR_DISPLAY", "ClinVar"],

@@ -1,5 +1,5 @@
-// Branchpointer + LaBranchoR: lookup against a precomputed genome-wide branch-point BED (broad
-// tier).
+// LaBranchoR: positional lookup against the precomputed top-branchpoint BED (broad tier); alleles are
+// not scored (PRED-18).
 
 process BRANCHPOINT_ANNOTATE {
     tag "${meta.partition_id}"

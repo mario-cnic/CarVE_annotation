@@ -44,10 +44,6 @@ NEW_PANGOLIN_COLUMNS = {
 }
 
 NEW_BRANCHPOINT_COLUMNS = {
-    "branchpointer_prob": "Branchpointer_prob",
-    "branchpointer_energy": "Branchpointer_U2_energy",
-    "branchpoint_disrupted": "Branchpoint_disrupted",
-    "branchpoint_status": "Branchpoint_status",
     "labranchor_score": "LaBranchoR_score",
     "labranchor_acc_dist": "LaBranchoR_acc_dist",
     "labranchor_status": "LaBranchoR_status",
@@ -381,46 +377,24 @@ def parse_pangolin(data: pd.DataFrame, pangolin_col: str = "Pangolin"):
 
 
 def parse_branchpointer(data: pd.DataFrame):
-    """Parses Branchpointer and LaBranchoR predicted scores."""
-    check_cols = ["Branchpointer_prob", "LaBranchoR_score", "Branchpoint_disrupted"]
-    if not any(c in data.columns for c in check_cols):
-        logger.info("Branchpoint columns not found in data, skipping Branchpointer/LaBranchoR parsing")
+    """LaBranchoR positional lookup: `LaBranchoR_score` / `LaBranchoR_acc_dist` as numbers and
+    `LaBranchoR_status` (`scored` near a predicted branchpoint, else `not_covered`). Informational only:
+    the score belongs to the branchpoint site, the variant's alleles are not scored (PRED-18)."""
+    if "LaBranchoR_score" not in data.columns:
+        logger.info("LaBranchoR columns not found in data, skipping LaBranchoR parsing")
         return data
 
-    logger.info("Parsing Branchpoint predictions and status contract...")
-
     def process_row(row):
-        bp_prob = row.get("Branchpointer_prob")
-        u2_energy = row.get("Branchpointer_U2_energy")
-        disrupted = row.get("Branchpoint_disrupted", "NO")
-        labranchor = row.get("LaBranchoR_score")
-        acc_dist = row.get("LaBranchoR_acc_dist")
+        score, dist = row.get("LaBranchoR_score"), row.get("LaBranchoR_acc_dist")
+        has_score = not is_missing(score)
+        return (float(score) if has_score else np.nan,
+                int(float(dist)) if not is_missing(dist) else np.nan,
+                "scored" if has_score else "not_covered")
 
-        has_bp = not pd.isna(bp_prob) and str(bp_prob) not in (".", "nan", "")
-        has_lab = not pd.isna(labranchor) and str(labranchor) not in (".", "nan", "")
-
-        bp_prob_val = float(bp_prob) if has_bp else np.nan
-        u2_energy_val = float(u2_energy) if (not pd.isna(u2_energy) and str(u2_energy) not in (".", "nan", "")) else np.nan
-        disrupted_val = str(disrupted) if str(disrupted) in ("YES", "NO") else ("YES" if (has_bp and bp_prob_val >= 0.5) else "NO")
-        bp_status = "scored" if (has_bp or disrupted_val == "YES") else "not_covered"
-
-        lab_score_val = float(labranchor) if has_lab else np.nan
-        acc_dist_val = int(acc_dist) if (not pd.isna(acc_dist) and str(acc_dist) not in (".", "nan", "")) else np.nan
-        lab_status = "scored" if has_lab else "not_covered"
-
-        return (bp_prob_val, u2_energy_val, disrupted_val, bp_status, lab_score_val, acc_dist_val, lab_status)
-
-    try:
-        res = apply_rows(data, process_row,
-                         ["Branchpointer_prob", "Branchpointer_U2_energy", "Branchpoint_disrupted", "LaBranchoR_score",
-                          "LaBranchoR_acc_dist"],
-                         list(NEW_BRANCHPOINT_COLUMNS.values()))
-        for col_name in res.columns:
-            data[col_name] = res[col_name]
-        logger.info("Branchpoint columns parsed and status contract applied successfully")
-    except Exception as e:
-        logger.error(f"Error parsing Branchpoint columns: {e}")
-
+    res = apply_rows(data, process_row, ["LaBranchoR_score", "LaBranchoR_acc_dist"],
+                     list(NEW_BRANCHPOINT_COLUMNS.values()))
+    for col_name in res.columns:
+        data[col_name] = res[col_name]
     return data
 
 

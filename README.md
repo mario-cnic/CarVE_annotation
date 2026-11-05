@@ -26,8 +26,7 @@ The active annotation workflow is the Nextflow whole-VCF pipeline ([annotate_vcf
    - **Local SpliceAI at `-D 4999`**: Deep residual neural network predicting max delta scores within 4999 bp of each variant (the maximum the Illumina CLI accepts).
    - **SpliceAI source selection**: VEP lookup and custom prediction fields are exported separately. A valid custom score takes precedence, including zero; valid VEP is the fallback. `SPLICE_MAX_UNIFIED` stays null when neither is available, with `SPLICEAI_METHOD = Not Covered` and availability in `SPLICEAI_STATUS`.
    - **Branch Point Predictor Pair**:
-     - **LaBranchoR**: Bidirectional LSTM predicting top human catalytic branch points across GRCh38 (206,249 branch points).
-     - **Branchpointer**: Signal-feature model estimating branch point probability, U2 snRNA duplex free energy (kcal/mol), and motif disruption flags (`YES`/`NO`).
+     - **LaBranchoR** (positional lookup, informational): flags variants within 2 bp of LaBranchoR's precomputed top branch point of an intron (bidirectional LSTM predictions for GENCODE v19 introns, lifted to GRCh38; 206,249 branch points). `LaBranchoR_score` is the branch point's own probability; the variant's alleles are not scored, so it is not evidence of disruption and does not change `NEW_IMPACT` or the priority score (`PRED-18`). Branchpointer is not run.
    - **SpliceVault**: Direct empirical RNA-seq aberrant event lookup across GTEx/SRA datasets with human-readable decoded events and sample counts.
    - **SpliceVarDB**: Direct lookup of experimentally validated splicing variants from minigene, RT-PCR, and RNA-seq assays.
    - **ClinVar** (VEP `--custom`, `ClinVarVCF*` columns): germline classification, review status and disease names for SNVs and indels from a dated ClinVar GRCh38 VCF (`clinvar_vcf` in `nextflow.config`, stored under `/data_lab_PGP/resources/annotation/clinvar/GRCh38/`; rebuild with `resources/build_clinvar_vcf.sh`).
@@ -123,12 +122,12 @@ The launcher records in the manifest the params this exact command line resolves
 
 | Tier | Records | Tools |
 | --- | --- | --- |
-| Broad | every record in the input | VEP 111 (with its plugins), Branchpointer/LaBranchoR |
+| Broad | every record in the input | VEP 111 (with its plugins), LaBranchoR branch-point lookup |
 | Gene-restricted | only SNV, indel and MNP records inside [`resources/v5_genes_loc.bed`](./resources/v5_genes_loc.bed) (`Complete_gene_list_V5` regions) | SpliceAI (`-D 4999`), Pangolin (`-d 4999`), SPiP (unless `--spip_tier broad`) |
 
 Records outside the gene BED have **no** SpliceAI/Pangolin/SPiP annotation. A missing score there means the tool was not run, not that the variant is predicted benign.
 
-**Structural variants are not a supported input.** Symbolic alleles (`<DEL>`, `<CNV>`, `<DUP:TANDEM>`, ...), breakends and `*` alleles pass the input check when the header declares `INFO/END` (otherwise it fails: htslib cannot write such records) and each record is well formed (counted as `symbolic_or_non_acgt_records` in the assembly-check report) and are annotated by VEP and Branchpointer only; `GENE_SUBSET` leaves them out of the gene-restricted tier, whose tools cannot score them (`PRED-17`; the `GENE_SUBSET` log line gives the count). Call SVs with a dedicated caller and annotate them separately.
+**Structural variants are not a supported input.** Symbolic alleles (`<DEL>`, `<CNV>`, `<DUP:TANDEM>`, ...), breakends and `*` alleles pass the input check when the header declares `INFO/END` (otherwise it fails: htslib cannot write such records) and each record is well formed (counted as `symbolic_or_non_acgt_records` in the assembly-check report) and are annotated by VEP and the LaBranchoR lookup only; `GENE_SUBSET` leaves them out of the gene-restricted tier, whose tools cannot score them (`PRED-17`; the `GENE_SUBSET` log line gives the count). Call SVs with a dedicated caller and annotate them separately.
 
 ### Outputs
 

@@ -29,13 +29,9 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_aa_score` | Float | Cardiac Atrial Appendage specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
 | **SpliceAI VEP lookup** | *N/A (New)* | `SpliceAI_status` | String | VEP-only maximum availability: `scored`, `not_covered`, or preserved explicit `error`. |
-| **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_prob` | Float | Predicted branch point probability score. |
-| **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpointer_U2_energy` | Float | Predicted free energy of U2 snRNA duplex binding (kcal/mol). |
-| **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpoint_disrupted` | String | Branchpoint disruption flag (`YES` / `NO`). |
-| **Objective 6 (Branchpointer)** | *N/A (New)* | `Branchpoint_status` | String | Status contract: `scored`, `not_covered`, `error`. |
-| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_score` | Float | Deep learning LSTM branch point probability score (0.0 to 1.0). |
-| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_acc_dist` | Integer | Distance in bp from predicted branch point to 3' splice site acceptor. |
-| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_status` | String | Status contract: `scored`, `not_covered`, `error`. |
+| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_score` | Float | Probability of the LaBranchoR top branch point within 2 bp of the variant: a property of the site, alleles not scored (PRED-18). Informational. |
+| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_acc_dist` | Integer | Distance in bp from the variant to that branch point's 3' splice site. |
+| **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_status` | String | `scored` (near a predicted branch point) or `not_covered`. |
 
 ---
 
@@ -95,14 +91,11 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `Pangolin_heart_aa_score`: Atrial Appendage specific prediction.
 - `Pangolin_status`: Status contract (`scored`, `not_covered`, `error`).
 
-### F. Branch Point Predictor Pair (Branchpointer + LaBranchoR)
-- `Branchpointer_prob`: Probability of functional branch point.
-- `Branchpointer_U2_energy`: Predicted U2 snRNA duplex free energy (kcal/mol).
-- `Branchpoint_disrupted`: Flag indicating branchpoint motif disruption (`YES` / `NO`).
-- `Branchpoint_status`: Status contract (`scored`, `not_covered`, `error`).
-- `LaBranchoR_score`: Deep learning LSTM predicted branchpoint probability (0.0 to 1.0).
-- `LaBranchoR_acc_dist`: Distance in bp to 3' splice site acceptor.
-- `LaBranchoR_status`: Status contract (`scored`, `not_covered`, `error`).
+### F. LaBranchoR branch-point lookup (positional)
+- `LaBranchoR_score`: probability of LaBranchoR's top branch point within 2 bp of the variant (site property; the variant's alleles are not scored). Informational: no effect on `NEW_IMPACT` or the score (PRED-18).
+- `LaBranchoR_acc_dist`: distance in bp from the variant to that branch point's 3' splice site.
+- `LaBranchoR_status`: `scored` or `not_covered`.
+- Removed 2026-11-05: `Branchpointer_prob` (a copy of `LaBranchoR_score`), `Branchpointer_U2_energy` (a constant -6.2), `Branchpoint_disrupted`, `Branchpoint_status`; Branchpointer was never run.
 
 ### F2. MaxEntScan (VEP plugin)
 - `MaxEntScan_ref`: Raw VEP-computed splice site strength score for the reference allele.
