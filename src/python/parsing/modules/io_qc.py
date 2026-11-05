@@ -152,8 +152,8 @@ def build_cDNA_MANE(data: pd.DataFrame):
     if colname in data.columns:
         logger.info(f"Column `{colname}` already exists, skipping creation")
         return data
-    data['HGVSc'] = data['HGVSc'].astype(str)
-    cdna = data["HGVSc"].str.extract(r"\w*(:c\..*)")
+    # str() only for the match: HGVSc itself keeps its missing values (not the text "nan").
+    cdna = data["HGVSc"].astype(str).str.extract(r"\w*(:c\..*)")
     data.insert(4, colname, data["MANE_SELECT"] + cdna.iloc[:, 0])
     logger.info(
         f"New column `{colname}` created using MANE_SELECT+HGVSc"
