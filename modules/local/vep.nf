@@ -20,8 +20,9 @@ process VEP_ANNOTATE {
         .collect { it.trim() }.join(',')
     """
     # code ${params.code_md5.vep}
+    # resources ${params.resource_id.vep}
     vep --fork ${task.cpus} -species homo_sapiens \\
-        --dir_plugins ${params.data_lab_pgp}/resources/annotation/VEP/VEP_plugins \\
+        --dir_plugins ${params.vep_plugin_modules_dir} \\
         --offline --cache --cache_version ${params.vep_cache_version} --dir ${vep_files}/cache \\
         --synonyms ${vep_files}/cache/homo_sapiens/${params.vep_cache_version}_GRCh38/chr_synonyms.txt \\
         --fasta ${params.fasta} --assembly GRCh38 \\

@@ -78,3 +78,40 @@ def test_process_running_repo_code_names_its_code_md5(nf, process):
 def test_cache_identity_ignores_the_code_line():
     text = 'process P {\n    script:\n    """\n    # code ${params.code_md5.spliceai}\n    run it\n    """\n}\n'
     assert ac.script_block(text, "P") == ac.script_block(text.replace("    # code ${params.code_md5.spliceai}\n", ""), "P")
+
+
+def resource_map() -> dict:
+    """params.resource_id key -> params named in its resourceId([...]) list (annotate_vcf.nf)."""
+    text = (REPO / "annotate_vcf.nf").read_text()
+    return {k: set(re.findall(r"params\.(\w+)", body))
+            for k, body in re.findall(r"^\s+(\w+)\s*:\s*resourceId\(\[(.*?)\]\)", text, re.S | re.M)}
+
+
+RESOURCES = resource_map()
+RESOURCE_PARAMS = set().union(*RESOURCES.values()) if RESOURCES else set()
+
+
+def test_resource_map_is_parsed():
+    assert {"fasta", "vep_dir", "pangolin_db", "labranchor_bed", "gnomad_vcf"} <= RESOURCE_PARAMS
+
+
+@pytest.mark.parametrize("nf,process", PROCESSES, ids=[p for _, p in PROCESSES])
+def test_process_reading_a_large_resource_names_its_resource_id(nf, process):
+    # TODO ordered item 6: -resume must rerun a task whose resource (FASTA, VEP cache, ...) changed at the same
+    # path; Nextflow only sees it through the `# resources ${params.resource_id.<key>}` line.
+    block = ac.script_block(nf.read_text(), process)            # without the code / resources lines
+    full = re.search(r"^process\s+" + process + r"\s*\{(.*?)^}", nf.read_text(), re.S | re.M).group(1)
+    used = set(re.findall(r"params\.(\w+)", block)) & RESOURCE_PARAMS
+    keys = re.findall(r"# resources \$\{params\.resource_id\.(\w+)\}", full)
+    if used:
+        assert len(keys) == 1 and keys[0] in RESOURCES, f"{process}: {keys} not in {sorted(RESOURCES)}"
+        assert used <= RESOURCES[keys[0]], f"{process}: {sorted(used - RESOURCES[keys[0]])} not in resource_id.{keys[0]}"
+    else:
+        assert not keys
+
+
+def test_cache_identity_ignores_the_resources_line():
+    text = ('process P {\n    script:\n    """\n    # code ${params.code_md5.spliceai}\n'
+            '    # resources ${params.resource_id.fasta}\n    run it\n    """\n}\n')
+    bare = 'process P {\n    script:\n    """\n    run it\n    """\n}\n'
+    assert ac.script_block(text, "P") == ac.script_block(bare, "P")

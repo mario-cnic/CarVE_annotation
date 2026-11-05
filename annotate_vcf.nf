@@ -7,7 +7,22 @@
 // --input_vcf must already be tabix-indexed alongside it (<input_vcf>.tbi).
 
 import java.nio.file.Files
+import java.nio.file.FileVisitOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.security.MessageDigest
+
+// Regular files under `root` (itself if a file), sorted; symlinks followed, also a symlinked root
+// (Files.walk on a symlink to a directory yields nothing).
+def filesUnder(root) {
+    def real = root.toRealPath()
+    if (!Files.isDirectory(real)) return [real, [real]]
+    def stream = Files.walk(real, FileVisitOption.FOLLOW_LINKS)
+    try {
+        return [real, stream.toList().findAll { Files.isRegularFile(it) }.sort { it.toString() }]
+    } finally {
+        stream.close()
+    }
+}
 
 // Nextflow does not see the content of scripts passed by path, so -resume would reuse a task whose code
 // changed. params.code_md5.<key> is the md5 of the code (and small files read by path) of each process;
@@ -21,12 +36,38 @@ def codeMd5(List paths) {
             md.update("missing:${p}".toString().bytes)
             return
         }
-        def files = root.isDirectory()
-            ? Files.walk(root).toList().findAll { Files.isRegularFile(it) && !it.toString().contains('__pycache__') && !it.toString().endsWith('.pyc') }.sort { it.toString() }
-            : [root]
-        files.each { f ->
-            md.update(root.relativize(f).toString().bytes)
+        def (real, files) = filesUnder(root)
+        files.findAll { !it.toString().contains('__pycache__') && !it.toString().endsWith('.pyc') }.each { f ->
+            md.update(real.relativize(f).toString().bytes)
             md.update(Files.readAllBytes(f))
+        }
+    }
+    md.digest().encodeHex().toString()
+}
+
+// Same for large resources read by path (FASTA, VEP cache, plugin data, ...), too big to read at every
+// launch: params.resource_id.<key> is the md5 of path, size and modification time of each file (what
+// Nextflow itself hashes for a staged input), named on a `# resources` line. A directory is walked
+// recursively; a missing path counts as "missing", an unreadable one as "unreadable" with a warning.
+def resourceId(List paths) {
+    def md = MessageDigest.getInstance('MD5')
+    paths.each { p ->
+        md.update("${p}\n".toString().bytes)
+        def root = file(p.toString())
+        if (!root.exists()) {
+            md.update("missing\n".bytes)
+            return
+        }
+        try {
+            def (real, files) = filesUnder(root)
+            // hidden entries (.git, ...) left out: a `git fetch` in a plugin checkout is not a resource change
+            files.findAll { f -> !real.relativize(f).any { it.toString().startsWith('.') } }.each { f ->
+                def a = Files.readAttributes(f, BasicFileAttributes)
+                md.update("${real.relativize(f)}\t${a.size()}\t${a.lastModifiedTime().toMillis()}\n".toString().bytes)
+            }
+        } catch (IOException e) {
+            log.warn "resource identity: cannot read ${p} (${e.class.simpleName}: ${e.message}); -resume will not see changes inside it"
+            md.update("unreadable\n".bytes)
         }
     }
     md.digest().encodeHex().toString()
@@ -47,6 +88,21 @@ params.code_md5 = [
     genotypes   : codeMd5([params.extract_genotypes_script, stampPy]),
     wide        : codeMd5([params.genotypes_wide_script, stampPy]),
     cache       : codeMd5([params.annotation_cache_script]),
+]
+// Not covered: the conda envs (pinning them is a separate TODO item). Declared path inputs (gene BED, VCFs)
+// are hashed by Nextflow itself. The dump run of run_annotate_vcf.sh skips the walk.
+params.resource_id = params.dump_params ? [:] : [
+    fasta       : resourceId([params.fasta]),
+    pangolin    : resourceId([params.fasta, params.pangolin_db]),
+    spip        : resourceId([file(params.spip_script).parent]),
+    branchpoint : resourceId([params.labranchor_bed]),
+    vep         : resourceId([params.fasta, params.vep_sif,
+                              "${params.vep_dir}/cache/homo_sapiens/${params.vep_cache_version}_GRCh38",
+                              params.vep_plugin_modules_dir,
+                              params.vep_cadd, params.vep_utrannotator, params.vep_spliceai_snv, params.vep_spliceai_indel,
+                              params.vep_revel, params.vep_mastermind, params.vep_loftool, params.vep_dbnsfp,
+                              params.vep_alphamissense, params.vep_avi, params.vep_maxentscan_dir, params.splicevardb_vcf,
+                              params.clinvar_vcf, params.splicevault_file, params.vep_remm, params.gnomad_vcf]),
 ]
 
 include { CHECK_INPUT_ASSEMBLY } from './modules/local/check_assembly.nf'

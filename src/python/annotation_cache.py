@@ -113,14 +113,15 @@ def now_utc() -> str:
 
 # ---------------------------------------------------------------- version identity
 
-# The `# code ${params.code_md5.<key>}` line of a script block only makes Nextflow's -resume see code
-# changes (annotate_vcf.nf); the code itself is in the identity through its git blobs, so the line is left out.
-CODE_MD5_LINE = re.compile(r"^[ \t]*# code \$\{params\.code_md5\.\w+\}[ \t]*\n", re.M)
+# The `# code ${params.code_md5.<key>}` and `# resources ${params.resource_id.<key>}` lines of a script block
+# only make Nextflow's -resume see code and resource changes (annotate_vcf.nf); the code is in the identity
+# through its git blobs and the FASTA / distance through the manifest, so both lines are left out.
+CODE_MD5_LINE = re.compile(r"^[ \t]*# (?:code \$\{params\.code_md5|resources \$\{params\.resource_id)\.\w+\}[ \t]*\n", re.M)
 
 
 def script_block(nf_text: str, process: str) -> str:
     """The `script:` section of `process`, up to its `stub:` or the end of the process, without the
-    `# code` line."""
+    `# code` and `# resources` lines."""
     body = re.search(r"^process\s+" + re.escape(process) + r"\s*\{(.*?)^}\s*$", nf_text, re.S | re.M)
     m = body and re.search(r"^\s*script:\s*$(.*?)(?=^\s*stub:\s*$|\Z)", body.group(1), re.S | re.M)
     if not m:

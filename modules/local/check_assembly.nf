@@ -25,6 +25,7 @@ process CHECK_INPUT_ASSEMBLY {
     script:
     """
     # code ${params.code_md5.check}
+    # resources ${params.resource_id.fasta}
     ${params.check_assembly_python} ${params.check_assembly_script} \\
         --vcf ${vcf} \\
         --fasta ${params.fasta} \\
