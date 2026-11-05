@@ -2,6 +2,8 @@
 
 Written 2026-11-05T08:00:00+01:00 in `CarVE_annotation` (Module 2). Module 3 (`clinical_variant_prioritization`) and `carve-platform` are not in this container: neither was read nor edited, so nothing here is checked against Module 3's code. Labels: FACT (code or test read now), INFERENCE, PROPOSAL.
 
+**2026-11-05T17:30+01:00:** the three branches are merged and pushed (`main` `1dc8c74`) and cluster-checked (`TODO.md` branch checklist). The draft below became `carve-platform/decisions/DEC-0013-labranchor-informational.md` (PROPOSED, not committed there). Module 3 was read for it at `e87b3a1`: its own `NEW_IMPACT` still has the position-only rule (`acmg.py:233-235`, CLI only), and its default-on "Branchpointer" predictor counts `Branchpoint_disrupted == "YES"` (`predictor_registry.py:61-62`).
+
 ## Scope
 
 - Three branches, none merged into `main`, none run on the cluster:
@@ -111,4 +113,5 @@ These change no table column, row or value:
 
 - Nothing was changed in Module 3 or `carve-platform`.
 - Module 3's reads of the removed columns were not checked (repo not available here).
+  2026-11-05T17:30+01:00: checked; listed in DEC-0013 (Decision item 2, Evidence). Nothing changed in Module 3.
 - No cluster run of any branch.
