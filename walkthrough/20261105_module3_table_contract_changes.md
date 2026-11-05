@@ -64,6 +64,7 @@ Kept, with corrected meaning (PRED-18):
   - MISC-42: values now come from the params of the actual command line. Before, a `--fasta`, `--spliceai_distance` or other override on the command line was recorded as the config value, and the score-cache version id came from it too.
   - ACMG-6: `external_provenance.resources.disease_gene_list` (path, size, sha256) is new.
 - **Gene-tier coverage** (MISC-4, `ccr`, rebuild pending on the cluster): once `resources/v5_genes_loc.bed` is rebuilt, SpliceAI/Pangolin/SPiP cover genes that were missing before, such as `TAZ`, mitochondrial genes, and `SLC37A4`/`SHANK3` (MANE has them on alt/fix contigs only). A `not_covered` status in older tables can mean "outside the BED" for those genes.
+  2026-11-05T17:55+01:00: rebuilt. Correction: `TAZ` was already covered as `TAFAZZIN`. Newly covered: 111 genes, mitochondrial included; `APOBEC3A` and `C4A` move from alt contigs to chr22 / chr6 (`TODO.md` step 8).
 - **SpliceAI errors** (PRED-16, `ccr`): an unexpected SpliceAI exception now fails the chunk. Before, the record was written unscored and read as `not_covered`.
   - FACT: there is no evidence it ever happened.
   - The score cache's scored sites are migrated to the new code version (step in `TODO.md`); unscored ones are recomputed.
