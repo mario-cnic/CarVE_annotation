@@ -95,7 +95,7 @@ params.resource_id = params.dump_params ? [:] : [
     fasta       : resourceId([params.fasta]),
     pangolin    : resourceId([params.fasta, params.pangolin_db]),
     spip        : resourceId([file(params.spip_script).parent]),
-    branchpoint : resourceId([params.labranchor_bed]),
+    branchpoint : resourceId([params.labranchor_bed, params.labranchor_ism]),
     vep         : resourceId([params.fasta, params.vep_sif,
                               "${params.vep_dir}/cache/homo_sapiens/${params.vep_cache_version}_GRCh38",
                               params.vep_plugin_modules_dir,
