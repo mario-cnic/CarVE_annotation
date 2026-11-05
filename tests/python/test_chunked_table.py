@@ -179,3 +179,24 @@ def test_coordinate_order_in_chunks_equals_whole(chrom, pos):
         for start in range(0, len(data), size):
             order.add(data.iloc[start:start + size])
         assert order.result() == check_coordinate_order(data)
+
+
+def test_categorical_all_null_in_one_chunk_keeps_its_categories(tmp_path):
+    # MISC-37: an all-null categorical in one part became an empty-dictionary null column, so the output
+    # dictionary was rebuilt from the values seen (['MODIFIER', 'HIGH']) and the category order was lost.
+    cats = ["HIGH", "MODERATE", "LOW", "MODIFIER"]
+    frames = [pd.DataFrame({"Locus": ["a"], "NEW_IMPACT": pd.Categorical([None], categories=cats, ordered=True)}),
+              pd.DataFrame({"Locus": ["b", "c"], "NEW_IMPACT": pd.Categorical(["MODIFIER", "HIGH"], categories=cats, ordered=True)})]
+    whole = str(tmp_path / "whole.pq")
+    pd.concat(frames, ignore_index=True).to_parquet(whole, index=False)
+    out = str(tmp_path / "chunked.pq")
+    writer = chunked.PartWriter(out)
+    try:
+        for f in frames:
+            writer.add(f)
+        writer.finish()
+    finally:
+        writer.cleanup()
+    got = pd.read_parquet(out)
+    assert got["NEW_IMPACT"].cat.categories.tolist() == cats and got["NEW_IMPACT"].cat.ordered
+    pd.testing.assert_frame_equal(got, pd.read_parquet(whole))

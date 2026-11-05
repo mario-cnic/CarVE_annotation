@@ -189,11 +189,21 @@ def _pandas_metadata(schemas: list, unified: pa.Schema, with_nulls: set) -> byte
     return json.dumps(out).encode()
 
 
-def _conform(table: pa.Table, schema: pa.Schema) -> pa.Table:
+def _nulls(n: int, field: pa.Field, dictionaries: dict):
+    """n nulls of the field's type; a dictionary (categorical) column keeps the categories of a part that
+    has values, so the output keeps them all, in order (an empty dictionary made the writer rebuild it
+    from the values seen: MISC-37)."""
+    if pa.types.is_dictionary(field.type) and field.name in dictionaries:
+        return pa.DictionaryArray.from_arrays(pa.nulls(n, field.type.index_type), dictionaries[field.name],
+                                              ordered=field.type.ordered)
+    return pa.nulls(n, field.type)
+
+
+def _conform(table: pa.Table, schema: pa.Schema, dictionaries: dict | None = None) -> pa.Table:
     """The part with the unified schema: missing or all-null columns as typed nulls, others cast."""
     arrays = [table.column(f.name).cast(f.type)
               if f.name in table.column_names and table.column(f.name).null_count < table.num_rows
-              else pa.nulls(table.num_rows, f.type) for f in schema]
+              else _nulls(table.num_rows, f, dictionaries or {}) for f in schema]
     return pa.Table.from_arrays(arrays, schema=schema)
 
 
@@ -242,12 +252,20 @@ class PartWriter:
         unified = pa.schema(fields)
         unified = unified.with_metadata({b"pandas": _pandas_metadata(schemas, unified, with_nulls)})
         bare = unified.remove_metadata()
+        # Categories of each dictionary column, from the first part where it has values.
+        dictionaries = {}
+        for f in unified:
+            if pa.types.is_dictionary(f.type):
+                for p, s, e in zip(self.parts, schemas, empty):
+                    if f.name in s.names and f.name not in e:
+                        dictionaries[f.name] = pq.read_table(p, columns=[f.name]).column(0).chunk(0).dictionary
+                        break
         rows = 0
         with pq.ParquetWriter(self.output, unified) as writer:
             buffer = []
             buffered = 0
             for p in self.parts:
-                table = _conform(pq.read_table(p), bare)
+                table = _conform(pq.read_table(p), bare, dictionaries)
                 buffer.append(table)
                 buffered += table.num_rows
                 while buffered >= ROW_GROUP_ROWS:
