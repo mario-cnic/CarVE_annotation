@@ -206,6 +206,20 @@ bash tests/run_all_tests.sh
 
 The runner isolates each module's Python imports to avoid the existing `modules` package collision. It no longer invokes retired R plotting or Bash launcher/container tests. A single test module can be run with `python3 -m pytest -q tests/python/<test_file>.py`. This checks retained Python logic; real annotation still needs the small cluster fixture run.
 
+Some modules need `bcftools`/`tabix`/`bgzip` on PATH or the `vcf_parser` package and are skipped without them; with them the suite also runs the real `script:` blocks of `GENE_SUBSET` and `CONCAT_CHUNKS`, an end-to-end VCF -> TSV -> table run and a seeded random-input comparison of chunked and whole-file tables.
+
+A local `-stub-run` checks the whole Nextflow DAG and runs the steps without a stub for real (input check, gene subset, chunking, concat identity checks, score-cache split): any small bgzipped + indexed GRCh38-like VCF and a FASTA with its `.fai` will do, the predictors are stubbed. With Nextflow >= 24.04 and an env that has pysam, pandas and pyarrow:
+
+```bash
+PY=/path/to/env/bin/python3
+nextflow run annotate_vcf.nf -profile local_dev -stub-run --input_vcf test.vcf.gz --fasta test.fa --outdir /tmp/stub_out \
+  --bcftools $(command -v bcftools) --tabix $(command -v tabix) --bgzip $(command -v bgzip) \
+  --python_spliceai $PY --check_assembly_python $PY --datasci_python $PY --vcf_parser_python $PY --branchpointer_python $PY \
+  --vcf_parser_pythonpath '' --chunk_size 10 --gene_restricted_chunk_size 5
+```
+
+Records inside `resources/v5_genes_loc.bed` exercise the gene-restricted tier. Adding `--annotation_cache_dir`, `--annotation_cache_version_{spliceai,pangolin}` and `--annotation_cache_segments_{spliceai,pangolin}` (a segment list from `annotation_cache.py list-segments`) runs the cache split too.
+
 ---
 
 ## 📖 Walkthrough Logs & System Troubleshooting
