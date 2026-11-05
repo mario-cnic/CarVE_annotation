@@ -79,6 +79,7 @@ These change no table column, row or value:
 - MISC-40: local profile.
 - LIFT-1/2: standalone liftover tool.
 - PRED-19, MISC-22.
+- MISC-43: `parse_missense` no longer shrinks `MISSENSE_COLUMNS`; one TSV per process, so pipeline tables were not affected (INFERENCE).
 
 ## Draft decision record (PROPOSAL, for `carve-platform`; number assigned there)
 
