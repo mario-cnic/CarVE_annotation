@@ -451,7 +451,9 @@ def _process_and_write_genotype_data(
             if include_dp:
                 gt_values.append(str(genotype.depth_of_coverage))
             if include_ad:
-                gt_values.append(str(genotype.allele_depth))
+                # vcf_parser's `allele_depth` is a flag; the depths are ref_depth / alt_depth.
+                has_ad = genotype.ref_depth is not None and genotype.alt_depth is not None
+                gt_values.append(f"{genotype.ref_depth},{genotype.alt_depth}" if has_ad else ".")
             if include_gt and "1" in genotype.genotype:
                 skip_variant = False
         else:

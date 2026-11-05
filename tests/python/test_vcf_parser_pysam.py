@@ -62,3 +62,9 @@ def test_depth_column_holds_depth(tmp_path):
     # MISC-30: include_dp / include_ad were passed swapped, so DP_<sample> got the AD field.
     rows = run(tmp_path, "--add_vep", "--add_dp")
     assert [r["DP_S1"] for r in rows] == ["30", "30", "40", "25"]
+
+
+def test_allele_depth_column_holds_ref_and_alt_depths(tmp_path):
+    # MISC-31: AD_<sample> was str(Genotype.allele_depth), a flag of the vcf_parser package: always "False".
+    rows = run(tmp_path, "--add_vep", "--add_dp", "--add_ad")
+    assert [(r["DP_S1"], r["AD_S1"]) for r in rows] == [("30", "12,18"), ("30", "12,18"), ("40", "20,20"), ("25", "0,25")]
