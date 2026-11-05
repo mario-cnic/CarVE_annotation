@@ -2,6 +2,7 @@
 
 The real script blocks are rendered as Nextflow interpolates them and run with bcftools on fixtures.
 """
+import re
 import shutil
 import subprocess
 import sys
@@ -16,8 +17,13 @@ import annotation_cache as ac  # noqa: E402
 BCF, TABIX = shutil.which("bcftools"), shutil.which("tabix")
 pytestmark = pytest.mark.skipif(not (BCF and TABIX), reason="bcftools/tabix not available")
 
+# Every INFO tag MERGE_ANNOTATIONS transfers with `annotate -c`: bcftools refuses a tag the source does not declare.
+MERGED_TAGS = sorted({"SpliceAI"} | {
+    tag for cols in re.findall(r"-c (\S+)", ac.script_block((REPO / "modules/local/merge.nf").read_text(), "MERGE_ANNOTATIONS"))
+    for tag in cols.split(",")})
 HEADER = ("##fileformat=VCFv4.2\n##contig=<ID=chr1,length=100000>\n"
-          '##INFO=<ID=SpliceAI,Number=.,Type=String,Description="x">\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
+          + "".join(f'##INFO=<ID={tag},Number=.,Type=String,Description="x">\n' for tag in MERGED_TAGS)
+          + "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
 
 
 def vcf(path, records, info="."):
@@ -71,8 +77,9 @@ def merge(tmp_path, vep_records):
 
 
 def _annotate_writes_index():
-    usage = subprocess.run([BCF, "annotate"], capture_output=True, text=True).stderr
-    return "--write-index" in usage
+    # `-h` without its argument prints the usage; with no argument at all bcftools reads stdin instead.
+    res = subprocess.run([BCF, "annotate", "-h"], capture_output=True, text=True, stdin=subprocess.DEVNULL)
+    return "--write-index" in res.stdout + res.stderr
 
 
 @pytest.mark.skipif(not (BCF and _annotate_writes_index()), reason="this bcftools annotate has no --write-index (-W); the cluster versions have it")
