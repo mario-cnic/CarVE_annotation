@@ -80,7 +80,9 @@ Merge order: `ccr`, then `pred18`, then `labranchor-ism`. They stack, so merging
 - **Unit and integration tests** (FACT, `ccr` at `ac6cf35`):
   - pandas 2.3.3 venv: 393 passed, 1 skipped.
     - The skipped test needs `bcftools annotate -W`, which the local bcftools 1.19 lacks; the cluster versions have it.
+      - Correction 2026-11-05T11:55:12+01:00: the test was skipped with any bcftools. Its probe ran `bcftools annotate` without arguments, which reads stdin when it is not a terminal instead of printing the usage, and its fixture did not declare the INFO tags MERGE transfers. Both fixed on `main`; with bcftools 1.24 it passes.
   - Default `python3` with pandas 3.0.5: 9 failed (MISC-25, open). The cluster `datasci` env is pandas 2.2.
+    - Correction 2026-11-05T11:55:12+01:00: the shared `datasci` env is pandas 2.3.3, and has no `pytest` or `pysam` (`TODO.md`, checklist step 2).
   - Where a tracker entry says a test "fails on the old code", that was run against the previous version of the file, not assumed.
 - **End-to-end and fuzz** (FACT):
   - A synthetic VCF goes through `vcf_parser_pysam.py` → `filter_variants.py` (whole, and chunked at 1, 2, 3, 4 and 100 rows) → `tag_transcript_priority.py`.
