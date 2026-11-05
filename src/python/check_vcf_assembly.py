@@ -20,6 +20,8 @@ names first; skipped when an assembly check already failed):
    `--max-unnormalised`.
 5. gVCF input (`<NON_REF>` / `<*>` ALT, or `##GVCFBlock` header lines) always fails.
 6. Duplicate chrom:pos:ref:alt records, and records whose ALT equals REF, only warn.
+7. An input whose header declares an INFO tag the pipeline's predictors write (PIPELINE_INFO_TAGS) fails:
+   the merge would keep its old values wherever a predictor writes none. A CSQ field only warns.
 
 Samples: duplicate sample names fail. The report records the genotype mode (`no_samples`,
 `samples_without_GT`, `single_sample`, `multi_sample`), the sample names and the declared FORMAT
@@ -39,6 +41,13 @@ import tempfile
 import pysam
 
 ACGT = set("ACGT")
+
+# INFO tags the pipeline's predictors write and MERGE_ANNOTATIONS transfers (`bcftools annotate -c`). Where a
+# predictor writes no value (no score, or the site is outside its tier), the merge keeps the record's own
+# value, so an input already carrying one of these tags would pass its old values off as this run's.
+PIPELINE_INFO_TAGS = ("SpliceAI", "Pangolin", "PangolinTissue", "SPiP", "LaBranchoR_score", "LaBranchoR_acc_dist",
+                      "Branchpointer_prob", "Branchpointer_U2_energy", "Branchpoint_disrupted",
+                      "LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBranchoR_ISM_dist", "LaBranchoR_ISM_n_3pss")
 
 
 def resolve_contig(name, fasta_lengths):
@@ -245,6 +254,14 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
             f"(need >= {min_ref_checked}); add ##contig lines, e.g. `bcftools reheader --fai`"
         )
 
+    stale = [t for t in vcf.header.info if t in PIPELINE_INFO_TAGS]
+    if stale:
+        tags = ",".join(f"INFO/{t}" for t in stale)
+        failures.append(f"input already has INFO tags this pipeline writes ({', '.join(stale)}); their old values would "
+                        f"survive where a predictor writes none. Remove them: bcftools annotate -x {tags} <in> -Oz -o <out>")
+    if "CSQ" in vcf.header.info:
+        warnings.append("input already has a CSQ field; VEP replaces it on every record it annotates")
+
     # Record scan reopens the file: the REF spot-check above consumed the first records.
     scan = scan_records(pysam.VariantFile(vcf_path))
     fix = f"bcftools norm -m -any -f {fasta_path}"
@@ -308,6 +325,7 @@ def run(vcf_path, fasta_path, report_path, ref_check_records, max_ref_mismatch_f
         ("multiallelic_records", norm["split"]),
         ("not_normalised_records", norm["realigned"]),
         ("symbolic_or_non_acgt_records", scan["symbolic"]),
+        ("pipeline_info_tags_in_input", ",".join(stale)),
         ("duplicate_site_records", scan["duplicates"]),
         ("alt_equals_ref_records", scan["alt_is_ref"]),
         ("genotype_mode", mode),

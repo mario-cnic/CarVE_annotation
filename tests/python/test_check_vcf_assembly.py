@@ -306,3 +306,42 @@ def test_norm_summary_parses_old_and_new_bcftools_formats():
     assert parse_norm_summary(old)["split"] == 1 and parse_norm_summary(old)["realigned"] == 3
     assert parse_norm_summary(new)["split"] == 2 and parse_norm_summary(new)["realigned"] == 4
     assert parse_norm_summary(["no summary here"]) is None
+
+
+def write_vcf_info(path, info_lines, records, info="."):
+    txt = str(path)[:-3]
+    with open(txt, "w") as f:
+        f.write("##fileformat=VCFv4.2\n" + "\n".join(GRCH38_LIKE + info_lines) + "\n")
+        f.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
+        for chrom, pos, ref, alt in records:
+            f.write(f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t.\t.\t{info}\n")
+    pysam.tabix_index(txt, preset="vcf", force=True)
+    return txt + ".gz"
+
+
+def test_input_with_predictor_tags_fails(tmp_path, fasta):
+    # bcftools annotate -c keeps the record's own value where the predictor wrote none: old scores would survive.
+    fa, seqs = fasta
+    lines = ['##INFO=<ID=SpliceAI,Number=.,Type=String,Description="old">',
+             '##INFO=<ID=LaBranchoR_score,Number=1,Type=Float,Description="old">']
+    vcf = write_vcf_info(tmp_path / "stale.vcf.gz", lines, true_records(seqs))
+    assert go(tmp_path, vcf, fa) == 1
+    r = report(tmp_path)
+    assert r["pipeline_info_tags_in_input"] == "SpliceAI,LaBranchoR_score"
+    assert "bcftools annotate -x INFO/SpliceAI,INFO/LaBranchoR_score" in open(tmp_path / "r.tsv").read()
+
+
+def test_input_with_csq_only_warns(tmp_path, fasta):
+    fa, seqs = fasta
+    lines = ['##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence annotations from Ensembl VEP. Format: Allele">']
+    vcf = write_vcf_info(tmp_path / "csq.vcf.gz", lines, true_records(seqs))
+    assert go(tmp_path, vcf, fa) == 0
+    assert "CSQ" in open(tmp_path / "r.tsv").read() and report(tmp_path)["pipeline_info_tags_in_input"] == ""
+
+
+def test_protected_tags_cover_every_merged_tag():
+    import re
+    from check_vcf_assembly import PIPELINE_INFO_TAGS
+    merge = open(os.path.join(os.path.dirname(__file__), "../../modules/local/merge.nf")).read()
+    merged = {t for cols in re.findall(r"annotate -a \S+ -c (\S+)", merge) for t in cols.split(",")}
+    assert merged and merged <= set(PIPELINE_INFO_TAGS)
