@@ -15,6 +15,7 @@ process CHUNK_VCF {
     // No stub: chunking also runs under -stub-run. chunk_size is set per tier by the caller.
     script:
     """
+    # code ${params.code_md5.chunk}
     mkdir -p chunks
     ${params.python_spliceai} ${params.split_vcf_chunks_script} \\
         --input ${vcf} \\

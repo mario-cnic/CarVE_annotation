@@ -16,6 +16,7 @@ process TAG_TRANSCRIPT_PRIORITY {
     script:
     def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
+    # code ${params.code_md5.tag}
     ${params.datasci_python} ${params.gene_transcript_priority_script} \\
         --input ${table} \\
         --output ${meta.partition_id}.parsed.clean.${params.output_format} \\

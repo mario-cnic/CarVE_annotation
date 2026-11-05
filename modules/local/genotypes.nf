@@ -19,6 +19,7 @@ process EXTRACT_GENOTYPES {
     script:
     def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
+    # code ${params.code_md5.genotypes}
     ${params.datasci_python} ${params.extract_genotypes_script} \\
         --vcf ${vcf} \\
         --output ${meta.partition_id}.genotypes.pq \\
@@ -46,6 +47,7 @@ process ADD_WIDE_GENOTYPES {
     script:
     def stamp_flag = params.provenance_stamp ? "--stamp ${params.provenance_stamp}" : ""
     """
+    # code ${params.code_md5.wide}
     ${params.datasci_python} ${params.genotypes_wide_script} \\
         --table ${table} \\
         --genotypes ${genotypes} \\

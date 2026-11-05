@@ -14,6 +14,7 @@ process VCF_TO_TSV {
 
     script:
     """
+    # code ${params.code_md5.vcf_to_tsv}
     export OMP_NUM_THREADS=1
     export MKL_NUM_THREADS=1
     export OPENBLAS_NUM_THREADS=1
@@ -46,6 +47,7 @@ process TSV_TO_TABLE {
 
     script:
     """
+    # code ${params.code_md5.tsv_to_table}
     export OMP_NUM_THREADS=1
     export MKL_NUM_THREADS=1
     export OPENBLAS_NUM_THREADS=1

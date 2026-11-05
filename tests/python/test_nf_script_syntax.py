@@ -56,3 +56,25 @@ def test_script_block_is_valid_bash(nf, process):
     assert res.returncode == 0, f"{nf.name} {process}: {res.stderr}\n{script}"
     groovy_comments = [l for l in script.splitlines() if l.strip().startswith("//")]
     assert not groovy_comments, f"{nf.name} {process}: Groovy comment inside the bash script: {groovy_comments}"
+
+
+CODE_KEYS = set(re.findall(r"^\s+(\w+)\s*:\s*codeMd5\(", (REPO / "annotate_vcf.nf").read_text(), re.M))
+
+
+@pytest.mark.parametrize("nf,process", PROCESSES, ids=[p for _, p in PROCESSES])
+def test_process_running_repo_code_names_its_code_md5(nf, process):
+    # TODO ordered item 6: -resume must rerun a task whose code changed; Nextflow only sees it through the
+    # `# code ${params.code_md5.<key>}` line (the md5 is computed in annotate_vcf.nf).
+    block = ac.script_block(nf.read_text(), process)            # without the code line
+    full = re.search(r"^process\s+" + process + r"\s*\{(.*?)^}", nf.read_text(), re.S | re.M).group(1)
+    runs_code = re.search(r"params\.\w+_(script|python)\b|params\.pangolin_repo|params\.vep_dbnsfp_fields", block)
+    keys = re.findall(r"# code \$\{params\.code_md5\.(\w+)\}", full)
+    if runs_code:
+        assert len(keys) == 1 and keys[0] in CODE_KEYS, f"{process}: {keys} not in {sorted(CODE_KEYS)}"
+    else:
+        assert not keys
+
+
+def test_cache_identity_ignores_the_code_line():
+    text = 'process P {\n    script:\n    """\n    # code ${params.code_md5.spliceai}\n    run it\n    """\n}\n'
+    assert ac.script_block(text, "P") == ac.script_block(text.replace("    # code ${params.code_md5.spliceai}\n", ""), "P")

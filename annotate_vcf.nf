@@ -6,6 +6,49 @@
 //
 // --input_vcf must already be tabix-indexed alongside it (<input_vcf>.tbi).
 
+import java.nio.file.Files
+import java.security.MessageDigest
+
+// Nextflow does not see the content of scripts passed by path, so -resume would reuse a task whose code
+// changed. params.code_md5.<key> is the md5 of the code (and small files read by path) of each process;
+// the process names it on a `# code` line of its script, which puts that value in the task hash. A
+// directory is walked recursively (no __pycache__); a missing path counts as "missing:<path>".
+def codeMd5(List paths) {
+    def md = MessageDigest.getInstance('MD5')
+    paths.each { p ->
+        def root = file(p.toString())
+        if (!root.exists()) {
+            md.update("missing:${p}".toString().bytes)
+            return
+        }
+        def files = root.isDirectory()
+            ? Files.walk(root).toList().findAll { Files.isRegularFile(it) && !it.toString().contains('__pycache__') && !it.toString().endsWith('.pyc') }.sort { it.toString() }
+            : [root]
+        files.each { f ->
+            md.update(root.relativize(f).toString().bytes)
+            md.update(Files.readAllBytes(f))
+        }
+    }
+    md.digest().encodeHex().toString()
+}
+def stampPy = "${projectDir}/src/python/provenance_stamp.py"
+params.code_md5 = [
+    check       : codeMd5([params.check_assembly_script]),
+    chunk       : codeMd5([params.split_vcf_chunks_script]),
+    spliceai    : codeMd5([params.annotate_spliceai_script]),
+    pangolin    : codeMd5(["${params.pangolin_repo}/pangolin"]),
+    spip        : codeMd5([params.spip_script]),
+    branchpoint : codeMd5([params.branchpointer_script]),
+    vep         : codeMd5([params.vep_dbnsfp_fields]),
+    vcf_to_tsv  : codeMd5([params.vcf_parser_script, "${file(params.vcf_parser_script).parent}/logger.py", params.vep_cols_file]),
+    tsv_to_table: codeMd5([file(params.filter_variants_script).parent, params.spliceai_symbol_map, params.enst_spip_map,
+                           params.dbnsfp_aligned_columns, params.gene_constraint_table, params.disease_gene_list, params.hgnc_table]),
+    tag         : codeMd5([params.gene_transcript_priority_script, stampPy, "${projectDir}/resources/gene_transcript_mapping.txt"]),
+    genotypes   : codeMd5([params.extract_genotypes_script, stampPy]),
+    wide        : codeMd5([params.genotypes_wide_script, stampPy]),
+    cache       : codeMd5([params.annotation_cache_script]),
+]
+
 include { CHECK_INPUT_ASSEMBLY } from './modules/local/check_assembly.nf'
 include { BROAD_PASS_WHOLE_SUBWORKFLOW } from './workflows/broad_pass_whole.nf'
 include { GENE_RESTRICTED_WHOLE_SUBWORKFLOW } from './workflows/gene_restricted_whole.nf'

@@ -18,6 +18,7 @@ process PANGOLIN_ANNOTATE {
     script:
     def raw_out = "${meta.partition_id}.annPangolin.vcf"
     """
+    # code ${params.code_md5.pangolin}
     zcat ${vcf} > raw_input.vcf
     # Without these, torch/numpy oversubscribe threads past the SGE-allocated slot count.
     export OMP_NUM_THREADS=${task.cpus}

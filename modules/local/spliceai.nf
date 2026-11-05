@@ -14,6 +14,7 @@ process SPLICEAI_ANNOTATE {
     script:
     def out_vcf = "${chunk.baseName.replace('.vcf','')}.annSpliceAI.vcf"
     """
+    # code ${params.code_md5.spliceai}
     zcat ${chunk} > raw_input.vcf
     ${params.python_spliceai} ${params.annotate_spliceai_script} \\
         raw_input.vcf ${out_vcf} ${params.fasta} -d ${params.spliceai_distance}

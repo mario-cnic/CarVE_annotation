@@ -13,6 +13,7 @@ process BRANCHPOINT_ANNOTATE {
 
     script:
     """
+    # code ${params.code_md5.branchpoint}
     zcat ${vcf} > raw_input.vcf
     ${params.branchpointer_python} ${params.branchpointer_script} \\
         raw_input.vcf ${meta.partition_id}.annBranchpoint.vcf \\

@@ -113,13 +113,19 @@ def now_utc() -> str:
 
 # ---------------------------------------------------------------- version identity
 
+# The `# code ${params.code_md5.<key>}` line of a script block only makes Nextflow's -resume see code
+# changes (annotate_vcf.nf); the code itself is in the identity through its git blobs, so the line is left out.
+CODE_MD5_LINE = re.compile(r"^[ \t]*# code \$\{params\.code_md5\.\w+\}[ \t]*\n", re.M)
+
+
 def script_block(nf_text: str, process: str) -> str:
-    """The `script:` section of `process`, up to its `stub:` or the end of the process."""
+    """The `script:` section of `process`, up to its `stub:` or the end of the process, without the
+    `# code` line."""
     body = re.search(r"^process\s+" + re.escape(process) + r"\s*\{(.*?)^}\s*$", nf_text, re.S | re.M)
     m = body and re.search(r"^\s*script:\s*$(.*?)(?=^\s*stub:\s*$|\Z)", body.group(1), re.S | re.M)
     if not m:
         raise CacheError(f"no script: block found for process {process}")
-    return m.group(1)
+    return CODE_MD5_LINE.sub("", m.group(1))
 
 
 def code_identity(repo_root: Path, commit: str, predictor: str) -> dict:

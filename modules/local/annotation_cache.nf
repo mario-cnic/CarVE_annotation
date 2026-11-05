@@ -21,6 +21,7 @@ process CACHE_SPLIT {
     // No stub: the split also runs under -stub-run.
     script:
     """
+    # code ${params.code_md5.cache}
     ${params.python_spliceai} ${params.annotation_cache_script} split \\
         --predictor ${predictor} --input ${vcf} --segments-dir segments \\
         --hits ${predictor}.hits.vcf.gz --misses ${predictor}.misses.vcf.gz \\
@@ -48,6 +49,7 @@ process CACHE_WRITE {
     // The UTC stamp is fixed when the task runs, so a resumed (cached) task republishes the same names.
     script:
     """
+    # code ${params.code_md5.cache}
     mkdir segment
     ${params.python_spliceai} ${params.annotation_cache_script} make-segment \\
         --predictor ${predictor} --annotated ${annotated} --misses ${misses} \\

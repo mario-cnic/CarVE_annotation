@@ -19,6 +19,7 @@ process VEP_ANNOTATE {
         .findAll { it.trim() && !it.trim().startsWith('#') }
         .collect { it.trim() }.join(',')
     """
+    # code ${params.code_md5.vep}
     vep --fork ${task.cpus} -species homo_sapiens \\
         --dir_plugins ${params.data_lab_pgp}/resources/annotation/VEP/VEP_plugins \\
         --offline --cache --cache_version ${params.vep_cache_version} --dir ${vep_files}/cache \\

@@ -14,6 +14,7 @@ process SPIP_ANNOTATE {
     script:
     def raw_out = "${meta.partition_id}.annSPiP.vcf"
     """
+    # code ${params.code_md5.spip}
     zcat ${vcf} > raw_input.vcf
     export OMP_NUM_THREADS=1
     export MKL_NUM_THREADS=1
