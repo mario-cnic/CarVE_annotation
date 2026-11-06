@@ -1,6 +1,6 @@
 {
   "kanvas": 1,
-  "title": "annotation_pipeline_new",
+  "title": "Annotation pipeline",
   "groups": [
     {
       "id": "CC",
@@ -31,8 +31,9 @@
     {
       "id": "CC-01",
       "title": "Finish the post-merge cluster checklist (steps 6, 7, 7a)",
-      "state": "proposed",
+      "state": "doing",
       "group": "CC",
+      "deps": ["CC-04", "CC-05", "CC-06"],
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
       "desc": "Why: the 54-fix review branch, PRED-18 and LaBranchoR ISM are merged and pushed, but three checks of their cluster checklist were never run, so some fixes (silent SpliceAI failures, empty-input runs, resume caching) are still unproven on real tools.\n\nState: steps 1-5, 7b-7d and 8 passed on the fixtures clinvar_af_fixture_20261105, ism_fixture_20261105, pred21_fixture_20261105 and gene_bed_fixture_20261106.\n\nTo do:\n- Step 6: count sites the new SpliceAI cache scores that the old cache (ca2807064ffcf846) left unscored. 0 = no evidence of past silent failures.\n- Step 7 (MISC-22): a small VCF with no site in the gene BED must run through VEP / SpliceAI / Pangolin / SPiP without failing.\n- Step 7a (MISC-44): launch-to-first-task time; then two -resume runs with nothing changed must both be fully Cached.\nYou launch the runs (I never submit jobs); I prepare inputs and commands and review the outputs.\n\nDone when: each step has a result and its run name.\nSource: TODO.md \"Cluster checks for branch ccr-8536b091-fabr1g\", steps 6, 7, 7a.",
@@ -46,13 +47,18 @@
           "at": "2026-11-06T14:14:57Z",
           "by": "human",
           "text": "Changes requested: split it in subtasks"
+        },
+        {
+          "at": "2026-11-06T17:36:36Z",
+          "by": "claude-code",
+          "text": "Split as requested into CC-04 (step 6), CC-05 (step 7), CC-06 (step 7a). CC-01 stays as the umbrella: it finishes when the three are done. Approve them in the board."
         }
       ]
     },
     {
       "id": "CC-02",
       "title": "Close the bug rows the checklist verifies",
-      "state": "proposed",
+      "state": "todo",
       "group": "CC",
       "deps": ["CC-01"],
       "at": "2026-11-06T13:51:22Z",
@@ -133,7 +139,7 @@
     {
       "id": "RP-02",
       "title": "Declared test environment + pandas 3 (MISC-25)",
-      "state": "proposed",
+      "state": "review",
       "group": "RP",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -143,6 +149,11 @@
           "at": "2026-11-06T13:55:21Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-06T17:46:51Z",
+          "by": "claude-code",
+          "text": "The test suite now runs from one declared environment: 441 passed, 0 skipped, 0 failed (run 2026-11-06, commit after 381b128).\n- How: `resources/conda/test_env.yml` (Python 3.12, pandas 2.3.3, bcftools 1.21, vcf_parser 1.6, same as the cluster envs); command in README \"Master Unit Testing Suite\". Built locally at /home/mruizp/apps/miniforge3/envs/annotation_tests.\n- pandas 3: pinned out (pandas=2.3.3), not supported in code. MISC-25 stays half-open: the pipeline's own shared datasci/vcf_parser envs are not pinned by this repo; that belongs to RP-01.\n- Found: vcf_parser 1.6 needs setuptools<81 (it imports pkg_resources); without it 3 modules silently skipped.\nTo check: run the README command; the summary must end \"All active Python test modules passed.\""
         }
       ]
     },
@@ -181,7 +192,7 @@
     {
       "id": "SF-03",
       "title": "UTRAnnotator uORF class picked by hash order (PRED-15)",
-      "state": "proposed",
+      "state": "doing",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -191,6 +202,11 @@
           "at": "2026-11-06T13:55:22Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-06T17:36:43Z",
+          "by": "claude-code",
+          "text": "Question: PRED-15: (a) fork UTRAnnotator into this repo and make it emit every uORF class deterministically, or (b) accept and document the instability? I recommend (a): the instability flips high_impact/other on real rows (6 of 1,780 shared rows), and a pinned in-repo copy also helps RP-01."
         }
       ]
     },
@@ -250,16 +266,73 @@
       "deps": ["TH-01", "TH-02"],
       "at": "2026-11-06T13:55:35Z",
       "by": "claude-code",
-      "desc": "Why: you plan to track work on this board. Today TODO.md and BUG_TRACKER.md are the declared source of truth (project CLAUDE.md), so status would live in two places.\n\nDecide first: kanvas.json is now gitignored (keeps run manifests clean), so the board has no history and no backup in git. If it becomes the only tracker, losing the file loses the state. Option: track kanvas.json in git and exclude it from the manifest's dirty check instead (src/python/write_run_manifest.py).\n\nTo do, after TH-01/TH-02 have cleaned the lists:\n- one board task per open item worth keeping; bug IDs (PRED-, MISC-) kept in titles;\n- TODO.md / BUG_TRACKER.md keep evidence and history, frozen as an archive with a pointer to the board;\n- update the project CLAUDE.md line on the source of truth.\n\nDone when: every open item is on the board or explicitly dropped, and the two files say where status now lives."
+      "desc": "Why: you plan to track work on this board. Today TODO.md and BUG_TRACKER.md are the declared source of truth (project CLAUDE.md), so status would live in two places.\n\nDecide first: kanvas.json is now gitignored (keeps run manifests clean), so the board has no history and no backup in git. If it becomes the only tracker, losing the file loses the state. Option: track kanvas.json in git and exclude it from the manifest's dirty check instead (src/python/write_run_manifest.py).\n\nTo do, after TH-01/TH-02 have cleaned the lists:\n- one board task per open item worth keeping; bug IDs (PRED-, MISC-) kept in titles;\n- TODO.md / BUG_TRACKER.md keep evidence and history, frozen as an archive with a pointer to the board;\n- update the project CLAUDE.md line on the source of truth.\n\nDone when: every open item is on the board or explicitly dropped, and the two files say where status now lives.",
+      "notes": [
+        {
+          "at": "2026-11-06T14:18:05Z",
+          "by": "claude-code",
+          "text": "Decided 2026-11-06 (Mario): kanvas.json is tracked in git (381b128) and excluded from the run manifest's dirty check and patch (e2a7ed0, test added). Board changes show as uncommitted until a commit; they no longer mark runs dirty."
+        }
+      ]
     },
     {
       "id": "PR-02",
       "title": "Investigate SpliceAI2 and its inclusion",
-      "state": "todo",
+      "state": "review",
       "group": "PR",
       "at": "2026-11-06T14:14:16Z",
       "by": "human",
-      "desc": "New predictor, an update from SpliceAI: SpliceAI was just launched. Check how can we implement it in our pipeline"
+      "desc": "New predictor, an update from SpliceAI: SpliceAI was just launched. Check how can we implement it in our pipeline",
+      "notes": [
+        {
+          "at": "2026-11-06T17:46:57Z",
+          "by": "claude-code",
+          "text": "Plan: find the primary source (paper/preprint, code, weights, licence, genome build, precomputed scores), compare with SpliceAI 1.3.1 as wired here (gene-restricted tier, -D 4999, score cache), and write a short inclusion memo with options. No code change until you choose."
+        },
+        {
+          "at": "2026-11-06T17:48:52Z",
+          "by": "claude-code",
+          "text": "SpliceAI2 can go in as an informational score; it cannot replace SpliceAI for ACMG. Memo: walkthrough/20261106_spliceai2_inclusion.md (faffd93).\n- Recommended route (A): Illumina's precomputed GRCh38 scores (all SNVs + ~150M population indels, protein-coding genes) looked up like ReMM/AVI, with a status column. Live scoring needs CUDA GPUs; our SpliceAI runs on CPU.\n- SpliceAI stays the PP3/BP4 predictor: only it has ClinGen-calibrated thresholds; SpliceAI2's benchmarks are all by the developers (preprint, no independent evaluation yet).\nYour decisions before any code:\n1. Licence: non-commercial research only, no redistribution. Does it cover reports to families, and tables shared outside the lab?\n2. Accept the Hugging Face gate (personal account) so I can see the size/format of precomputed_scores_v2.0 (~350 GB for the whole dataset).\n3. Does the cluster have GPU nodes? Only matters for option B (scoring private indels).\nImplementation is proposed separately as PR-03."
+        }
+      ]
+    },
+    {
+      "id": "CC-04",
+      "title": "Step 6: were past SpliceAI failures silent?",
+      "state": "proposed",
+      "group": "CC",
+      "at": "2026-11-06T17:36:31Z",
+      "by": "claude-code",
+      "desc": "Why: before PRED-16 the SpliceAI wrapper swallowed every per-record error and wrote the site unscored. The old cache (ca2807064ffcf846) has 389,061 unscored sites; if many of them get a score with the fixed code, past runs silently lost SpliceAI scores.\n\nState: the new cache version (68a43b063014889b) holds only the migrated scored sites; no run has rescored the unscored ones yet.\n\nTo do: I build a VCF of a random sample (about 2,000) of those unscored sites, seeded and recorded; you launch a short run with the test cache; I count how many now carry a score, and from which genes.\n\nDone when: a rate (scored / sampled) with the run name. 0 = no evidence of silent failures; otherwise a note on which past tables are affected.\nSource: TODO.md checklist step 6."
+    },
+    {
+      "id": "CC-05",
+      "title": "Step 7: a VCF with no gene-region site runs through (MISC-22)",
+      "state": "proposed",
+      "group": "CC",
+      "at": "2026-11-06T17:36:31Z",
+      "by": "claude-code",
+      "desc": "Why: a sample with no variant in the gene BED used to fail at CHUNK_VCF (no chunk written, 5 retries). The fix writes a header-only chunk; we have not seen VEP, SpliceAI, Pangolin and SPiP accept one on the cluster.\n\nTo do: I build a tiny VCF of public sites outside every BED region; you launch it; I check the run ends with exit 0 and a table with those rows.\n\nDone when: exit 0, empty gene-restricted outputs, run name recorded; MISC-22 can close.\nSource: TODO.md checklist step 7."
+    },
+    {
+      "id": "CC-06",
+      "title": "Step 7a: launch time and -resume caching (MISC-44)",
+      "state": "proposed",
+      "group": "CC",
+      "deps": ["CC-05"],
+      "at": "2026-11-06T17:36:31Z",
+      "by": "claude-code",
+      "desc": "Why: MISC-44 makes tasks rerun when a large resource changes, by walking resource folders at launch. Two risks: a slow launch (it stats every file of the VEP cache) and tasks that never cache because a tool writes into a walked folder.\n\nTo do: on the step-7 fixture (or any small one), you run it then -resume twice with nothing changed; I read launch-to-first-task time and check both resumes are fully Cached; if not, I find which resource changed.\n\nDone when: launch time measured; both resumes fully Cached (or the culprit named).\nSource: TODO.md checklist step 7a."
+    },
+    {
+      "id": "PR-03",
+      "title": "Add SpliceAI2 precomputed scores (informational)",
+      "state": "proposed",
+      "group": "PR",
+      "deps": ["PR-02"],
+      "at": "2026-11-06T17:48:53Z",
+      "by": "claude-code",
+      "desc": "Why: SpliceAI2 (Illumina, 2026-10) targets quantitative and deep-intronic splice effects, the thesis question; adding it as one more informational predictor lets us compare it with SpliceAI/Pangolin/SPiP on our variants.\n\nTo do (option A of walkthrough/20261106_spliceai2_inclusion.md), once you accepted the Hugging Face terms and answered the licence questions in PR-02:\n- download only precomputed_scores_v2.0 GRCh38 to /data_lab_PGP/resources/annotation/ (location your OK), check REF alleles against our FASTA on a sample;\n- one tabix-indexed file, looked up in VEP_ANNOTATE or a small step;\n- columns SpliceAI2_score, SpliceAI2_DS_*/DP_*, SpliceAI2_status (scored / not_covered; not covered is never 0);\n- no change to SpliceAI, ACMG or NEW_IMPACT.\n\nDone when: fixture run with the new columns, status counts checked, Module 3 told of the new columns."
     }
   ]
 }
