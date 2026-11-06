@@ -1,0 +1,21 @@
+name: annotation_tests
+# Test suite environment (tests/run_all_tests.sh). Versions follow the cluster envs the
+# pipeline runs with: shared datasci (Python 3.12, pandas 2.3.3), genomics (bcftools 1.21),
+# vcf_parser 1.6. pandas stays below 3 (MISC-25).
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.12
+  - pandas=2.3.3
+  - numpy<2
+  - pyarrow
+  - pysam
+  - pytest
+  - tabulate
+  - bcftools=1.21
+  - htslib=1.21
+  - setuptools<81  # vcf_parser 1.6 imports pkg_resources
+  - pip
+  - pip:
+      - vcf_parser==1.6

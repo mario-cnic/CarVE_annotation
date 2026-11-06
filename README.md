@@ -197,11 +197,15 @@ Nextflow uses `params.vep_sif` from `nextflow.config` (the separate VEP image un
 
 ## 🧪 Master Unit Testing Suite
 
-Run retained Python test modules independently with the local-compatible runner:
+Run retained Python test modules independently with the local-compatible runner, inside the test environment declared in `resources/conda/test_env.yml` (versions follow the cluster envs: Python 3.12, pandas 2.3.3, bcftools 1.21, `vcf_parser` 1.6):
 
 ```bash
-bash tests/run_all_tests.sh
+mamba env create -p <prefix>/annotation_tests -f resources/conda/test_env.yml   # once
+E=<prefix>/annotation_tests
+PATH="$E/bin:$PATH" PYTHON_BIN="$E/bin/python" bash tests/run_all_tests.sh
 ```
+
+`bcftools`/`tabix` must come first on `PATH`. Without them, or without `vcf_parser`, tests skip: a module that skips entirely makes the runner fail (pytest exit 5, nothing collected), a partly skipped one does not, so check that nothing is reported as skipped. pandas 3 is not supported (MISC-25).
 
 The runner isolates each module's Python imports to avoid the existing `modules` package collision. It no longer invokes retired R plotting or Bash launcher/container tests. A single test module can be run with `python3 -m pytest -q tests/python/<test_file>.py`. This checks retained Python logic; real annotation still needs the small cluster fixture run.
 
