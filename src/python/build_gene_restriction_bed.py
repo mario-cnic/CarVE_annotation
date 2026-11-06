@@ -75,16 +75,44 @@ def is_mitochondrial(chrom: str) -> bool:
     return (chrom[3:] if chrom.startswith("chr") else chrom) in {"M", "MT"}
 
 
-def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> tuple[dict, dict]:
+def read_hgnc(path: str) -> dict[str, str]:
+    """{upper-case name: Ensembl gene ID} from the HGNC complete set (approved entries).
+
+    Approved symbols first, then previous symbols, then aliases. A previous symbol or alias shared by
+    several genes is dropped, and a name that is an approved symbol never maps through another
+    gene's previous symbol or alias (even when that approved gene has no Ensembl ID)."""
+    tiers = [{}, {}, {}]
+    with open(path, newline="") as f:
+        for row in csv.DictReader(f, delimiter="\t"):
+            if row.get("status") != "Approved":
+                continue
+            ensg = (row.get("ensembl_gene_id") or "").strip()
+            tiers[0].setdefault(row["symbol"].strip().upper(), set()).add(ensg)
+            for tier, col in ((tiers[1], "prev_symbol"), (tiers[2], "alias_symbol")):
+                for name in (row.get(col) or "").split("|"):
+                    if name.strip():
+                        tier.setdefault(name.strip().upper(), set()).add(ensg)
+    out = {}
+    for tier in tiers:
+        for name, ids in tier.items():
+            if name not in out and len(ids) == 1:
+                out[name] = next(iter(ids))
+    return {name: ensg for name, ensg in out.items() if ensg}
+
+
+def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None,
+                  hgnc: dict | None = None) -> tuple[dict, dict]:
     """{listed gene: [(chrom, start, end, strand, how), ...]} and {listed gene: reason} for the rest (MISC-4).
 
     A listed name is looked up in MANE by exact symbol, then case-insensitively (`C10ORF71` ->
     `C10orf71`, only if one MANE symbol fits), then as an Ensembl gene ID (`ENSG...`, version ignored).
     A MANE record is always kept. When it sits only on an alt/fix contig, or the name is not in MANE,
     the primary-assembly GTF (`primary`, e.g. GENCODE) is tried the same way and its record is added
-    if it is on a primary contig. Genes left on alt/fix contigs only are reported (`mane_alt_contig_only`).
-    Mitochondrial genes are left out and reported (`mitochondrial`): they have no introns, and this BED
-    only selects the sites sent to the splice predictors.
+    if it is on a primary contig. A name still without a primary-contig record is mapped to its Ensembl
+    gene ID through HGNC (`hgnc`, from `read_hgnc`: renamed genes such as `DRC4` = GAS8) and looked up
+    by that ID in MANE, then in the primary GTF. Genes left on alt/fix contigs only are reported
+    (`mane_alt_contig_only`). Mitochondrial genes are left out and reported (`mitochondrial`): they
+    have no introns, and this BED only selects the sites sent to the splice predictors.
     """
     def lookup(name, table):
         if not table:
@@ -110,6 +138,13 @@ def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> 
             prec, phow = lookup(name, primary)
             if prec and is_primary_contig(prec[0]):
                 recs.append((*prec[:4], f"primary_gtf_{phow}"))
+        ensg = hgnc.get(name.upper()) if hgnc else None
+        if ensg and not any(is_primary_contig(r[0]) for r in recs):
+            for table, label in ((mane, "mane_hgnc"), (primary, "primary_gtf_hgnc")):
+                hrec, _ = lookup(ensg, table)
+                if hrec and is_primary_contig(hrec[0]):
+                    recs.append((*hrec[:4], label))
+                    break
         if any(is_mitochondrial(r[0]) for r in recs):
             missing[name] = "mitochondrial"
             continue
@@ -137,6 +172,11 @@ def main():
         default=None,
         help="Optional primary-assembly GTF (e.g. GENCODE 45) for genes MANE lacks or has on alt/fix contigs only",
     )
+    parser.add_argument(
+        "--hgnc-table",
+        default=None,
+        help="Optional HGNC complete set (TSV) to find renamed genes by Ensembl gene ID",
+    )
     parser.add_argument("--output", default="resources/v5_genes_loc.bed", help="Output BED path")
     parser.add_argument(
         "--margin",
@@ -160,7 +200,11 @@ def main():
     if primary is not None:
         print(f"Parsed {len(primary)} gene coordinates from {args.primary_gtf}")
 
-    found, unmatched = resolve_genes(genes, mane, primary)
+    hgnc = read_hgnc(args.hgnc_table) if args.hgnc_table else None
+    if hgnc is not None:
+        print(f"Read {len(hgnc)} HGNC names with an Ensembl gene ID from {args.hgnc_table}")
+
+    found, unmatched = resolve_genes(genes, mane, primary, hgnc)
     how = {}
     for recs in found.values():
         for r in recs:

@@ -68,3 +68,30 @@ def test_primary_gtf_adds_the_primary_region(tmp_path):
     rows = run(tmp_path, "--primary-gtf", str(tmp_path / "primary.gtf"), "--unmatched-output", str(unmatched))
     assert {r[0] for r in rows} == {"11", "chr11", "11_KN196481v1_fix", "chr11_KN196481v1_fix"}
     assert unmatched.read_text() == ""
+
+
+HGNC = [  # symbol, status, alias_symbol, prev_symbol, ensembl_gene_id
+    ("DRC4", "Approved", "", "GAS8", "ENSG00000000010"),
+    ("TAFAZZIN", "Approved", "BTHS", "TAZ", "ENSG00000000003"),
+    ("WWTR1", "Approved", "TAZ|SHARED", "", "ENSG00000000020"),
+    ("OTHER", "Approved", "SHARED|FRA16E", "", "ENSG00000000030"),
+    ("FRA16E", "Approved", "", "", ""),
+    ("OLDGENE", "Entry Withdrawn", "", "", "ENSG00000000040"),
+]
+
+
+def test_renamed_genes_through_hgnc(tmp_path):
+    table = tmp_path / "hgnc.txt"
+    table.write_text("symbol\tstatus\talias_symbol\tprev_symbol\tensembl_gene_id\n" + "".join(
+        f'{s}\t{st}\t"{a}"\t"{p}"\t{e}\n' for s, st, a, p, e in HGNC))
+    hgnc = gb.read_hgnc(str(table))
+    # approved > previous > alias; shared names and an approved symbol without an Ensembl ID map nowhere
+    assert hgnc["DRC4"] == hgnc["GAS8"] == "ENSG00000000010" and hgnc["TAZ"] == "ENSG00000000003"
+    assert "SHARED" not in hgnc and "FRA16E" not in hgnc and "OLDGENE" not in hgnc
+    mane = gb.read_gtf_genes(str(gtf(tmp_path / "mane.gtf", MANE)))
+    primary = gb.read_gtf_genes(str(gtf(tmp_path / "primary.gtf",
+                                        PRIMARY + [("chr17", 5000, 6000, "+", "ENSG00000000010.4", "GAS8")])))
+    found, missing = gb.resolve_genes(["DRC4", "TAZ", "SHARED", "FRA16E"], mane, primary, hgnc)
+    assert {g: [r[4] for r in recs] for g, recs in found.items()} == {"DRC4": ["primary_gtf_hgnc"], "TAZ": ["mane_hgnc"]}
+    assert found["DRC4"][0][:2] == ("chr17", 5000)
+    assert missing == {"SHARED": "no_match", "FRA16E": "no_match"}
