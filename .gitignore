@@ -60,3 +60,9 @@ nf_work/
 # Preliminary VEP audit snapshots; the authoritative _final report stays tracked.
 /reports/vep_field_audit_20261007/
 /reports/vep_field_audit_20261007_v2/
+
+# Kanvas board and agent tooling (local; keeps the run manifest clean)
+kanvas.json
+AGENTS.md
+.agents/
+.claude/
