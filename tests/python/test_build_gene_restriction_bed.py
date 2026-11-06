@@ -35,8 +35,9 @@ def test_resolution(tmp_path):
     assert how["C10ORF71"] == ["mane_symbol_case"]
     assert how["ENSG00000000003"] == ["mane_ensembl_id"]
     assert how["SLC37A4"] == ["mane_symbol", "primary_gtf_symbol"]          # alt record kept, primary added
-    assert how["MT-ND1"] == ["primary_gtf_symbol"]
-    assert missing == {"ONLYALT": "no_match", "NOSUCH": "no_match"}          # primary GTF record on alt: not used
+    assert "MT-ND1" not in how                                               # no introns: left out
+    assert missing == {"MT-ND1": "mitochondrial", "ONLYALT": "no_match",     # primary GTF record on alt: not used
+                       "NOSUCH": "no_match"}
     found, missing = gb.resolve_genes(["SLC37A4"], mane)                      # without the primary GTF
     assert missing == {"SLC37A4": "mane_alt_contig_only"} and len(found["SLC37A4"]) == 1
 

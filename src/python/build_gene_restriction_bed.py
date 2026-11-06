@@ -71,6 +71,10 @@ def is_primary_contig(chrom: str) -> bool:
     return c in {str(i) for i in range(1, 23)} | {"X", "Y", "M", "MT"}
 
 
+def is_mitochondrial(chrom: str) -> bool:
+    return (chrom[3:] if chrom.startswith("chr") else chrom) in {"M", "MT"}
+
+
 def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> tuple[dict, dict]:
     """{listed gene: [(chrom, start, end, strand, how), ...]} and {listed gene: reason} for the rest (MISC-4).
 
@@ -79,6 +83,8 @@ def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> 
     A MANE record is always kept. When it sits only on an alt/fix contig, or the name is not in MANE,
     the primary-assembly GTF (`primary`, e.g. GENCODE) is tried the same way and its record is added
     if it is on a primary contig. Genes left on alt/fix contigs only are reported (`mane_alt_contig_only`).
+    Mitochondrial genes are left out and reported (`mitochondrial`): they have no introns, and this BED
+    only selects the sites sent to the splice predictors.
     """
     def lookup(name, table):
         if not table:
@@ -104,6 +110,9 @@ def resolve_genes(genes: list[str], mane: dict, primary: dict | None = None) -> 
             prec, phow = lookup(name, primary)
             if prec and is_primary_contig(prec[0]):
                 recs.append((*prec[:4], f"primary_gtf_{phow}"))
+        if any(is_mitochondrial(r[0]) for r in recs):
+            missing[name] = "mitochondrial"
+            continue
         if recs:
             found[name] = recs
         if not any(is_primary_contig(r[0]) for r in recs):
@@ -138,7 +147,7 @@ def main():
     parser.add_argument(
         "--unmatched-output",
         default=None,
-        help="Optional path to write the genes without a primary-contig region (gene<TAB>reason)",
+        help="Optional path to write the genes left out of the BED (gene<TAB>reason)",
     )
     args = parser.parse_args()
 
@@ -158,7 +167,7 @@ def main():
             how[r[4]] = how.get(r[4], 0) + 1
     print(f"Genes with a primary-contig region: {len(genes) - len(unmatched)}/{len(genes)}; records by match: {how}")
     if unmatched:
-        print(f"Without a primary-contig region ({len(unmatched)}): "
+        print(f"Left out ({len(unmatched)}): "
               + ", ".join(f"{g} ({r})" for g, r in list(unmatched.items())[:10]) + (", ..." if len(unmatched) > 10 else ""))
 
     # Sort by (chrom, start) for a well-formed BED; chrom sort is lexicographic (matches
@@ -188,7 +197,7 @@ def main():
     if args.unmatched_output:
         with open(args.unmatched_output, "w") as f:
             f.write("".join(f"{g}\t{r}\n" for g, r in unmatched.items()))
-        print(f"Wrote {len(unmatched)} genes without a primary-contig region to {args.unmatched_output}")
+        print(f"Wrote {len(unmatched)} genes left out to {args.unmatched_output}")
 
 
 if __name__ == "__main__":
