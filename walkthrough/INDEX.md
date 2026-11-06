@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-11-06 | [20261106_spliceai2_inclusion.md](./20261106_spliceai2_inclusion.md) | SpliceAI2: inclusion study for Module 2 |
 | 2026-11-05 | [20261105_review_session_fixes.md](./20261105_review_session_fixes.md) | Review session 2026-11-04/05: what was fixed, how it was checked, what is left |
 | 2026-11-05 | [20261105_module3_table_contract_changes.md](./20261105_module3_table_contract_changes.md) | Module 3 handoff: table contract changes of the 2026-11-04/05 review |
 | 2026-11-04 | [20261104_gene_constraint_gnomad_v412.md](./20261104_gene_constraint_gnomad_v412.md) | Gene constraint from gnomAD v4.1.2 (pLI, LOEUF, missense Z) |
