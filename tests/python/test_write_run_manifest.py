@@ -98,6 +98,23 @@ def test_dirty_launch_patch_reconstructs_tree(repo, tmp_path, monkeypatch):
     assert not (clone / "resources" / "huge.bed").exists()
 
 
+def test_board_file_does_not_make_the_launch_dirty(repo, monkeypatch):
+    monkeypatch.setattr(wrm, "REPO_ROOT", repo)
+    (repo / "kanvas.json").write_text('{"tasks": []}\n')
+    assert wrm.git_state(repo)["dirty"] is False
+    git(repo, "add", "kanvas.json")
+    git(repo, "commit", "-q", "-m", "board")
+    (repo / "kanvas.json").write_text('{"tasks": [1]}\n')
+    assert wrm.git_state(repo)["dirty"] is False
+    (repo / "src" / "tool.py").write_text("print('v2')\n")
+    state = wrm.git_state(repo)
+    assert state["dirty"] is True and state["dirty_files"] == ["src/tool.py"]
+    out = repo / "nf_work" / "out"
+    out.mkdir(parents=True)
+    patch = (out / wrm.capture_dirty_tree(repo, out, "20260101T000000Z")["path"]).read_text()
+    assert "src/tool.py" in patch and "kanvas.json" not in patch
+
+
 def test_patch_names_are_unique_per_launch(repo, monkeypatch):
     monkeypatch.setattr(wrm, "REPO_ROOT", repo)
     make_dirty(repo)

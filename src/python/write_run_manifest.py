@@ -65,6 +65,11 @@ def sha256_of(path: Path) -> str | None:
     return h.hexdigest()
 
 
+# Tracked files that no run reads (the task board); left out of the dirty check and the patch.
+NOT_RUN_INPUTS = ["kanvas.json"]
+NOT_RUN_PATHSPECS = [f":(exclude){p}" for p in NOT_RUN_INPUTS]
+
+
 def git_state(repo_root: Path) -> dict:
     commit = sh(["git", "rev-parse", "HEAD"], cwd=repo_root)
     # NOTE: don't route this through sh()'s blanket .strip() — porcelain's first
@@ -72,7 +77,7 @@ def git_state(repo_root: Path) -> dict:
     # incidental whitespace), same rationale as sarek_pipeline's copy of this.
     try:
         raw = subprocess.run(
-            ["git", "status", "--porcelain"],
+            ["git", "status", "--porcelain", "--", ".", *NOT_RUN_PATHSPECS],
             cwd=repo_root, capture_output=True, text=True, check=True, timeout=30,
         ).stdout.rstrip("\n")
     except Exception:
@@ -109,7 +114,8 @@ def capture_dirty_tree(repo_root: Path, outdir: Path, stamp: str) -> dict:
     split = lambda b: [p for p in b.decode().split("\0") if p]
     in_scope = split(_git(["ls-files", "--others", "--exclude-standard", "-z", "--",
                            *UNTRACKED_CAPTURE_PATHSPECS], repo_root).stdout)
-    all_untracked = split(_git(["ls-files", "--others", "--exclude-standard", "-z"], repo_root).stdout)
+    all_untracked = split(_git(["ls-files", "--others", "--exclude-standard", "-z", "--", ".",
+                                *NOT_RUN_PATHSPECS], repo_root).stdout)
 
     included, skipped = [], []
     for rel in in_scope:
@@ -126,7 +132,7 @@ def capture_dirty_tree(repo_root: Path, outdir: Path, stamp: str) -> dict:
     with tempfile.TemporaryDirectory() as tmp:
         env = {"GIT_INDEX_FILE": str(Path(tmp) / "index")}
         _git(["read-tree", "HEAD"], repo_root, env)
-        _git(["add", "-u", "--", "."], repo_root, env)
+        _git(["add", "-u", "--", ".", *NOT_RUN_PATHSPECS], repo_root, env)
         if included:
             _git(["add", "--", *included], repo_root, env)
         patch = _git(["diff", "--cached", "--binary", "HEAD"], repo_root, env).stdout

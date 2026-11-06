@@ -61,8 +61,7 @@ nf_work/
 /reports/vep_field_audit_20261007/
 /reports/vep_field_audit_20261007_v2/
 
-# Kanvas board and agent tooling (local; keeps the run manifest clean)
-kanvas.json
+# Agent tooling (local; the Kanvas board kanvas.json is tracked)
 AGENTS.md
 .agents/
 .claude/
