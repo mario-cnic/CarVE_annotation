@@ -1,0 +1,265 @@
+{
+  "kanvas": 1,
+  "title": "annotation_pipeline_new",
+  "groups": [
+    {
+      "id": "CC",
+      "name": "Cluster checks"
+    },
+    {
+      "id": "TH",
+      "name": "Tracker hygiene"
+    },
+    {
+      "id": "RP",
+      "name": "Reproducibility"
+    },
+    {
+      "id": "SF",
+      "name": "Science fixes"
+    },
+    {
+      "id": "PR",
+      "name": "Predictors"
+    },
+    {
+      "id": "CH",
+      "name": "Code hygiene"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "CC-01",
+      "title": "Finish the post-merge cluster checklist (steps 6, 7, 7a)",
+      "state": "proposed",
+      "group": "CC",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: the 54-fix review branch, PRED-18 and LaBranchoR ISM are merged and pushed, but three checks of their cluster checklist were never run, so some fixes (silent SpliceAI failures, empty-input runs, resume caching) are still unproven on real tools.\n\nState: steps 1-5, 7b-7d and 8 passed on the fixtures clinvar_af_fixture_20261105, ism_fixture_20261105, pred21_fixture_20261105 and gene_bed_fixture_20261106.\n\nTo do:\n- Step 6: count sites the new SpliceAI cache scores that the old cache (ca2807064ffcf846) left unscored. 0 = no evidence of past silent failures.\n- Step 7 (MISC-22): a small VCF with no site in the gene BED must run through VEP / SpliceAI / Pangolin / SPiP without failing.\n- Step 7a (MISC-44): launch-to-first-task time; then two -resume runs with nothing changed must both be fully Cached.\nYou launch the runs (I never submit jobs); I prepare inputs and commands and review the outputs.\n\nDone when: each step has a result and its run name.\nSource: TODO.md \"Cluster checks for branch ccr-8536b091-fabr1g\", steps 6, 7, 7a.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:20Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-06T14:14:57Z",
+          "by": "human",
+          "text": "Changes requested: split it in subtasks"
+        }
+      ]
+    },
+    {
+      "id": "CC-02",
+      "title": "Close the bug rows the checklist verifies",
+      "state": "proposed",
+      "group": "CC",
+      "deps": ["CC-01"],
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: BUG_TRACKER.md still lists fixes as \"cluster validation pending\" that the fixtures already verified, so the tracker overstates open risk.\n\nTo do: mark PRED-16, PRED-17, MISC-4 (already done), MISC-6, MISC-21..24 fixed, plus MISC-2/28/42/44 where a run covers them, each with the run that verified it; close the checklist item.\n\nDone when: no row says \"validation pending\" for something a run already verified.\nSource: last line of the TODO.md checklist item.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:20Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "CC-03",
+      "title": "Next WGS-size run: measurements",
+      "state": "proposed",
+      "group": "CC",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: several speedups and safeguards can only be judged on a whole-genome-size input; panel fixtures are too small.\n\nState: F1830_union (2026-10-19) took 23.7 h vs 56.6 h before; since then the chunked table step, naive concat, score cache and host exclusion were added and F2005_union re-ran in 4.8 h with 100% cache hits. No WGS run has measured a sample with new sites yet.\n\nTo measure on the next real WGS sample:\n- TSV_TO_TABLE succeeds on the first attempt; TAG fits 24 GB\n- score cache: hit rate and time saved on a sample with new sites\n- CONCAT_VEP / MERGE time with the new identity check (MISC-6)\n- first-attempt hangs (MISC-16) and slow nodes (MISC-17)\n- row order of the final table\n- AlphaGenome AVI cost inside VEP\nYou choose the sample and launch; I write the checklist before and the timing report after.\n\nDone when: a walkthrough with the numbers, and each item closed or reopened with evidence.\nSource: TODO.md items \"Performance review follow-ups\", \"score cache: WGS measurement\", \"Row order\", \"Scheduler problems\", \"AlphaGenome AVI\".",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:20Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "TH-01",
+      "title": "Reconcile stale 'verify on cluster' items",
+      "state": "proposed",
+      "group": "TH",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: TODO.md has about eight \"verify on the cluster\" items from October whose code later ran in fixtures. Left open they hide what is really unverified, and they would move to this board as noise.\n\nItems: VEP field cleanup, manifest database releases, ClinVar custom annotation, run layout + QC report, NMD plugin load, gene constraint (gnomAD v4.1.2) + PRED-13, AF/ClinVar contract, PRED-6 (missing SpliceAI no longer 0).\n\nTo do: for each, cite the run that verified it and close it, or reduce it to the part still unverified. No new runs.\n\nDone when: each item is closed or rewritten to its real open part.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:24Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "TH-02",
+      "title": "Triage bug rows pointing at shared/utils or retired code",
+      "state": "proposed",
+      "group": "TH",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: seven open rows point at shared/utils or at the legacy bash path retired on 2026-10-08. Some may be fixed, gone, or belong to Module 3 (scoring/ACMG), so the open count is not trustworthy.\n\nRows: ACMG-1 (PP3_Strong from one tool), ACMG-2 (two BA1/BS1 policies), ACMG-3 (uncalibrated priority score), ACMG-5 (compound-het trans phasing), PRED-1 (Pangolin heart scores = max over tissues), C7 (genotype fields never requested), DOC-2 (duplicate parsers).\n\nTo do: re-check each against the vendored parser (src/python/parsing/) with a file:line read now; then close it, mark it Module 3's, or keep it with the corrected location.\n\nDone when: each row has a current verdict.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:25Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "RP-01",
+      "title": "Pin tool environments: first slice",
+      "state": "proposed",
+      "group": "RP",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: today the tools run from shared conda envs that can change under the pipeline, so the same commit can give different results. Marked PRIORITY by you (2026-10-01).\n\nState: parser code vendored; the manifest records env fingerprints, but no env can be rebuilt from the repo.\n\nFirst slice: lockfile-built envs (or containers) for spliceai_env, pangolin_env and genomics, referenced by the pipeline and recorded in the manifest. Shared envs untouched; where the new envs live needs your OK.\n\nDone when: the three envs rebuild from files in the repo and a fixture run uses them with unchanged output.\nLater slices: spip_env, vcf_parser, datasci; removing the /home fallback.\nSource: TODO.md \"Pin the run's environments\".",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:21Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "RP-02",
+      "title": "Declared test environment + pandas 3 (MISC-25)",
+      "state": "proposed",
+      "group": "RP",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: running the test suite now needs a hand-assembled environment (local datasci + bcftools from genomics + vcf_parser on PYTHONPATH); the shared datasci lacks pytest and pysam. A rebuilt env would also pick pandas 3, under which 6 test modules fail (MISC-25).\n\nTo do: declare one test env (pandas, pyarrow, pysam, pytest, bcftools/tabix) with a documented command; either support pandas 3's str dtype in chunked.py or pin pandas < 3 explicitly.\n\nDone when: one documented command runs the full suite green.\nSource: BUG_TRACKER.md MISC-25; TODO.md checklist step 2.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:21Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "SF-01",
+      "title": "NMD: frameshift PTC position and start-proximal rule",
+      "state": "proposed",
+      "group": "SF",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: NMD_STATUS will decide whether PVS1 is downgraded (ClinGen PVS1 tree). Two of its rules are wrong today, so wiring it into PVS1 would misgrade loss-of-function variants.\n\nState: the VEP NMD plugin loads on the cluster and fills NMD_STATUS (checked 2026-10-13). PVS1 is not wired to it yet; that wiring is your decision after this fix.\n\nTo do:\n- Frameshifts: compute the new stop from HGVSp (fsTer<n>) and the exon structure, then apply last-exon / last-50-nt; today the plugin judges the variant position.\n- Separate the \"first 100 coding bases\" rule: in the ClinGen tree that is the alternative-start branch, not NMD escape.\n\nDone when: NMD_STATUS says which rule fired; tests on synthetic transcripts for each rule; fixture run unchanged outside these rows.\nSource: TODO.md \"NMD escape\", sub-items 1-2.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:22Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "SF-02",
+      "title": "PM2: gnomAD v4 coverage for absent sites",
+      "state": "proposed",
+      "group": "SF",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: a variant absent from gnomAD counts toward PM2 even at sites gnomAD barely sequenced, where absence means nothing (ClinGen SVI PM2 guidance).\n\nTo do: add a gnomAD v4 coverage resource (needs your OK for the download/build and where it lives) and give absent-but-uncovered sites their own status, with no PM2.\n\nDone when: new status value, tests, fixture run; Module 3 told of the new value.\nSource: TODO.md \"1b. gnomAD coverage for PM2\".",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:22Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "SF-03",
+      "title": "UTRAnnotator uORF class picked by hash order (PRED-15)",
+      "state": "proposed",
+      "group": "SF",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: with several 5'UTR effects, UTRAnnotator reports one uORF class chosen by Perl hash order, so the value changes between runs and a high-impact effect can be dropped. Measured: 47 of 1,780 shared rows differ between F2005_union and F1830_union_avi, 6 change high_impact/other.\n\nThe plugin is the shared copy in /data_lab_PGP/resources (not this repo's), so this starts with your choice:\n(a) a local plugin copy that emits every class (we own a fork), or\n(b) accept and document the instability.\n\nDone when: (a) same input gives the same value across runs, tested on a multi-effect variant; or (b) documented and Module 3 told.\nSource: BUG_TRACKER.md PRED-15; walkthrough/20261104_utrannotator_high_impact_grading.md.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:22Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "SF-04",
+      "title": "SPiP positional field indexing (PRED-5)",
+      "state": "proposed",
+      "group": "SF",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: the SPiP parser reads fields by position (f[4], f[11], f[12]); a change in SPiP's output format would silently shift values into the wrong columns. The wrong-gene part of PRED-5 is already fixed.\n\nTo do: read fields by the names in SPiP's VCF INFO header and fail loudly on a mismatch. Needs a real SPiP v2.1 output, taken from an existing fixture run (no new run).\n\nDone when: parser keyed by field name; a test with reordered fields; fixture table unchanged.\nSource: BUG_TRACKER.md PRED-5.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:23Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "PR-01",
+      "title": "Decide the next predictor",
+      "state": "proposed",
+      "group": "PR",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: the candidate thesis direction is a predictor-agnostic map of non-coding splice hotspots in haploinsufficiency genes, MYBPC3 first. The next predictor should be the one that adds most there.\n\nCandidates: SQUIRLS (non-canonical splice), AbSplice (heart LV / atrial appendage), SAI-10k-calc, NCBoost v2, popEVE (missense).\nFor each: what it adds over SpliceAI / Pangolin / SPiP / LaBranchoR / ReMM / AVI, a GRCh38 release, licence, cost (precomputed vs inference), broad or gene-restricted tier.\n\nDone when: a short memo in walkthrough/ and your choice; implementation becomes a separate task.\nSource: TODO.md Phase 5.",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:21Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "CH-01",
+      "title": "Docstring and comment pass in src/python and src/tools",
+      "state": "proposed",
+      "group": "CH",
+      "at": "2026-11-06T13:51:22Z",
+      "by": "claude-code",
+      "desc": "Why: last open part of the comment cleanup you asked for (2026-10-02). Nextflow files, modules and workflows are done; Python docstrings and comments in src/python and src/tools still carry history and tracker pointers.\n\nTo do: trim them to what the code does; one commit per area; no behaviour change.\n\nDone when: suite green and pipeline script blocks byte-identical.\nSource: TODO.md \"Comments and code hygiene\".",
+      "notes": [
+        {
+          "at": "2026-11-06T13:55:20Z",
+          "by": "claude-code",
+          "text": "Self-contained description (Mario: board informative)"
+        }
+      ]
+    },
+    {
+      "id": "TH-03",
+      "title": "Move task tracking from TODO.md / BUG_TRACKER.md to the board",
+      "state": "proposed",
+      "group": "TH",
+      "deps": ["TH-01", "TH-02"],
+      "at": "2026-11-06T13:55:35Z",
+      "by": "claude-code",
+      "desc": "Why: you plan to track work on this board. Today TODO.md and BUG_TRACKER.md are the declared source of truth (project CLAUDE.md), so status would live in two places.\n\nDecide first: kanvas.json is now gitignored (keeps run manifests clean), so the board has no history and no backup in git. If it becomes the only tracker, losing the file loses the state. Option: track kanvas.json in git and exclude it from the manifest's dirty check instead (src/python/write_run_manifest.py).\n\nTo do, after TH-01/TH-02 have cleaned the lists:\n- one board task per open item worth keeping; bug IDs (PRED-, MISC-) kept in titles;\n- TODO.md / BUG_TRACKER.md keep evidence and history, frozen as an archive with a pointer to the board;\n- update the project CLAUDE.md line on the source of truth.\n\nDone when: every open item is on the board or explicitly dropped, and the two files say where status now lives."
+    },
+    {
+      "id": "PR-02",
+      "title": "Investigate SpliceAI2 and its inclusion",
+      "state": "todo",
+      "group": "PR",
+      "at": "2026-11-06T14:14:16Z",
+      "by": "human",
+      "desc": "New predictor, an update from SpliceAI: SpliceAI was just launched. Check how can we implement it in our pipeline"
+    }
+  ]
+}
