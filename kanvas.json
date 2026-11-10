@@ -310,7 +310,7 @@
     {
       "id": "CC-04",
       "title": "Step 6: were past SpliceAI failures silent?",
-      "state": "doing",
+      "state": "review",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
@@ -325,6 +325,11 @@
           "at": "2026-11-10T14:53:53Z",
           "by": "claude-code",
           "text": "Input ready: test_data/raw_vcfs/spliceai_unscored_sample.vcf.gz holds 2,000 sites drawn at random (seed 20261110) from the 377,321 positions the old SpliceAI cache left without a score; 1,968 of them reach SpliceAI. Command for Mario (pending):\nbash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/spliceai_unscored_sample.vcf.gz --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --run_id spliceai_unscored_sample_20261110"
+        },
+        {
+          "at": "2026-11-10T16:54:56Z",
+          "by": "claude-code",
+          "text": "No evidence of silent SpliceAI failures: 0 of 1,968 previously unscored sites get a score with the fixed code, and no SpliceAI chunk failed. Run: spliceai_unscored_sample_20261110 (exit 0, 1.4 h).\n- Why they stay unscored: none of them lies inside a gene of SpliceAI's own gene table (the grch38.txt shipped with the spliceai package). SpliceAI then skips the site on purpose and logs nothing, which is what the old cache recorded. Past tables need no fix.\n- Side finding for you to judge: 90 of the 2,000 sites are in genes missing from that table (e.g. SHANK2, TCF4, PDE4DIP). They still get Illumina's precomputed score through VEP (all ≤ 0.05 here), but never the wide-window (-D 4999) local score. Worth a proposal to count panel genes missing from SpliceAI's table?\n- To check: TODO.md checklist step 6."
         }
       ]
     },
