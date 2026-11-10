@@ -113,9 +113,9 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - **Not yet used in `NEW_IMPACT`/`PRIORITY_TIER`/ACMG evidence** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
 
 ### G. Priority & Provenance Metadata
-- `5UTR_annotation`: UTR5 regulatory annotation (if applicable).
-- `5UTR_consequence`: UTR5 specific consequence term.
-- `UTRAnnotator_status`: `high_impact` (Whiffin et al. 2020 rule: uAUG gain forming an in-frame/out-of-frame oORF from a strong/moderate Kozak start; uORF stop loss with no other UTR stop, from a strong/moderate Kozak or translated uORF; uORF→oORF frameshift under the same condition), `other`, `unclassified` (deciding field missing), `no_uorf_effect` (5'UTR row evaluated, no uORF change), `not_evaluated`, `not_applicable` (not 5'UTR), `not_annotated` (plugin column absent). Only `high_impact` raises `NEW_IMPACT` (LOW/MODIFIER → MODERATE). UTRAnnotator reports one class per row (`PRED-15`).
+- `5UTR_annotation`: one entry per affected uORF, `&`-separated; each entry is `consequence=<SO term>` followed by its key=value pairs in sorted order, `:`-separated (UTRAnnotatorPGP).
+- `5UTR_consequence`: every UTRAnnotator consequence term of the variant, `&`-separated, in a fixed order (uAUG gain, uAUG loss, uORF stop gain, uORF stop loss, uORF frameshift).
+- `UTRAnnotator_status`: `high_impact` (Whiffin et al. 2020 rule: uAUG gain forming an in-frame/out-of-frame oORF from a strong/moderate Kozak start; uORF stop loss with no other UTR stop, from a strong/moderate Kozak or translated uORF; uORF→oORF frameshift under the same condition), `other`, `unclassified` (deciding field missing), `no_uorf_effect` (5'UTR row evaluated, no uORF change), `not_evaluated`, `not_applicable` (not 5'UTR), `not_annotated` (plugin column absent). Only `high_impact` raises `NEW_IMPACT` (LOW/MODIFIER → MODERATE). Graded over every uORF class the variant has (`UTRAnnotatorPGP`, this repo's copy of the plugin; before 2026-11-10 one class per row chosen by hash order, `PRED-15`).
 - `gene_priority`: Priority category of target gene (`cardiac_primary`, `secondary`, etc.).
 - `SOURCE`: Pipeline stage / tool source.
 - `EVIDENCE`: Aggregated supporting evidence rationale.

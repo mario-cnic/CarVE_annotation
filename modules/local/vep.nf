@@ -12,6 +12,7 @@ process VEP_ANNOTATE {
     tuple val(meta), path("${meta.partition_id}.annVEP.vcf.gz"), path("${meta.partition_id}.annVEP.vcf.gz.tbi"), emit: vcf
 
     // `--plugin SpliceAI` is VEP's precomputed-score lookup, separate from SPLICEAI_ANNOTATE.
+    // UTRAnnotatorPGP is this repo's copy (src/external/vep_plugins), found through PERL5LIB.
     // `tabix` is the container's own binary. Do not set PERL5OPT=-X: Perl rejects it.
     script:
     def vep_files = params.vep_dir
@@ -21,6 +22,7 @@ process VEP_ANNOTATE {
     """
     # code ${params.code_md5.vep}
     # resources ${params.resource_id.vep}
+    PERL5LIB=${params.vep_local_plugins_dir}\${PERL5LIB:+:\$PERL5LIB} \\
     vep --fork ${task.cpus} -species homo_sapiens \\
         --dir_plugins ${params.vep_plugin_modules_dir} \\
         --offline --cache --cache_version ${params.vep_cache_version} --dir ${vep_files}/cache \\
@@ -35,7 +37,7 @@ process VEP_ANNOTATE {
         --uniprot --mane --tsl --appris --variant_class --gene_phenotype --mirna \\
         --no_stats \\
         --plugin CADD,"${params.vep_cadd}" \\
-        --plugin UTRAnnotator,file=${params.vep_utrannotator} \\
+        --plugin UTRAnnotatorPGP,file=${params.vep_utrannotator} \\
         --plugin SpliceAI,snv=${params.vep_spliceai_snv},indel=${params.vep_spliceai_indel} \\
         --plugin SpliceRegion \\
         --plugin REVEL,${params.vep_revel} \\

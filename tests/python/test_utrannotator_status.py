@@ -88,3 +88,34 @@ def test_new_impact_derives_status_when_column_absent():
     result = build_newImpact(df)
     assert result.NEW_IMPACT.astype(str).tolist() == ['MODERATE']
     assert 'UTRAnnotator_status' not in result.columns
+
+
+def test_linked_entries_are_graded_under_their_own_consequence():
+    # UTRAnnotatorPGP output: several consequences, each entry tagged with the one it belongs to
+    gain = f'consequence={GAIN}:KozakStrength=Strong:type=OutOfFrame_oORF'
+    stop_loss_weak = f'consequence={STOP_LOSS}:AltStop=False:Evidence=False:KozakStrength=Weak'
+    start_loss = f'consequence={START_LOSS}:Evidence=True:KozakStrength=Strong:type=OutOfFrame_oORF'
+    rows = [
+        (f'{GAIN}&{STOP_LOSS}', f'{gain}&{stop_loss_weak}', 'high_impact'),
+        (f'{START_LOSS}&{STOP_LOSS}', f'{start_loss}&{stop_loss_weak}', 'other'),
+        (f'{GAIN},{START_LOSS}', f'{start_loss},{gain}', 'high_impact'),
+        (f'{START_LOSS}&{STOP_LOSS}', start_loss, 'unclassified'),
+    ]
+    df = pd.DataFrame({
+        'Consequence': ['5_prime_UTR_variant'] * len(rows),
+        '5UTR_consequence': [c for c, _, _ in rows],
+        '5UTR_annotation': [a for _, a, _ in rows],
+        'Existing_uORFs': [1.0] * len(rows),
+    })
+    assert parse_utrannotator(df).UTRAnnotator_status.tolist() == [s for _, _, s in rows]
+
+
+def test_unlinked_multi_consequence_row_keeps_previous_grading():
+    # Output of the shared UTRAnnotator (no consequence= key): every entry graded under every term
+    df = pd.DataFrame({
+        'Consequence': ['5_prime_UTR_variant'],
+        '5UTR_consequence': [f'{GAIN}&{STOP_LOSS}'],
+        '5UTR_annotation': ['type=OutOfFrame_oORF:KozakStrength=Strong'],
+        'Existing_uORFs': [1.0],
+    })
+    assert parse_utrannotator(df).UTRAnnotator_status.tolist() == ['high_impact']

@@ -80,7 +80,7 @@ params.code_md5 = [
     pangolin    : codeMd5(["${params.pangolin_repo}/pangolin"]),
     spip        : codeMd5([params.spip_script]),
     branchpoint : codeMd5([params.branchpointer_script]),
-    vep         : codeMd5([params.vep_dbnsfp_fields]),
+    vep         : codeMd5([params.vep_dbnsfp_fields, params.vep_local_plugins_dir]),
     vcf_to_tsv  : codeMd5([params.vcf_parser_script, "${file(params.vcf_parser_script).parent}/logger.py", params.vep_cols_file]),
     tsv_to_table: codeMd5([file(params.filter_variants_script).parent, params.spliceai_symbol_map, params.enst_spip_map,
                            params.dbnsfp_aligned_columns, params.gene_constraint_table, params.disease_gene_list, params.hgnc_table]),

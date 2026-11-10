@@ -380,14 +380,18 @@ def _utr5_entry_class(consequence: str, entry: dict) -> str:
 
 
 def _utr5_row_class(consequence, annotation) -> str:
+    """Worst class over the row's uORF effects. Entries carrying `consequence=` (UTRAnnotatorPGP) are
+    graded only under their own term; entries without it are graded under every term."""
     terms = [t.strip().lower() for t in re.split(r"[&,]", str(consequence)) if t.strip()]
+    entries = _utr5_entries(annotation)
+    linked = any("consequence" in e for e in entries)
     classes = []
     for term in terms:
         if any(k in term for k in _UTR5_NEVER_HIGH):
             classes.append(UTR5_OTHER)
             continue
-        entries = _utr5_entries(annotation)
-        classes += [_utr5_entry_class(term, e) for e in entries] or [UTR5_UNCLASSIFIED]
+        own = [e for e in entries if e.get("consequence", "").lower() == term] if linked else entries
+        classes += [_utr5_entry_class(term, e) for e in own] or [UTR5_UNCLASSIFIED]
     for value in (UTR5_HIGH_IMPACT, UTR5_UNCLASSIFIED, UTR5_OTHER):
         if value in classes:
             return value

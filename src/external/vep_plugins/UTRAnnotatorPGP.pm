@@ -12,6 +12,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
+=head1 MODIFICATIONS
+
+    Modified copy of UTRAnnotator.pm from https://github.com/Ensembl/VEP_plugins
+    (branch release/116, commit 867336c85c02a7842c87f484fd8d92cb44358992; file md5
+    fb9c8d5bc8ef2050d3b8303b76a10056), changed by the annotation pipeline maintainers:
+    - package renamed to UTRAnnotatorPGP;
+    - every uORF consequence the variant has is reported, in a fixed order, instead of
+      one chosen by hash order;
+    - each 5UTR_annotation entry starts with consequence=<the SO term it belongs to>,
+      and its key=value pairs are in sorted order.
+
 =head1 CONTACT
 
     Xiaolei Zhang
@@ -21,15 +32,15 @@ limitations under the License.
 
 =head1 NAME
 
-    UTRAnnotator
+    UTRAnnotatorPGP
 
 =head1 SYNOPSIS
  
-    mv UTRAnnotator.pm ~/.vep/Plugins
-    vep -i variations.vcf --plugin UTRAnnotator,file=/path/to/uORF_starts_ends_GRCh38_PUBLIC.txt
+    mv UTRAnnotatorPGP.pm ~/.vep/Plugins
+    vep -i variations.vcf --plugin UTRAnnotatorPGP,file=/path/to/uORF_starts_ends_GRCh38_PUBLIC.txt
 
     # skip annotation for variants with a 80% or higher overlap of the UTR
-    vep -i variations.vcf --plugin UTRAnnotator,file=/path/to/uORF_starts_ends_GRCh38_PUBLIC.txt,max_overlap=80
+    vep -i variations.vcf --plugin UTRAnnotatorPGP,file=/path/to/uORF_starts_ends_GRCh38_PUBLIC.txt,max_overlap=80
 
 =head1 DESCRIPTION
  
@@ -63,7 +74,7 @@ limitations under the License.
 =cut
 
 
-package UTRAnnotator;
+package UTRAnnotatorPGP;
 
 use base qw(Bio::EnsEMBL::Variation::Utils::BaseVepPlugin);
 use Bio::EnsEMBL::Utils::Sequence qw(reverse_comp);
@@ -72,6 +83,8 @@ use List::Util qw(min max);
 use Scalar::Util qw(looks_like_number);
 
 use strict;
+
+our @UTR_EFFECT_ORDER = qw(uAUG_gained uAUG_lost uSTOP_gained uSTOP_lost uFrameshift);
 
 sub feature_types {
   return ['Transcript'];
@@ -256,40 +269,23 @@ sub run {
   );
 
 
-  my $output_five_prime_flag;
-  my $output_five_prime_annotation;
-
-  foreach my $flag (keys %five_prime_flag){
-    if($five_prime_flag{$flag}){
-      $output_five_prime_flag = $five_prime_flag{$flag};
-      $output_five_prime_annotation = $five_prime_annotation{$flag};
-    }
-  };
+  my ($consequences, $entries) = $self->format_utr_effects(\%five_prime_flag, \%five_prime_annotation);
 
   my %utr_effect;
 
   if ($self->{config}->{output_format} eq "json" || $self->{config}->{rest}){
 
+    my @classes = grep { $five_prime_flag{$_} } @UTR_EFFECT_ORDER;
     %utr_effect = (
-        "5UTR_consequence" => $output_five_prime_flag,
-        "5UTR_annotation" => $output_five_prime_annotation,
+        "5UTR_consequence" => @$consequences ? join(",", @$consequences) : undef,
+        "5UTR_annotation" => @classes ? { map { $five_prime_flag{$_} => $five_prime_annotation{$_} } @classes } : undef,
     );
 
   } else {
 
-    my @consequences;
-
-        foreach my $value (keys %{$output_five_prime_annotation}){
-          push @consequences, join(":", map { "$_=$output_five_prime_annotation->{$value}{$_}" } keys %{$output_five_prime_annotation->{$value}});
-        };
-
-    my $consequence;
-
-    $consequence = join(",", @consequences);
-
     %utr_effect = (
-        "5UTR_consequence" => defined($output_five_prime_flag) ? $output_five_prime_flag : "-",
-        "5UTR_annotation" => defined($consequence) && $consequence ne '' ? $consequence : "-",
+        "5UTR_consequence" => @$consequences ? join(",", @$consequences) : "-",
+        "5UTR_annotation" => @$entries ? join(",", @$entries) : "-",
     );
 
   }
@@ -302,6 +298,24 @@ sub run {
 ##################
 # Main functions #
 ##################
+
+# Every flagged consequence, in @UTR_EFFECT_ORDER; one annotation entry per affected uORF in the
+# plugin's numbering, as consequence=<SO term> followed by its key=value pairs sorted by key.
+sub format_utr_effects {
+  my ($self, $flags, $annotations) = @_;
+
+  my (@consequences, @entries);
+  foreach my $class (grep { $flags->{$_} } @UTR_EFFECT_ORDER){
+    push @consequences, $flags->{$class};
+    my $effects = ref($annotations->{$class}) eq 'HASH' ? $annotations->{$class} : {};
+    foreach my $n (sort { $a <=> $b } keys %$effects){
+      my $effect = $effects->{$n};
+      push @entries, join(":", "consequence=$flags->{$class}", map { "$_=$effect->{$_}" } sort keys %$effect);
+    }
+  }
+
+  return (\@consequences, \@entries);
+}
 
 
 sub uAUG_gained {
