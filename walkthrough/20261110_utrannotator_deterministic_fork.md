@@ -32,7 +32,7 @@ INFERENCE: on multi-effect rows `UTRAnnotator_status` now takes the worst class 
 - `tests/python/test_utrannotator_status.py`: the new linked-entry cases pass, and so does the old-format multi-term case.
 - No VEP run locally: the VEP cache and FASTA are in `/references`, which is not mounted here.
 
-## Cluster check (pending, Mario launches)
+## Cluster check (passed 2026-11-10)
 
 Input: `test_data/raw_vcfs/utr_multieffect_fixture.vcf.gz`, outside git, md5 `b71eb8b380fa500e6bb9608b6ff5d518`. It holds the 34 variants above, with synthetic trio genotypes (`0/1`, `0/0`, `0/1`).
 
@@ -69,3 +69,12 @@ python src/tools/compare_utr5_runs.py \
 ```
 
 It prints `PASS` or `FAIL` and lists the rows that miss a class. It was tested on synthetic tables: a good case gives PASS, and a run that drops a class gives FAIL.
+
+## Result (2026-11-10)
+
+FACT: `utr5_multieffect_run1` and `utr5_multieffect_run2`, launched by Mario from commit `351574b` with a clean tree (`RUN_MANIFEST.json`: `dirty: False`). The two runs overlapped in time but were separate Nextflow runs. Each had 55 tasks completed, 0 cached, 0 failed, 0 retries, and exited with 0. Assembly check PASS on 34 records.
+- Both VEP tasks call `--plugin UTRAnnotatorPGP` with `PERL5LIB` set (`.command.sh`). Exit code 0, and the task logs have no plugin failure or warning.
+- `compare_utr5_runs.py`: PASS.
+  - `5UTR_consequence`, `5UTR_annotation` and `UTRAnnotator_status` are identical between the two runs on every row of the 34 variants.
+  - All 47 rows have a tagged consequence and contain both classes the old runs reported.
+  - `UTRAnnotator_status` on those rows: `other` 41, `high_impact` 6.
