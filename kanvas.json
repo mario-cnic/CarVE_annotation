@@ -310,16 +310,28 @@
     {
       "id": "CC-04",
       "title": "Step 6: were past SpliceAI failures silent?",
-      "state": "todo",
+      "state": "doing",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
-      "desc": "Why: before PRED-16 the SpliceAI wrapper swallowed every per-record error and wrote the site unscored. The old cache (ca2807064ffcf846) has 389,061 unscored sites; if many of them get a score with the fixed code, past runs silently lost SpliceAI scores.\n\nState: the new cache version (68a43b063014889b) holds only the migrated scored sites; no run has rescored the unscored ones yet.\n\nTo do: I build a VCF of a random sample (about 2,000) of those unscored sites, seeded and recorded; you launch a short run with the test cache; I count how many now carry a score, and from which genes.\n\nDone when: a rate (scored / sampled) with the run name. 0 = no evidence of silent failures; otherwise a note on which past tables are affected.\nSource: TODO.md checklist step 6."
+      "desc": "Why: before PRED-16 the SpliceAI wrapper swallowed every per-record error and wrote the site unscored. The old cache (ca2807064ffcf846) has 389,061 unscored sites; if many of them get a score with the fixed code, past runs silently lost SpliceAI scores.\n\nState: the new cache version (68a43b063014889b) holds only the migrated scored sites; no run has rescored the unscored ones yet.\n\nTo do: I build a VCF of a random sample (about 2,000) of those unscored sites, seeded and recorded; you launch a short run with the test cache; I count how many now carry a score, and from which genes.\n\nDone when: a rate (scored / sampled) with the run name. 0 = no evidence of silent failures; otherwise a note on which past tables are affected.\nSource: TODO.md checklist step 6.",
+      "notes": [
+        {
+          "at": "2026-11-10T14:52:44Z",
+          "by": "claude-code",
+          "text": "Plan: sample about 2,000 sites the old SpliceAI cache left unscored (seeded, recorded), build a fixture VCF, hand over the launch command, then count how many get a score."
+        },
+        {
+          "at": "2026-11-10T14:53:53Z",
+          "by": "claude-code",
+          "text": "Input ready: test_data/raw_vcfs/spliceai_unscored_sample.vcf.gz holds 2,000 sites drawn at random (seed 20261110) from the 377,321 positions the old SpliceAI cache left without a score; 1,968 of them reach SpliceAI. Command for Mario (pending):\nbash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/spliceai_unscored_sample.vcf.gz --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --run_id spliceai_unscored_sample_20261110"
+        }
+      ]
     },
     {
       "id": "CC-05",
       "title": "Step 7: a VCF with no gene-region site runs through (MISC-22)",
-      "state": "review",
+      "state": "done",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
