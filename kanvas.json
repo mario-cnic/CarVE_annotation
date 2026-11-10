@@ -319,7 +319,7 @@
     {
       "id": "CC-05",
       "title": "Step 7: a VCF with no gene-region site runs through (MISC-22)",
-      "state": "doing",
+      "state": "review",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
@@ -334,6 +334,11 @@
           "at": "2026-11-10T12:27:55Z",
           "by": "claude-code",
           "text": "Input ready: test_data/raw_vcfs/offbed_fixture.vcf.gz. It holds 7 public ClinVar sites (6 SNVs, 1 deletion), each more than 200 kb from every gene region. The pipeline's own subset command keeps 0 of them; the same command keeps 10 of 11 sites of gene_bed_fixture.\nCommand for Mario (pending):\nbash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/offbed_fixture.vcf.gz --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --chunk_size 5 --gene_restricted_chunk_size 2 --run_id offbed_fixture_20261110"
+        },
+        {
+          "at": "2026-11-10T14:42:29Z",
+          "by": "claude-code",
+          "text": "A sample with no variant in the gene regions now runs through to the end: run offbed_fixture_20261110 (commit e3e8c7c, clean tree) finished with exit 0, no failed tasks and no retries.\n- The gene-restricted step wrote an empty chunk (header only), and SPiP ran on it without error.\n- SpliceAI and Pangolin had nothing to score, so the pipeline did not launch them at all; that is the intended behaviour.\n- Output: the SpliceAI, Pangolin and SPiP files have 0 records; VEP and the final table have all 7 variants (45 rows).\nTo check: that you are fine with MISC-22 being closed under CC-02. Details: TODO.md, checklist step 7."
         }
       ]
     },
