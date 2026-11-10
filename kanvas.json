@@ -31,9 +31,9 @@
     {
       "id": "CC-01",
       "title": "Finish the post-merge cluster checklist (steps 6, 7, 7a)",
-      "state": "doing",
+      "state": "done",
       "group": "CC",
-      "deps": ["CC-04", "CC-05", "CC-06"],
+      "deps": ["CC-04", "CC-05"],
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
       "desc": "Why: the 54-fix review branch, PRED-18 and LaBranchoR ISM are merged and pushed, but three checks of their cluster checklist were never run, so some fixes (silent SpliceAI failures, empty-input runs, resume caching) are still unproven on real tools.\n\nState: steps 1-5, 7b-7d and 8 passed on the fixtures clinvar_af_fixture_20261105, ism_fixture_20261105, pred21_fixture_20261105 and gene_bed_fixture_20261106.\n\nTo do:\n- Step 6: count sites the new SpliceAI cache scores that the old cache (ca2807064ffcf846) left unscored. 0 = no evidence of past silent failures.\n- Step 7 (MISC-22): a small VCF with no site in the gene BED must run through VEP / SpliceAI / Pangolin / SPiP without failing.\n- Step 7a (MISC-44): launch-to-first-task time; then two -resume runs with nothing changed must both be fully Cached.\nYou launch the runs (I never submit jobs); I prepare inputs and commands and review the outputs.\n\nDone when: each step has a result and its run name.\nSource: TODO.md \"Cluster checks for branch ccr-8536b091-fabr1g\", steps 6, 7, 7a.",
@@ -52,13 +52,18 @@
           "at": "2026-11-06T17:36:36Z",
           "by": "claude-code",
           "text": "Split as requested into CC-04 (step 6), CC-05 (step 7), CC-06 (step 7a). CC-01 stays as the umbrella: it finishes when the three are done. Approve them in the board."
+        },
+        {
+          "at": "2026-11-10T17:03:55Z",
+          "by": "claude-code",
+          "text": "Checklist closed: step 6 = CC-04 (no silent SpliceAI failures, run spliceai_unscored_sample_20261110), step 7 = CC-05 (offbed_fixture_20261110 PASS). Step 7a (CC-06, launch time and -resume caching) is dropped from this checklist at your request (2026-11-10): it is speed, not correctness, and will be observed on the next WGS run (CC-03).\n- In the board: remove CC-06 from CC-01's dependencies (or withdraw CC-06), accept CC-04, then CC-01; that unblocks CC-02."
         }
       ]
     },
     {
       "id": "CC-02",
       "title": "Close the bug rows the checklist verifies",
-      "state": "todo",
+      "state": "review",
       "group": "CC",
       "deps": ["CC-01"],
       "at": "2026-11-06T13:51:22Z",
@@ -69,6 +74,11 @@
           "at": "2026-11-06T13:55:20Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-10T17:08:43Z",
+          "by": "claude-code",
+          "text": "BUG_TRACKER.md now shows as fixed (🟢) everything the cluster checks proved, each row naming the run that proved it: PRED-16, PRED-17, MISC-6, MISC-21, MISC-22, MISC-23, MISC-24 (MISC-4 was already). The TODO.md checklist item is ticked and closed.\n- Left as they were: MISC-44 (launch time, in CC-03) and MISC-28 (fixed, but no fixture had a record without CSQ).\n- MISC-6: the 1 h time limit on a WGS-size input is checked in CC-03."
         }
       ]
     },
@@ -310,7 +320,7 @@
     {
       "id": "CC-04",
       "title": "Step 6: were past SpliceAI failures silent?",
-      "state": "review",
+      "state": "done",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
@@ -362,7 +372,7 @@
     {
       "id": "CC-06",
       "title": "Step 7a: launch time and -resume caching (MISC-44)",
-      "state": "todo",
+      "state": "proposed",
       "group": "CC",
       "deps": ["CC-05"],
       "at": "2026-11-06T17:36:31Z",
