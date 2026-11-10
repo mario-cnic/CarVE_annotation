@@ -75,7 +75,7 @@
     {
       "id": "CC-03",
       "title": "Next WGS-size run: measurements",
-      "state": "proposed",
+      "state": "todo",
       "group": "CC",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -319,11 +319,23 @@
     {
       "id": "CC-05",
       "title": "Step 7: a VCF with no gene-region site runs through (MISC-22)",
-      "state": "todo",
+      "state": "doing",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
-      "desc": "Why: a sample with no variant in the gene BED used to fail at CHUNK_VCF (no chunk written, 5 retries). The fix writes a header-only chunk; we have not seen VEP, SpliceAI, Pangolin and SPiP accept one on the cluster.\n\nTo do: I build a tiny VCF of public sites outside every BED region; you launch it; I check the run ends with exit 0 and a table with those rows.\n\nDone when: exit 0, empty gene-restricted outputs, run name recorded; MISC-22 can close.\nSource: TODO.md checklist step 7."
+      "desc": "Why: a sample with no variant in the gene BED used to fail at CHUNK_VCF (no chunk written, 5 retries). The fix writes a header-only chunk; we have not seen VEP, SpliceAI, Pangolin and SPiP accept one on the cluster.\n\nTo do: I build a tiny VCF of public sites outside every BED region; you launch it; I check the run ends with exit 0 and a table with those rows.\n\nDone when: exit 0, empty gene-restricted outputs, run name recorded; MISC-22 can close.\nSource: TODO.md checklist step 7.",
+      "notes": [
+        {
+          "at": "2026-11-10T12:26:19Z",
+          "by": "claude-code",
+          "text": "Plan: build a small VCF of public sites outside every gene BED region, verify it against the BED, hand over the launch command, then check exit 0 and the table."
+        },
+        {
+          "at": "2026-11-10T12:27:55Z",
+          "by": "claude-code",
+          "text": "Input ready: test_data/raw_vcfs/offbed_fixture.vcf.gz. It holds 7 public ClinVar sites (6 SNVs, 1 deletion), each more than 200 kb from every gene region. The pipeline's own subset command keeps 0 of them; the same command keeps 10 of 11 sites of gene_bed_fixture.\nCommand for Mario (pending):\nbash run_annotate_vcf.sh -profile standard --input_vcf test_data/raw_vcfs/offbed_fixture.vcf.gz --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --chunk_size 5 --gene_restricted_chunk_size 2 --run_id offbed_fixture_20261110"
+        }
+      ]
     },
     {
       "id": "CC-06",
