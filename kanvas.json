@@ -139,7 +139,7 @@
     {
       "id": "RP-02",
       "title": "Declared test environment + pandas 3 (MISC-25)",
-      "state": "review",
+      "state": "done",
       "group": "RP",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -192,7 +192,7 @@
     {
       "id": "SF-03",
       "title": "UTRAnnotator uORF class picked by hash order (PRED-15)",
-      "state": "doing",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -207,6 +207,16 @@
           "at": "2026-11-06T17:36:43Z",
           "by": "claude-code",
           "text": "Question: PRED-15: (a) fork UTRAnnotator into this repo and make it emit every uORF class deterministically, or (b) accept and document the instability? I recommend (a): the instability flips high_impact/other on real rows (6 of 1,780 shared rows), and a pinned in-repo copy also helps RP-01."
+        },
+        {
+          "at": "2026-11-10T11:12:45Z",
+          "by": "claude-code",
+          "text": "Mario chose (a): fork UTRAnnotator into this repo and make it emit every uORF class deterministically."
+        },
+        {
+          "at": "2026-11-10T11:28:13Z",
+          "by": "claude-code",
+          "text": "Done locally (uncommitted): this repo now has its own copy of the plugin, src/external/vep_plugins/UTRAnnotatorPGP.pm, which reports every uORF class of a variant in a fixed order. Each 5UTR_annotation entry says which class it belongs to, and UTRAnnotator_status grades every class.\n- Checked: the plugin compiles in the VEP container and gives identical output under 8 Perl hash seeds; the old selection loop gave a different class across those seeds. All 51 Python test modules pass.\n- Left: two cluster runs of a 34-variant fixture (the variants whose class differed between F2005_union and F1830_union_avi), then src/tools/compare_utr5_runs.py. Commands and pass criteria: walkthrough/20261110_utrannotator_deterministic_fork.md."
         }
       ]
     },
@@ -278,7 +288,7 @@
     {
       "id": "PR-02",
       "title": "Investigate SpliceAI2 and its inclusion",
-      "state": "review",
+      "state": "done",
       "group": "PR",
       "at": "2026-11-06T14:14:16Z",
       "by": "human",
@@ -292,14 +302,15 @@
         {
           "at": "2026-11-06T17:48:52Z",
           "by": "claude-code",
-          "text": "SpliceAI2 can go in as an informational score; it cannot replace SpliceAI for ACMG. Memo: walkthrough/20261106_spliceai2_inclusion.md (faffd93).\n- Recommended route (A): Illumina's precomputed GRCh38 scores (all SNVs + ~150M population indels, protein-coding genes) looked up like ReMM/AVI, with a status column. Live scoring needs CUDA GPUs; our SpliceAI runs on CPU.\n- SpliceAI stays the PP3/BP4 predictor: only it has ClinGen-calibrated thresholds; SpliceAI2's benchmarks are all by the developers (preprint, no independent evaluation yet).\nYour decisions before any code:\n1. Licence: non-commercial research only, no redistribution. Does it cover reports to families, and tables shared outside the lab?\n2. Accept the Hugging Face gate (personal account) so I can see the size/format of precomputed_scores_v2.0 (~350 GB for the whole dataset).\n3. Does the cluster have GPU nodes? Only matters for option B (scoring private indels).\nImplementation is proposed separately as PR-03."
+          "edited": "2026-11-10T10:45:40Z",
+          "text": "SpliceAI2 can go in as an informational score; it cannot replace SpliceAI for ACMG. Memo: walkthrough/20261106_spliceai2_inclusion.md (faffd93).\n- Recommended route (A): Illumina's precomputed GRCh38 scores (all SNVs + ~150M population indels, protein-coding genes) looked up like ReMM/AVI, with a status column. Live scoring needs CUDA GPUs; our SpliceAI runs on CPU.\n- SpliceAI stays the PP3/BP4 predictor: only it has ClinGen-calibrated thresholds; SpliceAI2's benchmarks are all by the developers (preprint, no independent evaluation yet).\nYour decisions before any code:\n1. Licence: non-commercial research only, no redistribution. Does it cover reports to families, and tables shared outside the lab? -> YES\n2. Accept the Hugging Face gate (personal account) so I can see the size/format of precomputed_scores_v2.0 (~350 GB for the whole dataset). -> OK\n3. Does the cluster have GPU nodes? Only matters for option B (scoring private indels). -> yes it has but go with route A\nImplementation is proposed separately as PR-03."
         }
       ]
     },
     {
       "id": "CC-04",
       "title": "Step 6: were past SpliceAI failures silent?",
-      "state": "proposed",
+      "state": "todo",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
@@ -308,7 +319,7 @@
     {
       "id": "CC-05",
       "title": "Step 7: a VCF with no gene-region site runs through (MISC-22)",
-      "state": "proposed",
+      "state": "todo",
       "group": "CC",
       "at": "2026-11-06T17:36:31Z",
       "by": "claude-code",
@@ -317,7 +328,7 @@
     {
       "id": "CC-06",
       "title": "Step 7a: launch time and -resume caching (MISC-44)",
-      "state": "proposed",
+      "state": "todo",
       "group": "CC",
       "deps": ["CC-05"],
       "at": "2026-11-06T17:36:31Z",
@@ -333,6 +344,15 @@
       "at": "2026-11-06T17:48:53Z",
       "by": "claude-code",
       "desc": "Why: SpliceAI2 (Illumina, 2026-10) targets quantitative and deep-intronic splice effects, the thesis question; adding it as one more informational predictor lets us compare it with SpliceAI/Pangolin/SPiP on our variants.\n\nTo do (option A of walkthrough/20261106_spliceai2_inclusion.md), once you accepted the Hugging Face terms and answered the licence questions in PR-02:\n- download only precomputed_scores_v2.0 GRCh38 to /data_lab_PGP/resources/annotation/ (location your OK), check REF alleles against our FASTA on a sample;\n- one tabix-indexed file, looked up in VEP_ANNOTATE or a small step;\n- columns SpliceAI2_score, SpliceAI2_DS_*/DP_*, SpliceAI2_status (scored / not_covered; not covered is never 0);\n- no change to SpliceAI, ACMG or NEW_IMPACT.\n\nDone when: fixture run with the new columns, status counts checked, Module 3 told of the new columns."
+    },
+    {
+      "id": "SF-05",
+      "title": "VEP: stop the run when a plugin fails to load",
+      "state": "proposed",
+      "group": "SF",
+      "at": "2026-11-10T11:28:13Z",
+      "by": "claude-code",
+      "desc": "Why: without --safe, VEP only warns when a plugin fails to compile or load (Runner.pm:886-915 in the container) and goes on. That plugin's columns then disappear without an error; for UTRAnnotator, every row becomes UTRAnnotator_status=not_annotated.\n\nProposal: add --safe to the VEP call, or check after VEP that the CSQ header has every expected plugin field and fail the task if one is missing.\n\nDone when: a run with a broken plugin fails, and a normal fixture run still passes. Needs one cluster fixture run."
     }
   ]
 }
