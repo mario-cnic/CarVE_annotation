@@ -1,13 +1,15 @@
-// Broad tier: chunks the full input, runs VEP, the LaBranchoR lookup (and SPiP when spip_tier == 'broad')
+// Broad tier: chunks the full input, runs VEP, the LaBranchoR and SpliceAI2 lookups (and SPiP when spip_tier == 'broad')
 // per chunk, and reassembles each predictor's chunks. CONCAT_CHUNKS needs one alias per call site.
 
 include { CHUNK_VCF } from '../modules/local/chunk.nf'
 include { CONCAT_CHUNKS as CONCAT_VEP } from '../modules/local/chunk.nf'
 include { CONCAT_CHUNKS as CONCAT_BRANCHPOINT } from '../modules/local/chunk.nf'
 include { CONCAT_CHUNKS as CONCAT_SPIP_BROAD } from '../modules/local/chunk.nf'
+include { CONCAT_CHUNKS as CONCAT_SPLICEAI2 } from '../modules/local/chunk.nf'
 include { VEP_ANNOTATE } from '../modules/local/vep.nf'
 include { BRANCHPOINT_ANNOTATE } from '../modules/local/branchpointer.nf'
 include { SPIP_ANNOTATE } from '../modules/local/spip.nf'
+include { SPLICEAI2_ANNOTATE } from '../modules/local/spliceai2.nf'
 
 // Groups a predictor's chunks by run and pairs them with the pre-chunk input for the parity check.
 def collectForConcat(annotated_chunk_ch, orig_vcf_ch, suffix) {
@@ -44,6 +46,9 @@ workflow BROAD_PASS_WHOLE_SUBWORKFLOW {
     BRANCHPOINT_ANNOTATE(chunk_ch)
     CONCAT_BRANCHPOINT(collectForConcat(BRANCHPOINT_ANNOTATE.out.vcf.map { m, vcf, tbi -> tuple(m, vcf) }, meta_vcf_ch, 'annBranchpoint'))
 
+    SPLICEAI2_ANNOTATE(chunk_ch)
+    CONCAT_SPLICEAI2(collectForConcat(SPLICEAI2_ANNOTATE.out.vcf.map { m, vcf, tbi -> tuple(m, vcf) }, meta_vcf_ch, 'annSpliceAI2'))
+
     if (params.spip_tier == 'broad') {
         SPIP_ANNOTATE(chunk_ch)
         CONCAT_SPIP_BROAD(collectForConcat(SPIP_ANNOTATE.out.vcf.map { m, vcf, tbi -> tuple(m, vcf) }, meta_vcf_ch, 'annSPiP'))
@@ -55,5 +60,6 @@ workflow BROAD_PASS_WHOLE_SUBWORKFLOW {
     emit:
     vep         = CONCAT_VEP.out.vcf
     branchpoint = CONCAT_BRANCHPOINT.out.vcf
+    spliceai2   = CONCAT_SPLICEAI2.out.vcf
     spip        = spip_out_ch
 }

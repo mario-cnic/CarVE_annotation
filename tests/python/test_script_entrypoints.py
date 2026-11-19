@@ -19,6 +19,7 @@ SCRIPTS = [
     "src/python/parsing/filter_variants.py",
     "src/python/parsing/vcf_parser_pysam.py",
     "src/python/annotate_branchpointer.py",
+    "src/python/annotate_spliceai2.py",
     "src/python/annotation_cache.py",
     "src/python/check_vcf_assembly.py",
     "src/python/extract_genotypes.py",

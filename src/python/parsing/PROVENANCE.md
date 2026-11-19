@@ -110,3 +110,5 @@ Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_p
 - 2026-11-05: `modules/splicing.py` `parse_branchpointer` parses the LaBranchoR ISM columns (`LABRANCHOR_ISM_COLUMNS`, `LaBranchoR_ISM_status`); `filter_variants.py` column order.
 
 - 2026-11-10: `modules/population.py` site allele number (`GNOMAD_SITE_AN`, `absent_low_an`, `min_absent_an`); `filter_variants.py` `--pm2-absence-af` (SF-02).
+
+- 2026-11-18: `modules/splicing.py` `parse_spliceai2` (`SPLICEAI2_COLUMNS`, `SpliceAI2_status`); `filter_variants.py` column order; `modules/scoring.py` audit entry (PR-03).

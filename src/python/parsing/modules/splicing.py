@@ -48,6 +48,11 @@ NEW_BRANCHPOINT_COLUMNS = {
     "labranchor_acc_dist": "LaBranchoR_acc_dist",
     "labranchor_status": "LaBranchoR_status",
 }
+# SpliceAI2 precomputed scores (allele-aware lookup, GENCODE v48 protein-coding genes; informational).
+SPLICEAI2_NUMERIC_COLUMNS = ["SpliceAI2_score", "SpliceAI2_DS_AG", "SpliceAI2_DS_AL", "SpliceAI2_DS_DG",
+                             "SpliceAI2_DS_DL", "SpliceAI2_DP_AG", "SpliceAI2_DP_AL", "SpliceAI2_DP_DG",
+                             "SpliceAI2_DP_DL"]
+SPLICEAI2_COLUMNS = SPLICEAI2_NUMERIC_COLUMNS + ["SpliceAI2_strand", "SpliceAI2_status"]
 # LaBranchoR in silico mutagenesis (allele-aware, SNVs only; informational).
 LABRANCHOR_ISM_COLUMNS = ["LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBranchoR_ISM_dist",
                           "LaBranchoR_ISM_n_3pss", "LaBranchoR_ISM_status"]
@@ -423,6 +428,23 @@ def parse_branchpointer(data: pd.DataFrame):
         res = apply_rows(data, process_ism, LABRANCHOR_ISM_COLUMNS[:4] + ["REF", "ALT", "Locus"], LABRANCHOR_ISM_COLUMNS)
         for col_name in res.columns:
             data[col_name] = res[col_name]
+    return data
+
+
+def parse_spliceai2(data: pd.DataFrame):
+    """SpliceAI2 columns as numbers plus `SpliceAI2_status`, informational only (nothing here changes
+    NEW_IMPACT or the score): `scored` when the precomputed data hold the exact allele, else `not_covered`
+    (outside GENCODE v48 protein-coding genes, an indel not in the population-observed set, or a
+    multiallelic record). A not_covered row has no score; it is never 0."""
+    if "SpliceAI2_score" not in data.columns:
+        logger.info("SpliceAI2 columns not found in data, skipping SpliceAI2 parsing")
+        return data
+    for col in SPLICEAI2_NUMERIC_COLUMNS:
+        if col in data.columns:
+            values = data[col].replace({".": None, "": None})
+            data[col] = pd.to_numeric(values, errors="raise").astype("float64")
+    data["SpliceAI2_status"] = np.where(data["SpliceAI2_score"].notna(), "scored", "not_covered")
+    logger.info(f"New column `SpliceAI2_status` created with value counts: {dict(data['SpliceAI2_status'].value_counts())}")
     return data
 
 

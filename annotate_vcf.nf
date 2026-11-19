@@ -80,6 +80,7 @@ params.code_md5 = [
     pangolin    : codeMd5(["${params.pangolin_repo}/pangolin"]),
     spip        : codeMd5([params.spip_script]),
     branchpoint : codeMd5([params.branchpointer_script]),
+    spliceai2   : codeMd5([params.spliceai2_script]),
     vep         : codeMd5([params.vep_dbnsfp_fields, params.vep_local_plugins_dir]),
     vcf_to_tsv  : codeMd5([params.vcf_parser_script, "${file(params.vcf_parser_script).parent}/logger.py", params.vep_cols_file]),
     tsv_to_table: codeMd5([file(params.filter_variants_script).parent, params.spliceai_symbol_map, params.enst_spip_map,
@@ -96,6 +97,7 @@ params.resource_id = params.dump_params ? [:] : [
     pangolin    : resourceId([params.fasta, params.pangolin_db]),
     spip        : resourceId([file(params.spip_script).parent]),
     branchpoint : resourceId([params.labranchor_bed, params.labranchor_ism]),
+    spliceai2   : resourceId([params.spliceai2_scores_dir]),
     vep         : resourceId([params.fasta, params.vep_sif,
                               "${params.vep_dir}/cache/homo_sapiens/${params.vep_cache_version}_GRCh38",
                               params.vep_plugin_modules_dir,
@@ -160,6 +162,7 @@ workflow {
     MERGE_SUBWORKFLOW(
         BROAD_PASS_WHOLE_SUBWORKFLOW.out.vep,
         BROAD_PASS_WHOLE_SUBWORKFLOW.out.branchpoint,
+        BROAD_PASS_WHOLE_SUBWORKFLOW.out.spliceai2,
         GENE_RESTRICTED_WHOLE_SUBWORKFLOW.out.pangolin,
         GENE_RESTRICTED_WHOLE_SUBWORKFLOW.out.spliceai,
         spip_merged_ch

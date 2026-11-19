@@ -426,6 +426,7 @@ def audit_annotation_availability(data: pd.DataFrame) -> dict[str, dict]:
         "REVEL Missense Ensemble": ["REVEL_score", "REVEL"],
         "SpliceVault RNA-Seq Cohort": ["SpliceVault_status", "SpliceVault"],
         "LaBranchoR branchpoint (positional, informational)": ["LaBranchoR_score"],
+        "SpliceAI2 precomputed (informational)": ["SpliceAI2_score"],
         "ReMM Non-Coding (informational)": ["ReMM_score"],
         "AlphaGenome AVI (informational)": ["AVI_PHRED"],
         "ClinVar Pathogenicity": ["ClinVarVCF_CLNSIG", "clinvar_clnsig", "CLIN_SIG", "CLNSIG", "CLINVAR_DISPLAY", "ClinVar"],

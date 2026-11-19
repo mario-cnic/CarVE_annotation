@@ -47,7 +47,9 @@ ACGT = set("ACGT")
 # value, so an input already carrying one of these tags would pass its old values off as this run's.
 PIPELINE_INFO_TAGS = ("SpliceAI", "Pangolin", "PangolinTissue", "SPiP", "LaBranchoR_score", "LaBranchoR_acc_dist",
                       "Branchpointer_prob", "Branchpointer_U2_energy", "Branchpoint_disrupted",
-                      "LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBranchoR_ISM_dist", "LaBranchoR_ISM_n_3pss")
+                      "LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBranchoR_ISM_dist", "LaBranchoR_ISM_n_3pss",
+                      "SpliceAI2_score", "SpliceAI2_DS_AG", "SpliceAI2_DS_AL", "SpliceAI2_DS_DG", "SpliceAI2_DS_DL",
+                      "SpliceAI2_DP_AG", "SpliceAI2_DP_AL", "SpliceAI2_DP_DG", "SpliceAI2_DP_DL", "SpliceAI2_strand")
 
 
 def resolve_contig(name, fasta_lengths):

@@ -68,7 +68,7 @@ def test_concat_fails_when_a_site_changed_but_the_count_did_not(tmp_path):
 def merge(tmp_path, vep_records):
     vep = vcf(tmp_path / "vep.vcf.gz", vep_records)
     files = {}
-    for name in ("bp", "pango", "sai", "spip"):
+    for name in ("bp", "sai2", "pango", "sai", "spip"):
         files[name] = vcf(tmp_path / f"{name}.vcf.gz", [(100, "A", "G")], info="SpliceAI=x")
     values = {"params.bcftools": BCF, "params.tabix": TABIX, "vep_vcf": vep.name, "meta.partition_id": "run",
               **{f"{k}_vcf": v.name for k, v in files.items()}}

@@ -1,5 +1,5 @@
-// Merges the five predictor VCFs into one annotated VCF. VEP is the record set; SPiP, Pangolin,
-// SpliceAI and LaBranchoR INFO tags are transferred onto it in that order. Any failure fails the task.
+// Merges the six predictor VCFs into one annotated VCF. VEP is the record set; SPiP, Pangolin,
+// SpliceAI, LaBranchoR and SpliceAI2 INFO tags are transferred onto it in that order. Any failure fails the task.
 
 process MERGE_ANNOTATIONS {
     tag "${meta.partition_id}"
@@ -7,7 +7,7 @@ process MERGE_ANNOTATIONS {
     publishDir "${params.outdir}/${meta.partition_id}/${params.out_subdir.annotation}", mode: 'copy'
 
     input:
-    tuple val(meta), path(vep_vcf), path(vep_tbi), path(bp_vcf), path(bp_tbi), path(pango_vcf), path(pango_tbi), path(sai_vcf), path(sai_tbi), path(spip_vcf), path(spip_tbi)
+    tuple val(meta), path(vep_vcf), path(vep_tbi), path(bp_vcf), path(bp_tbi), path(sai2_vcf), path(sai2_tbi), path(pango_vcf), path(pango_tbi), path(sai_vcf), path(sai_tbi), path(spip_vcf), path(spip_tbi)
 
     output:
     tuple val(meta), path("${meta.partition_id}.annotated.vcf.gz"), path("${meta.partition_id}.annotated.vcf.gz.tbi"), emit: vcf
@@ -24,7 +24,9 @@ process MERGE_ANNOTATIONS {
 
     ${params.bcftools} annotate -a ${sai_vcf} -c SpliceAI tmp_pangolin.bcf -Ob1 -W -o tmp_spliceai.bcf
 
-    ${params.bcftools} annotate -a ${bp_vcf} -c LaBranchoR_score,LaBranchoR_acc_dist,LaBranchoR_ISM_d_best,LaBranchoR_ISM_d_max,LaBranchoR_ISM_dist,LaBranchoR_ISM_n_3pss tmp_spliceai.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
+    ${params.bcftools} annotate -a ${bp_vcf} -c LaBranchoR_score,LaBranchoR_acc_dist,LaBranchoR_ISM_d_best,LaBranchoR_ISM_d_max,LaBranchoR_ISM_dist,LaBranchoR_ISM_n_3pss tmp_spliceai.bcf -Ob1 -W -o tmp_branchpoint.bcf
+
+    ${params.bcftools} annotate -a ${sai2_vcf} -c SpliceAI2_score,SpliceAI2_DS_AG,SpliceAI2_DS_AL,SpliceAI2_DS_DG,SpliceAI2_DS_DL,SpliceAI2_DP_AG,SpliceAI2_DP_AL,SpliceAI2_DP_DG,SpliceAI2_DP_DL,SpliceAI2_strand tmp_branchpoint.bcf -Oz -o ${meta.partition_id}.annotated.vcf.gz
     ${params.tabix} -f ${meta.partition_id}.annotated.vcf.gz
 
     # The merged VCF keeps exactly VEP's CHROM/POS/REF/ALT records (MISC-6).

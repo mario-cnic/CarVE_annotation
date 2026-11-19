@@ -21,7 +21,7 @@ try:
         SPLICING_COLUMNS, NEW_SPIP_COLUMNS, NEW_PANGOLIN_COLUMNS, NEW_BRANCHPOINT_COLUMNS,
         NEW_MAXENTSCAN_COLUMNS,
         parse_spip, decode_splicevault_prediction, parse_splicevault, parse_pangolin,
-        parse_branchpointer, parse_maxentscan, build_signed_intron_offset, parse_spliceai_custom,
+        parse_branchpointer, parse_spliceai2, parse_maxentscan, build_signed_intron_offset, parse_spliceai_custom,
         build_spliceMAX, _extract_spliceai_details, _extract_spliceai_score,
     )
     from .modules.predictors import (
@@ -63,7 +63,7 @@ except ImportError:
         SPLICING_COLUMNS, NEW_SPIP_COLUMNS, NEW_PANGOLIN_COLUMNS, NEW_BRANCHPOINT_COLUMNS,
         NEW_MAXENTSCAN_COLUMNS,
         parse_spip, decode_splicevault_prediction, parse_splicevault, parse_pangolin,
-        parse_branchpointer, parse_maxentscan, build_signed_intron_offset, parse_spliceai_custom,
+        parse_branchpointer, parse_spliceai2, parse_maxentscan, build_signed_intron_offset, parse_spliceai_custom,
         build_spliceMAX, _extract_spliceai_details, _extract_spliceai_score,
     )
     from modules.predictors import (
@@ -317,6 +317,17 @@ def main(args: list[str] | None):
         "LaBranchoR_ISM_dist",
         "LaBranchoR_ISM_n_3pss",
         "LaBranchoR_ISM_status",
+        "SpliceAI2_score",
+        "SpliceAI2_DS_AG",
+        "SpliceAI2_DS_AL",
+        "SpliceAI2_DS_DG",
+        "SpliceAI2_DS_DL",
+        "SpliceAI2_DP_AG",
+        "SpliceAI2_DP_AL",
+        "SpliceAI2_DP_DG",
+        "SpliceAI2_DP_DL",
+        "SpliceAI2_strand",
+        "SpliceAI2_status",
         "MaxEntScan_ref",
         "MaxEntScan_alt",
         "MaxEntScan_diff",
@@ -439,6 +450,7 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = parse_splicevault(data)
     data = parse_pangolin(data)
     data = parse_branchpointer(data)
+    data = parse_spliceai2(data)
     data = parse_maxentscan(data)
     data = parse_nmd(data)
     data = parse_remm(data)

@@ -37,6 +37,11 @@ The table below details all recent changes, column renames, and structural enhan
 | **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_dist` | Integer | Bases from the SNV to that 3' splice site (1-70, upstream). |
 | **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_n_3pss` | Integer | Number of 3' splice sites (GENCODE v19) whose window holds the SNV. |
 | **LaBranchoR ISM** | *N/A (New)* | `LaBranchoR_ISM_status` | String | `scored`, `not_covered` (SNV outside every window) or `not_applicable` (not an SNV). |
+| **SpliceAI2** | *N/A (New)* | `SpliceAI2_score` | Float | SpliceAI2 summary score (max of the four delta scores, 0-1), precomputed, GENCODE v48 protein-coding genes. Informational; author thresholds 0.1 / 0.25 / 0.5 (SpliceAI 0.2 / 0.5 / 0.8). |
+| **SpliceAI2** | *N/A (New)* | `SpliceAI2_DS_AG`, `_DS_AL`, `_DS_DG`, `_DS_DL` | Float | Delta score of the strongest acceptor/donor gain/loss (0-1). |
+| **SpliceAI2** | *N/A (New)* | `SpliceAI2_DP_AG`, `_DP_AL`, `_DP_DG`, `_DP_DL` | Integer | Position of that splice site relative to the variant. |
+| **SpliceAI2** | *N/A (New)* | `SpliceAI2_strand` | String | Strand of the gene scored; with genes on both strands, the higher-scoring one. |
+| **SpliceAI2** | *N/A (New)* | `SpliceAI2_status` | String | `scored` or `not_covered` (outside protein-coding genes, indel not in the population-observed set, or multiallelic); not_covered has no score, never 0. |
 
 ---
 
