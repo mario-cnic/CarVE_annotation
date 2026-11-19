@@ -63,7 +63,7 @@
     {
       "id": "CC-02",
       "title": "Close the bug rows the checklist verifies",
-      "state": "review",
+      "state": "done",
       "group": "CC",
       "deps": ["CC-01"],
       "at": "2026-11-06T13:51:22Z",
@@ -186,7 +186,7 @@
     {
       "id": "SF-02",
       "title": "PM2: gnomAD v4 coverage for absent sites",
-      "state": "proposed",
+      "state": "doing",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -196,6 +196,36 @@
           "at": "2026-11-06T13:55:22Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-10T19:51:04Z",
+          "by": "claude-code",
+          "text": "Plan: find a per-position gnomAD v4.1 resource, propose resource + threshold to Mario, then download, build lookup, new status, tests, fixture."
+        },
+        {
+          "at": "2026-11-10T19:51:06Z",
+          "by": "claude-code",
+          "text": "Findings 2026-11-10:\n- Our gnomAD v4.1 VCF (/references, joint sites) only has lines where gnomAD saw a variant, so it cannot tell coverage at absent positions.\n- gnomAD v4.1 publishes \"allele number at all callable sites\": tsv/exomes/gnomad.exomes.v4.1.allele_number_all_sites.tsv.bgz (1.1 GB) and tsv/genomes/gnomad.genomes.v4.1.allele_number_all_sites.tsv.bgz (12 GB). Format: locus (chr:pos), AN (+ capture-region flags in exomes). No .tbi published: needs a conversion to chrom/pos/AN + index. Max AN seen: exomes 1,448,354, genomes 152,426.\n- Alternative coverage files are older/larger (genomes v3.0.1 coverage 80.9 GB; exomes v4.0 4.1 GB). AN is the better fit: it is the AN gnomAD would report if the variant existed.\nWaiting for Mario: location and AN threshold."
+        },
+        {
+          "at": "2026-11-10T19:57:45Z",
+          "by": "claude-code",
+          "text": "Mario 2026-11-10: location OK (/data_lab_PGP/resources/annotation/gnomad_an/v4.1/); asked for literature before choosing the threshold.\nLiterature (sources in chat): no general ClinGen SVI coverage cutoff (SVI gnomAD v4 note, Aug 2024, gives none). VCEPs: RUNX1, DICER1 absent with >=20x; ATM >30x. Cardiomyopathy VCEP (MYH7 v2.0): upper bound of 95% CI <= 0.00004, as allele counts per AN (<=1 in >=120,000 ...). gnomAD (Gudmundsson 2022): flags variants covered in <50% of individuals; check AN/coverage before trusting absence.\nDerived (mine): MYH7 rule with 0 alleles -> 3/AN <= 0.00004 -> AN >= 75,000.\nFACT: scoring.py:110-116 reads FAF_POPMAX_BS1 per row, but no code or the gene list provides it, so MCAF is always 0.0001/2.5 = 0.00004 for every gene; acmg.py:118 uses 0.0001 instead."
+        },
+        {
+          "at": "2026-11-10T20:30:53Z",
+          "by": "claude-code",
+          "text": "Decision (Mario 2026-11-10): absence counts for PM2 only if exomes+genomes site AN >= -ln(0.05)/pm2_absence_af = 74,894 for 4e-5 (Cardiomyopathy VCEP MYH7 rule with 0 alleles; matches gnomAD's <50%-of-genomes warning). Threshold is a param.\nImplemented (uncommitted): src/tools/build_gnomad_an_bed.sh (download from Google mirror, BED of runs of equal AN, tabix; round-trip identical on 50k real positions per set); VEP --custom gnomADv4AN_exomes/_genomes (BED, overlap; verified locally in the VEP container: SNV one value, deletion one per deleted base, insertion both flanks, uncovered empty); population.py new status absent_low_an + GNOMAD_SITE_AN (min over positions, empty = 0); --pm2-absence-af / params.pm2_absence_af; both fields added to vep_required_fields; README.\nTests: 5 new in test_population_frequency.py (22/22); full suite passes in the annotation_tests env.\nRunning: BED build (exomes downloaded, genomes 12 GB pending). Then: cluster fixture, status counts, tell Module 3 about absent_low_an and GNOMAD_SITE_AN."
+        },
+        {
+          "at": "2026-11-18T20:41:30Z",
+          "by": "claude-code",
+          "text": "2026-11-18: gnomAD AN BEDs built (exomes 1.15 GB, genomes 16 GB; MANIFEST.txt with sha256). Exomes BED matched the source TSV at 60/60 sampled positions. First genomes attempt failed on a locale bug in the size check (fixed in build_gnomad_an_bed.sh).\nKnown limit (not fixed): VEP returns nothing for bases with no interval in a file, so a deletion partly outside a file's coverage gets the minimum of its covered bases only. At capture edges this can overstate AN a little.\nCluster check: synthetic fixture test_data/raw_vcfs/an_spliceai2_fixture.vcf.gz (9 variants) with expected values in an_spliceai2_fixture.expected.tsv: absent with high AN, AN 0, low-AN SNV/deletion/chrY, an insertion, a present control."
+        },
+        {
+          "at": "2026-11-18T20:44:49Z",
+          "by": "claude-code",
+          "text": "2026-11-18: genomes BED matched the source TSV at 574/574 positions (one every 5M), all 25 contigs present. Ready for the cluster fixture run."
         }
       ]
     },
@@ -382,21 +412,95 @@
     {
       "id": "PR-03",
       "title": "Add SpliceAI2 precomputed scores (informational)",
-      "state": "proposed",
+      "state": "doing",
       "group": "PR",
       "deps": ["PR-02"],
       "at": "2026-11-06T17:48:53Z",
       "by": "claude-code",
-      "desc": "Why: SpliceAI2 (Illumina, 2026-10) targets quantitative and deep-intronic splice effects, the thesis question; adding it as one more informational predictor lets us compare it with SpliceAI/Pangolin/SPiP on our variants.\n\nTo do (option A of walkthrough/20261106_spliceai2_inclusion.md), once you accepted the Hugging Face terms and answered the licence questions in PR-02:\n- download only precomputed_scores_v2.0 GRCh38 to /data_lab_PGP/resources/annotation/ (location your OK), check REF alleles against our FASTA on a sample;\n- one tabix-indexed file, looked up in VEP_ANNOTATE or a small step;\n- columns SpliceAI2_score, SpliceAI2_DS_*/DP_*, SpliceAI2_status (scored / not_covered; not covered is never 0);\n- no change to SpliceAI, ACMG or NEW_IMPACT.\n\nDone when: fixture run with the new columns, status counts checked, Module 3 told of the new columns."
+      "desc": "Why: SpliceAI2 (Illumina, 2026-10) targets quantitative and deep-intronic splice effects, the thesis question; adding it as one more informational predictor lets us compare it with SpliceAI/Pangolin/SPiP on our variants.\n\nTo do (option A of walkthrough/20261106_spliceai2_inclusion.md), once you accepted the Hugging Face terms and answered the licence questions in PR-02:\n- download only precomputed_scores_v2.0 GRCh38 to /data_lab_PGP/resources/annotation/ (location your OK), check REF alleles against our FASTA on a sample;\n- one tabix-indexed file, looked up in VEP_ANNOTATE or a small step;\n- columns SpliceAI2_score, SpliceAI2_DS_*/DP_*, SpliceAI2_status (scored / not_covered; not covered is never 0);\n- no change to SpliceAI, ACMG or NEW_IMPACT.\n\nDone when: fixture run with the new columns, status counts checked, Module 3 told of the new columns.",
+      "notes": [
+        {
+          "at": "2026-11-10T17:17:35Z",
+          "by": "claude-code",
+          "text": "Decisions 2026-11-10 (Mario, in chat): download ALL of precomputed_scores_v2.0/GRCh38 (snv ~333 GB + indel ~14 GB, 25+23 files, bgzip, sorted, tabix -s 1 -b 2 -e 2 -S 1; protein-coding genes, GENCODE v48). Space is not a concern: the folder will move to other storage later, so the path must be a single param. Proposed location /data_lab_PGP/resources/annotation/spliceai2/ — Mario to confirm. Hugging Face access works (account Rmario, CLI: /data_lab_PGP/shared/utils/conda_envs/whisper/bin/hf). Waiting for: board approval + location. Then: download as a qsub job (not the login node), tabix-index, record checksums/manifest."
+        },
+        {
+          "at": "2026-11-10T17:22:43Z",
+          "by": "claude-code",
+          "text": "Plan: download all GRCh38 precomputed scores to /data_lab_PGP/resources/annotation/spliceai2/ with src/tools/download_spliceai2.sh (qsub), then the lookup step, fixture and Module 3 note."
+        },
+        {
+          "at": "2026-11-10T17:22:43Z",
+          "by": "claude-code",
+          "text": "Download script ready: src/tools/download_spliceai2.sh (uncommitted). Pins dataset revision cd1b8b8, checks sha256 against Hugging Face, tabix-indexes each file, writes MANIFEST.txt. Location confirmed by Mario 2026-11-10: /data_lab_PGP/resources/annotation/spliceai2/.\nLocal --test (indel chr21, 0.16 GB) passed 2026-11-10: sha256 OK, index answers region queries, REF matches our GRCh38 FASTA at 352/352 sampled indels.\nPending: does a compute node reach Hugging Face? Run `qsub src/tools/download_spliceai2.sh --test` first, then the full job."
+        },
+        {
+          "at": "2026-11-10T17:24:41Z",
+          "by": "claude-code",
+          "text": "qsub --test 5107552 failed at login check: cluster home has no HF token (local login only). Network from compute nodes still unknown. Mario to run 'hf auth login' on the cluster, then re-run --test. Script now tells missing token apart from no network."
+        },
+        {
+          "at": "2026-11-10T17:27:04Z",
+          "by": "claude-code",
+          "text": "Full download launched 2026-11-10 18:25 on the local workstation instead (Mario's call; cluster needs a separate HF login). Detached process, logs _log/download_spliceai2.local.{stdout,stderr}; rerun the same command to resume if interrupted."
+        },
+        {
+          "at": "2026-11-18T18:36:12Z",
+          "by": "claude-code",
+          "text": "2026-11-18: download finished (2026-11-11 00:54): 47 files, 348 GB, sha256 OK against Hugging Face, all tabix-indexed (MANIFEST.txt in the folder).\nLookup step implemented (uncommitted): new broad-tier step SPLICEAI2_ANNOTATE (src/python/annotate_spliceai2.py), merged like LaBranchoR. Columns: SpliceAI2_score, SpliceAI2_DS_AG/AL/DG/DL, SpliceAI2_DP_*, SpliceAI2_strand, SpliceAI2_status (scored / not_covered). Exact allele match; with genes on both strands the higher-scoring row is kept. Informational: no effect on NEW_IMPACT, ACMG or score.\nChecked locally: 4 new tests + full suite (452 passed); stub run of the whole DAG OK; the real lookup on the UTR fixture scores 34/34 variants.\nPending: cluster fixture run (together with SF-02, once the gnomAD genomes BED is built), then the Module 3 note."
+        }
+      ]
     },
     {
       "id": "SF-05",
       "title": "VEP: stop the run when a plugin fails to load",
-      "state": "proposed",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-10T11:28:13Z",
       "by": "claude-code",
-      "desc": "Why: without --safe, VEP only warns when a plugin fails to compile or load (Runner.pm:886-915 in the container) and goes on. That plugin's columns then disappear without an error; for UTRAnnotator, every row becomes UTRAnnotator_status=not_annotated.\n\nProposal: add --safe to the VEP call, or check after VEP that the CSQ header has every expected plugin field and fail the task if one is missing.\n\nDone when: a run with a broken plugin fails, and a normal fixture run still passes. Needs one cluster fixture run."
+      "desc": "Why: without --safe, VEP only warns when a plugin fails to compile or load (Runner.pm:886-915 in the container) and goes on. That plugin's columns then disappear without an error; for UTRAnnotator, every row becomes UTRAnnotator_status=not_annotated.\n\nProposal: add --safe to the VEP call, or check after VEP that the CSQ header has every expected plugin field and fail the task if one is missing.\n\nDone when: a run with a broken plugin fails, and a normal fixture run still passes. Needs one cluster fixture run.",
+      "notes": [
+        {
+          "at": "2026-11-10T17:39:29Z",
+          "by": "human",
+          "text": "the safe flag could interfere with the normal annotation if there is any plugin not working (like mastermind)? if so, the maybe we should try to fix this first and select the columns we are really using"
+        },
+        {
+          "at": "2026-11-10T17:40:02Z",
+          "by": "claude-code",
+          "text": "Plan: first answer Mario's note - list the plugins in the VEP call, find which ones warn or fail in recent runs (e.g. Mastermind), and which plugin columns downstream code actually reads. Then propose --safe vs a header check on the plugins we use."
+        },
+        {
+          "at": "2026-11-10T17:42:20Z",
+          "by": "claude-code",
+          "text": "Answer to the note (checked in the VEP 111 container source):\n- --safe only stops the run when a plugin fails to compile/instantiate (Runner.pm:899,912,948). A plugin failing on single variants stays a warning with or without --safe (OutputFactory.pm:2133), so --safe would not break normal runs that way.\n- Side effect: with --safe, missing SIFT/PolyPhen in the cache are silently disabled instead of stopping VEP (Cache/Transcript.pm:161).\n- Today's VEP task (2026-11-10 15:59) has columns from all 12 plugins, Mastermind included; stderr only container INFO lines.\n- Not read anywhere (pipeline or Module 3 code): Mastermind, LoFtool, SpliceRegion.\nProposal: no --safe; after VEP, check the header has the columns of each plugin we read and stop with the plugin's name if one is missing. Removing unused plugins = separate task. Waiting for Mario's OK."
+        },
+        {
+          "at": "2026-11-10T17:42:20Z",
+          "by": "claude-code",
+          "text": "Question: Header check instead of --safe, and a separate task to drop Mastermind/LoFtool/SpliceRegion (+ unused SIFT/PolyPhen)?"
+        },
+        {
+          "at": "2026-11-10T17:46:40Z",
+          "by": "claude-code",
+          "text": "Mario 2026-11-10: use BOTH --safe and the post-VEP column check (the SIFT/PolyPhen cache case is very rare and we do not read them)."
+        },
+        {
+          "at": "2026-11-10T17:48:32Z",
+          "by": "claude-code",
+          "text": "Implemented (uncommitted): modules/local/vep.nf adds --safe and, after VEP, checks the CSQ header for params.vep_required_fields (nextflow.config, 15 \"source:field\" pairs: plugins and --custom sources read downstream). Missing field -> task fails naming the source.\nLocal checks: check logic on today's real VEP header -> OK; same header with am_pathogenicity and ReMM removed -> fails naming both; nextflow config parses; VEP-related tests 15/15 pass.\nPending cluster: (1) normal fixture passes; (2) run with --vep_alphamissense pointing to a missing file must fail in VEP_ANNOTATE (\"Failed to instantiate plugin AlphaMissense\")."
+        },
+        {
+          "at": "2026-11-10T17:54:23Z",
+          "by": "claude-code",
+          "text": "Cluster 2026-11-10 sf05_safe_broken (missing AlphaMissense file): VEP_ANNOTATE failed in every chunk with 'Failed to instantiate plugin AlphaMissense: ERROR: Data file ... not found' (Runner.pm:912), run aborted, no table. 7 chunks x 6 attempts (errorStrategy retry, maxRetries 5), ~15 s each: retries are wasted but cheap, left as is. Pending: normal fixture sf05_safe_ok."
+        },
+        {
+          "at": "2026-11-10T17:57:22Z",
+          "by": "claude-code",
+          "text": "A VEP plugin that fails to load now stops the run, instead of silently dropping its columns.\n- `--safe` on the VEP call: a plugin that cannot load fails VEP_ANNOTATE with VEP's own message.\n- After VEP, the CSQ header must contain the 15 fields we read (plugins + --custom ClinVar/gnomAD/ReMM/SpliceVarDB), listed once in `vep_required_fields` (nextflow.config). A missing one fails the task naming source:field.\nVerified 2026-11-10:\n- cluster sf05_safe_broken (AlphaMissense file missing): failed with \"Failed to instantiate plugin AlphaMissense ... not found\", no table.\n- cluster sf05_safe_ok (normal fixture): 37/37 tasks OK, VEP passed the check.\n- local: check fails naming am_pathogenicity and ReMM when removed from a real header.\nTo check: the field list in nextflow.config. Code not committed yet."
+        }
+      ]
     }
   ]
 }
