@@ -529,5 +529,7 @@ ClinVarVCF_CLNDN
 ClinVarVCF_CLNVC
 ClinVarVCF_ALLELEID
 ReMM
+gnomADv4AN_exomes
+gnomADv4AN_genomes
 AVI_PHRED
 AVI_RAW

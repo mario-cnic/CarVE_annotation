@@ -42,6 +42,7 @@ try:
         _mark_pairwise_trans, _mark_unphased_candidates, _mark_with_pandas, _mark_with_dict,
         analyze_pedigree_inheritance,
     )
+    from .modules import population
     from .modules.scoring import (
         build_priority_tier, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
@@ -83,6 +84,7 @@ except ImportError:
         _mark_pairwise_trans, _mark_unphased_candidates, _mark_with_pandas, _mark_with_dict,
         analyze_pedigree_inheritance,
     )
+    from modules import population
     from modules.scoring import (
         build_priority_tier, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
@@ -228,6 +230,14 @@ def argparsing() -> argparse.ArgumentParser:
         help="TSV input to Parquet output: process about this many rows at a time (never splitting a "
              "variant's rows) instead of loading the whole TSV; not with --genotype_file or --classification",
     )
+    parser.add_argument(
+        "--pm2-absence-af",
+        dest="pm2_absence_af",
+        type=float,
+        default=population.PM2_ABSENCE_AF,
+        help="PM2 frequency threshold an absence from gnomAD must rule out; absences at sites with "
+             "exomes+genomes AN below -ln(0.05)/value become absent_low_an (default %(default)s)",
+    )
 
     return parser
 
@@ -237,6 +247,10 @@ def main(args: list[str] | None):
 
     file_logging(path="_log", filename=args.log_file if args.log_file else args.output)
     logger.setLevel(LOGGING_MAP[args.logging_level])
+    if not 0 < args.pm2_absence_af < 1:
+        raise ValueError(f"--pm2-absence-af must be in (0, 1), got {args.pm2_absence_af}")
+    population.PM2_ABSENCE_AF = args.pm2_absence_af
+    logger.info(f"Absence from gnomAD counts as rare at site AN >= {population.min_absent_an()}")
 
     logger.info("Starting script to filter variants and add new columns...")
 

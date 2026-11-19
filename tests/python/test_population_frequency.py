@@ -142,3 +142,55 @@ def test_explicit_column_used_consistently_for_scoring_and_criteria(monkeypatch)
     assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency'
     assert 'BA1' in result.ACMG_CRITERIA.iloc[0]
     assert 'PM2' not in result.ACMG_CRITERIA.iloc[0]
+
+
+def test_min_absent_an_follows_the_pm2_threshold():
+    from parsing.modules.population import min_absent_an
+    assert min_absent_an(4e-5) == 74894
+    assert min_absent_an(1e-4) == 29958
+
+
+def test_site_an_takes_minimum_over_positions_and_missing_as_zero():
+    from parsing.modules.population import site_allele_number
+    df = pd.DataFrame({'gnomADv4AN_exomes': ['1400000', '948&1774&2374', None, ''],
+                       'gnomADv4AN_genomes': ['150000', '80000&70000', '152000', None]})
+    assert site_allele_number(df).tolist() == [1550000, 70948, 152000, 0]
+    assert site_allele_number(df[['gnomADv4AN_genomes']]).tolist() == [150000, 70000, 152000, 0]
+    assert site_allele_number(pd.DataFrame({'x': [1]})).isna().all()
+
+
+def test_absence_needs_enough_site_an_for_pm2(monkeypatch):
+    from parsing.modules.population import ABSENT_LOW_AN, SITE_AN
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+    # absent at well-genotyped site, absent at poorly genotyped site, absent where gnomAD has no
+    # callable genotype, and a present allele whose site AN is irrelevant
+    df = pd.DataFrame({GNOMAD_GRPMAX: [None, None, None, 0], GNOMAD_JOINT: [None, None, None, 0],
+                       GNOMAD_AN_JOINT: [None, None, None, 1000],
+                       'gnomADv4AN_exomes': ['1400000', '', '', '10'], 'gnomADv4AN_genomes': ['150000', '74893', '', '10'],
+                       'Consequence': ['stop_gained'] * 4, 'pLI_gene_value': [1.] * 4,
+                       'NEW_IMPACT': ['HIGH'] * 4, 'QC_STATUS': ['PASS'] * 4})
+    af, _, status = resolve_population_af(df)
+    assert status.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
+    assert af.iloc[:3].isna().all()
+    result = scoring.build_priority_tier(df.copy(), DISEASE_GENE_LIST)
+    assert result[SITE_AN].tolist() == [1550000, 74893, 0, 20]
+    assert 'PM2_Supporting' in result.ACMG_CRITERIA.iloc[0]
+    assert 'PM2' not in result.ACMG_CRITERIA.iloc[1] and 'PM2' not in result.ACMG_CRITERIA.iloc[2]
+    assert result.PRIORITY_TIER.iloc[0].startswith('Tier 1')
+    assert not result.PRIORITY_TIER.iloc[1].startswith('Tier 1')
+    assert result.VARIANT_PRIORITY_SCORE.iloc[0] - result.VARIANT_PRIORITY_SCORE.iloc[1] == 15
+    acmg = build_acmg_criteria(df.copy()).ACMG_CRITERIA.tolist()
+    assert 'PM2_Supporting' in acmg[0] and 'PM2' not in acmg[1] and 'PM2' not in acmg[2]
+
+
+def test_absence_without_site_an_annotation_keeps_old_status():
+    df = pd.DataFrame({GNOMAD_GRPMAX: [None], GNOMAD_JOINT: [None], GNOMAD_AN_JOINT: [None]})
+    assert resolve_population_af(df)[2].tolist() == [ABSENT]
+
+
+def test_pm2_threshold_option_changes_min_an(monkeypatch):
+    from parsing.modules import population
+    monkeypatch.setattr(population, 'PM2_ABSENCE_AF', 1e-4)
+    df = pd.DataFrame({GNOMAD_GRPMAX: [None], GNOMAD_JOINT: [None], GNOMAD_AN_JOINT: [None],
+                       'gnomADv4AN_genomes': ['40000']})
+    assert resolve_population_af(df)[2].tolist() == [population.ABSENT]

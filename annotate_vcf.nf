@@ -102,7 +102,8 @@ params.resource_id = params.dump_params ? [:] : [
                               params.vep_cadd, params.vep_utrannotator, params.vep_spliceai_snv, params.vep_spliceai_indel,
                               params.vep_revel, params.vep_mastermind, params.vep_loftool, params.vep_dbnsfp,
                               params.vep_alphamissense, params.vep_avi, params.vep_maxentscan_dir, params.splicevardb_vcf,
-                              params.clinvar_vcf, params.splicevault_file, params.vep_remm, params.gnomad_vcf]),
+                              params.clinvar_vcf, params.splicevault_file, params.vep_remm, params.gnomad_vcf,
+                              params.gnomad_an_exomes_bed, params.gnomad_an_genomes_bed]),
 ]
 
 include { CHECK_INPUT_ASSEMBLY } from './modules/local/check_assembly.nf'
