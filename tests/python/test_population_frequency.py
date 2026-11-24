@@ -6,7 +6,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules.population import resolve_population_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT, GNOMAD_AN_JOINT
-from parsing.modules.acmg import build_acmg_criteria
 from parsing.modules import scoring
 
 DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
@@ -41,17 +40,16 @@ def test_legacy_is_only_used_when_explicitly_requested():
         scoring.filter_freq(df, .001)
 
 
-def test_acmg_absent_zero_common_joint_fallback_and_uncovered_record():
+def test_table_status_absent_zero_joint_fallback_and_uncovered_record(monkeypatch):
+    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None, '.', None],
                        GNOMAD_JOINT: [None, .2, .1, None, None],
-                       GNOMAD_AN_JOINT: [None, 1000, 1000, None, 0], 'MAX_AF': [.5] * 5})
-    result = build_acmg_criteria(df)
-    criteria = result.ACMG_CRITERIA.tolist()
-    assert 'PM2_Supporting' in criteria[0] and 'BA1' not in criteria[0] and 'BS1' not in criteria[0]
-    assert 'PM2_Supporting' in criteria[1]
-    assert 'BA1' in criteria[2] and 'PM2' not in criteria[2]
-    assert 'PM2_Supporting' in criteria[3]
-    assert 'PM2' not in criteria[4] and 'BA1' not in criteria[4]
+                       GNOMAD_AN_JOINT: [None, 1000, 1000, None, 0], 'MAX_AF': [.5] * 5, 'QC_STATUS': ['PASS'] * 5})
+    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'available_frequency', ABSENT,
+                                                    'missing_frequency']
+    assert result.POPULATION_AF.iloc[1] == 0 and result.POPULATION_AF.iloc[2] == .1
+    assert result.POPULATION_AF_SOURCE.iloc[2] == GNOMAD_JOINT
 
 
 def test_absent_requires_gnomad_annotation_and_no_record():
@@ -67,15 +65,14 @@ def test_absent_requires_gnomad_annotation_and_no_record():
     assert resolve_population_af(df.assign(MAX_AF=None), 'MAX_AF')[2].iloc[0] == 'missing_frequency'
 
 
-def test_score_has_no_unknown_rarity_bonus(monkeypatch):
+def test_no_variant_score_tier_or_acmg_columns(monkeypatch):
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['missense_variant'] * 2,
-                       'REVEL_score': [.8] * 2, 'NEW_IMPACT': ['MODERATE'] * 2,
-                       'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
-    assert result.VARIANT_PRIORITY_SCORE.iloc[1] - result.VARIANT_PRIORITY_SCORE.iloc[0] == 15
-    assert result.POPULATION_AF_STATUS.iloc[0] == 'missing_frequency'
-    assert 'PM2' not in result.ACMG_CRITERIA.iloc[0]
+                       'REVEL_score': [.8] * 2, 'NEW_IMPACT': ['MODERATE'] * 2, 'QC_STATUS': ['PASS'] * 2})
+    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    assert result.POPULATION_AF_STATUS.tolist() == ['missing_frequency', 'available_frequency']
+    assert not {'PRIORITY_TIER', 'VARIANT_PRIORITY_SCORE', 'ACMG_CRITERIA', 'TIER_RATIONALE',
+                'SCORE_EXPLANATION', 'HPO_MATCH'} & set(result.columns)
 
 
 def test_filters_retain_unknown_without_zero_imputation():
@@ -97,32 +94,15 @@ def test_filters_retain_absent_and_dominant_ranks_it_candidate():
     assert ranks == ['Candidate', 'Excluded', 'Unknown frequency']
 
 
-def test_unknown_cannot_promote_to_tier_one(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
-    df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['stop_gained'] * 2,
-                       'pLI_gene_value': [1.] * 2, 'NEW_IMPACT': ['HIGH'] * 2,
-                       'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
-    assert not result.PRIORITY_TIER.iloc[0].startswith('Tier 1')
-    assert result.PRIORITY_TIER.iloc[1].startswith('Tier 1')
-    assert 'population AF unknown' in result.TIER_RATIONALE.iloc[0]
-
-
-def test_absent_from_gnomad_earns_pm2_and_can_reach_tier_one(monkeypatch):
+def test_absent_from_gnomad_status_and_frequency(monkeypatch):
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None], GNOMAD_JOINT: [None, 0, None],
                        GNOMAD_AN_JOINT: [None, 1000, 0], 'Consequence': ['stop_gained'] * 3,
                        'pLI_gene_value': [1.] * 3, 'NEW_IMPACT': ['HIGH'] * 3,
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'missing_frequency']
     assert pd.isna(result.POPULATION_AF.iloc[0]) and result.POPULATION_AF.iloc[1] == 0
-    assert result.VARIANT_PRIORITY_SCORE.iloc[0] == result.VARIANT_PRIORITY_SCORE.iloc[1]
-    assert result.VARIANT_PRIORITY_SCORE.iloc[0] - result.VARIANT_PRIORITY_SCORE.iloc[2] == 15
-    assert result.PRIORITY_TIER.iloc[0].startswith('Tier 1')
-    assert not result.PRIORITY_TIER.iloc[2].startswith('Tier 1')
-    assert 'PM2_Supporting' in result.ACMG_CRITERIA.iloc[0]
-    assert 'absent from gnomAD v4' in result.SCORE_EXPLANATION.iloc[0]
 
 
 def test_all_unknown_filter_and_availability():
@@ -135,13 +115,11 @@ def test_all_unknown_filter_and_availability():
     assert audit['status'] == 'Available' and audit['coverage'].startswith('2/2')
 
 
-def test_explicit_column_used_consistently_for_scoring_and_criteria(monkeypatch):
+def test_explicit_column_used_for_the_table_frequency(monkeypatch):
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({GNOMAD_GRPMAX: [0], 'chosen_frequency': [.1], 'QC_STATUS': ['PASS']})
-    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST, freq_col='chosen_frequency')
-    assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency'
-    assert 'BA1' in result.ACMG_CRITERIA.iloc[0]
-    assert 'PM2' not in result.ACMG_CRITERIA.iloc[0]
+    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST, freq_col='chosen_frequency')
+    assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency' and result.POPULATION_AF.iloc[0] == .1
 
 
 def test_min_absent_an_follows_the_pm2_threshold():
@@ -159,7 +137,7 @@ def test_site_an_takes_minimum_over_positions_and_missing_as_zero():
     assert site_allele_number(pd.DataFrame({'x': [1]})).isna().all()
 
 
-def test_absence_needs_enough_site_an_for_pm2(monkeypatch):
+def test_absence_needs_enough_site_an(monkeypatch):
     from parsing.modules.population import ABSENT_LOW_AN, SITE_AN
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     # absent at well-genotyped site, absent at poorly genotyped site, absent where gnomAD has no
@@ -172,15 +150,9 @@ def test_absence_needs_enough_site_an_for_pm2(monkeypatch):
     af, _, status = resolve_population_af(df)
     assert status.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
     assert af.iloc[:3].isna().all()
-    result = scoring.build_priority_tier(df.copy(), DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df.copy(), DISEASE_GENE_LIST)
     assert result[SITE_AN].tolist() == [1550000, 74893, 0, 20]
-    assert 'PM2_Supporting' in result.ACMG_CRITERIA.iloc[0]
-    assert 'PM2' not in result.ACMG_CRITERIA.iloc[1] and 'PM2' not in result.ACMG_CRITERIA.iloc[2]
-    assert result.PRIORITY_TIER.iloc[0].startswith('Tier 1')
-    assert not result.PRIORITY_TIER.iloc[1].startswith('Tier 1')
-    assert result.VARIANT_PRIORITY_SCORE.iloc[0] - result.VARIANT_PRIORITY_SCORE.iloc[1] == 15
-    acmg = build_acmg_criteria(df.copy()).ACMG_CRITERIA.tolist()
-    assert 'PM2_Supporting' in acmg[0] and 'PM2' not in acmg[1] and 'PM2' not in acmg[2]
+    assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
 
 
 def test_absence_without_site_an_annotation_keeps_old_status():

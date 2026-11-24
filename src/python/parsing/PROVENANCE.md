@@ -112,3 +112,5 @@ Dead code removal (2026-10-15T15:48:51+02:00): `io_qc.sort_by` and `vcf_parser_p
 - 2026-11-10: `modules/population.py` site allele number (`GNOMAD_SITE_AN`, `absent_low_an`, `min_absent_an`); `filter_variants.py` `--pm2-absence-af` (SF-02).
 
 - 2026-11-18: `modules/splicing.py` `parse_spliceai2` (`SPLICEAI2_COLUMNS`, `SpliceAI2_status`); `filter_variants.py` column order; `modules/scoring.py` audit entry (PR-03).
+
+- 2026-11-24: `modules/scoring.py` `build_priority_tier` replaced by `build_interpretation_inputs` (no score, tier, rationale, explanation, `HPO_MATCH`); `modules/acmg.py` `build_acmg_criteria` and `PVS1_VETO_GENES` removed; `modules/splicing.py` Pangolin heart columns removed (SF-06, SF-07).

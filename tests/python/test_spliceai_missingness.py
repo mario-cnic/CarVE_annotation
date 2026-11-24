@@ -6,7 +6,6 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules import splicing, scoring
-from parsing.modules.acmg import build_acmg_criteria
 
 DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
 
@@ -63,23 +62,13 @@ def test_absent_sources_and_previously_imputed_uncovered_zero():
         assert result.SpliceAI_status.iloc[0] == 'not_covered'
 
 
-def test_unknown_does_not_supply_benign_splicing_evidence():
-    df = pd.DataFrame({'spliceai_custom_MAX': [None, 0], 'Consequence': ['synonymous_variant'] * 2,
-                       'am_pathogenicity': [.1] * 2, 'REVEL_score': [.1] * 2})
-    result = build_acmg_criteria(df)
-    assert 'BP4' not in result.ACMG_CRITERIA.iloc[0] and 'BP7' not in result.ACMG_CRITERIA.iloc[0]
-    assert 'BP4' in result.ACMG_CRITERIA.iloc[1] and 'BP7' in result.ACMG_CRITERIA.iloc[1]
-
-
 def test_missing_spliceai_does_not_erase_other_predictor_scores(monkeypatch):
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({'spliceai_custom_MAX': [None, 0, None], 'spliceAI_MAX': [None] * 3,
                        'SPiP_prediction': [.8, .8, 0], 'Pangolin_max_score': [.3, .3, 0],
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_priority_tier(df, DISEASE_GENE_LIST)
-    assert result.VARIANT_PRIORITY_SCORE.notna().all()
-    assert result.VARIANT_PRIORITY_SCORE.iloc[0] == result.VARIANT_PRIORITY_SCORE.iloc[1] == 24
-    assert result.VARIANT_PRIORITY_SCORE.iloc[2] == 0
+    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    assert result.SPiP_prediction.tolist() == [.8, .8, 0] and result.Pangolin_max_score.tolist() == [.3, .3, 0]
     assert result.SPLICE_MAX_UNIFIED.isna().tolist() == [True, False, True]
     assert result.SPLICEAI_STATUS.tolist() == ['not_covered', 'scored', 'not_covered']
     assert result.SPLICEAI_METHOD.iloc[0] == 'Not Covered'
@@ -89,7 +78,7 @@ def test_explicit_error_preserved_without_poisoning_valid_fallback(monkeypatch):
     monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     df = pd.DataFrame({'SpliceAI_status': ['error'] * 2, 'spliceAI_MAX': [None] * 2,
                        'spliceai_custom_MAX': [None, 0], 'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_priority_tier(splicing.build_spliceMAX(df), DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(splicing.build_spliceMAX(df), DISEASE_GENE_LIST)
     assert result.SpliceAI_status.tolist() == ['error', 'error']
     assert result.SPLICEAI_STATUS.tolist() == ['error', 'scored']
     assert pd.isna(result.SPLICE_MAX_UNIFIED.iloc[0]) and result.SPLICE_MAX_UNIFIED.iloc[1] == 0

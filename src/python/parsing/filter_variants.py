@@ -35,7 +35,7 @@ try:
         prioritize_genes, validate_gene_categories, filter_by_gene_priority,
     )
     from .modules.acmg import (
-        _extract_clinvar_status, build_newImpact, build_acmg_criteria,
+        _extract_clinvar_status, build_newImpact,
     )
     from .modules.pedigree import (
         read_pedigree_file, filter_phenotype, filter_by_dominant, mark_compound_het,
@@ -44,7 +44,7 @@ try:
     )
     from .modules import population
     from .modules.scoring import (
-        build_priority_tier, order_clinical_columns, audit_annotation_availability,
+        build_interpretation_inputs, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
     )
     from .modules.chunked import (
@@ -77,7 +77,7 @@ except ImportError:
         prioritize_genes, validate_gene_categories, filter_by_gene_priority,
     )
     from modules.acmg import (
-        _extract_clinvar_status, build_newImpact, build_acmg_criteria,
+        _extract_clinvar_status, build_newImpact,
     )
     from modules.pedigree import (
         read_pedigree_file, filter_phenotype, filter_by_dominant, mark_compound_het,
@@ -86,7 +86,7 @@ except ImportError:
     )
     from modules import population
     from modules.scoring import (
-        build_priority_tier, order_clinical_columns, audit_annotation_availability,
+        build_interpretation_inputs, order_clinical_columns, audit_annotation_availability,
         filter_freq, classification_dominant,
     )
     from modules.chunked import (
@@ -279,8 +279,6 @@ def main(args: list[str] | None):
         "HGVSc",
         "HGVSp",
         "CDNA_NAME",
-        "PRIORITY_TIER",
-        "VARIANT_PRIORITY_SCORE",
         "NEW_IMPACT",
         "IMPACT",
         "intron_offset_signed",
@@ -470,7 +468,7 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = build_qc_status(data)
     data = build_newImpact(data)
     data = analyze_pedigree_inheritance(data, pedigree)
-    data = build_priority_tier(data, args.disease_gene_list, freq_col=args.freq_col)
+    data = build_interpretation_inputs(data, args.disease_gene_list, freq_col=args.freq_col)
 
     if args.classification == 'dominant':
         data = classification_dominant(data=data, freq_col=args.freq_col, freq=args.freq)

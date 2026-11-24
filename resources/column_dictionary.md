@@ -113,7 +113,7 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `MaxEntScan_pct_decrease`: `(ref - alt) / ref`, computed in-pipeline. Only defined when `MaxEntScan_ref > 0`; negative values mean the alt allele's score is *higher* than ref (splice site strengthened/cryptic site created, not flagged by `MaxEntScan_disrupted`).
 - `MaxEntScan_disrupted`: `YES` if `MaxEntScan_pct_decrease >= 0.15` (a ≥15% relative decrease from ref to alt), else `NO`.
 - `MaxEntScan_status`: Status contract (`scored`, or `not_covered` if ref/alt are unavailable *or* `MaxEntScan_ref <= 0` — a non-positive reference score is a normal outcome, not a predictor failure, so it is never tagged `error`).
-- **Not yet used in `NEW_IMPACT`/`PRIORITY_TIER`/ACMG evidence** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
+- **Not yet used in `NEW_IMPACT` or Module 3's scoring** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
 
 ### G. Priority & Provenance Metadata
 - `5UTR_annotation`: one entry per affected uORF, `&`-separated; each entry is `consequence=<SO term>` followed by its key=value pairs in sorted order, `:`-separated (UTRAnnotatorPGP).
@@ -192,3 +192,7 @@ VUS, conflicting and other nonempty classifications retain their source; they do
 VEP `--plugin NMD` (`NMD`: `NMD_escaping_variant` or empty) and the parser's `NMD_STATUS`: `escape_predicted`, `nmd_predicted` (stop_gained/frameshift with complete CDS position, no flag), `not_evaluated` (canonical splice or incomplete CDS position), `not_annotated` (table without `NMD`), `not_applicable`. Judged at the variant position, not the new stop codon. Annotation only; does not change PVS1, scores or tiers. Details: [walkthrough](../walkthrough/20261008_nmd_plugin.md).
 
 **Update 2026-11-24T12:20:00+01:00:** `NMD_STATUS` is now computed by the parser at the new stop codon from `resources/transcript_exons.grch38.gencode45.tsv` (same five values; `not_annotated` now means no exon table was passed). `NMD_RULE`: which rule fired (`last_exon`, `penultimate_last_50nt`, `intronless`, `start_proximal`, `none`) or why the row is not evaluated. `NMD_PTC_BASIS`: `ptc` (new stop) or `variant`. `start_proximal` (stop in the first 100 coding nt) is no longer escape. The VEP `NMD` column is kept unchanged. Details: [walkthrough](../walkthrough/20261124_nmd_at_premature_stop.md).
+
+## Removed columns
+
+- 2026-11-24 (SF-06): `PRIORITY_TIER`, `VARIANT_PRIORITY_SCORE`, `TIER_RATIONALE`, `SCORE_EXPLANATION`, `ACMG_CRITERIA`, `HPO_MATCH`. Module 3 computes them. Older tables still carry Module 2's copies; do not read them.

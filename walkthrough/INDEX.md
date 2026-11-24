@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-11-24 | [20261124_legacy_scoring_columns_removed.md](./20261124_legacy_scoring_columns_removed.md) | Module 2 no longer writes variant scores, tiers, ACMG tags or the Pangolin heart columns (SF-06, SF-07) |
 | 2026-11-24 | [20261124_nmd_at_premature_stop.md](./20261124_nmd_at_premature_stop.md) | NMD judged at the premature stop codon (SF-01) |
 | 2026-11-23 | [20261123_module3_site_an_and_spliceai2.md](./20261123_module3_site_an_and_spliceai2.md) | Module 3 handoff: gnomAD site AN for PM2 (SF-02) and SpliceAI2 columns (PR-03) |
 | 2026-11-10 | [20261110_utrannotator_deterministic_fork.md](./20261110_utrannotator_deterministic_fork.md) | UTRAnnotator: deterministic copy reporting every uORF class (PRED-15) |

@@ -1,18 +1,14 @@
 """
-ACMG/ClinGen 2015 Criteria Tagging, Upgraded NEW_IMPACT, and ClinVar Significance Extraction.
+Upgraded NEW_IMPACT and ClinVar significance extraction.
 """
 import pandas as pd
 from . import logger
 from .io_qc import _safe_numeric_series, _safe_string_series
-from .population import resolve_population_af, rarity_af, GNOMAD_GRPMAX
 from .clinvar import annotate_clinvar, clinvar_masks
 from .splicing import build_spliceMAX, _extract_spliceai_score, NEW_SPIP_COLUMNS
 from .predictors import utr5_high_impact_mask
 
 
-# Genes whose loss-of-function variants never get PVS1 (MYH7: loss of function is not an established
-# disease mechanism). The one list used by build_acmg_criteria and scoring.build_priority_tier (ACMG-4).
-PVS1_VETO_GENES = frozenset({"MYH7"})
 
 
 def _extract_clinvar_status(df: pd.DataFrame):
@@ -97,58 +93,4 @@ def build_newImpact(data: pd.DataFrame):
         ordered=True,
     )
     logger.info(f"New column `NEW_IMPACT` created with value counts: {dict(data['NEW_IMPACT'].value_counts())}")
-    return data
-
-
-def build_acmg_criteria(data: pd.DataFrame, freq_col=GNOMAD_GRPMAX) -> pd.DataFrame:
-    """Assigns explicit ACMG/ClinGen 2015 evidence code tags to variants."""
-    logger.info("Computing explicit ACMG/ClinGen 2015 criteria codes...")
-    conseq = _safe_string_series(data, "Consequence").str.lower()
-    symbol_series = _safe_string_series(data, "SYMBOL").str.upper()
-    af, _, af_status = resolve_population_af(data, freq_col)
-    af_series = rarity_af(af, af_status)
-    pli_val = _safe_numeric_series(data, "pLI_gene_value")
-
-    is_lof = conseq.str.contains("stop_gained|frameshift|splice_donor|splice_acceptor")
-    is_pvs1 = is_lof & (pli_val >= 0.9) & ~symbol_series.isin(PVS1_VETO_GENES)
-
-    is_clinvar_path, _ = _extract_clinvar_status(data)
-    is_ps1 = is_clinvar_path & conseq.str.contains("missense")
-
-    is_pm2 = af_series < 0.0001
-    is_pm4 = conseq.str.contains("inframe_insertion|inframe_deletion|stop_lost|start_lost")
-
-    splice_max = _extract_spliceai_score(data)
-    spip_score = _safe_numeric_series(data, "SPiP_prediction") if "SPiP_prediction" in data.columns else _safe_numeric_series(data, "SPiP")
-    am_score = _safe_numeric_series(data, "am_pathogenicity")
-    revel_score = _safe_numeric_series(data, "REVEL_score")
-
-    is_pp3 = (splice_max >= 0.50) | (spip_score >= 0.50) | (am_score >= 0.564) | (revel_score >= 0.75)
-    is_bp4 = (splice_max < 0.10) & (spip_score < 0.10) & (am_score > 0) & (am_score < 0.34) & (revel_score < 0.25)
-    is_bp7 = conseq.str.contains("synonymous") & (splice_max < 0.10)
-
-    is_ba1 = af_series > 0.05
-    is_bs1 = (af_series > 0.01) & (af_series <= 0.05)
-
-    # Plain arrays: element access per row without Series.iloc overhead.
-    is_ba1, is_bs1, is_pvs1, is_ps1, is_pm2, is_pm4, is_pp3, is_bp4, is_bp7 = (
-        m.to_numpy() for m in (is_ba1, is_bs1, is_pvs1, is_ps1, is_pm2, is_pm4, is_pp3, is_bp4, is_bp7))
-    acmg_lists = []
-    for idx in range(len(data)):
-        codes = []
-        if is_ba1[idx]: codes.append("BA1")
-        elif is_bs1[idx]: codes.append("BS1")
-
-        if is_pvs1[idx]: codes.append("PVS1")
-        if is_ps1[idx]: codes.append("PS1")
-        if is_pm2[idx]: codes.append("PM2_Supporting")
-        if is_pm4[idx]: codes.append("PM4")
-        if is_pp3[idx]: codes.append("PP3_Strong")
-        if is_bp4[idx]: codes.append("BP4")
-        if is_bp7[idx]: codes.append("BP7")
-
-        acmg_lists.append(", ".join(codes) if codes else "Unclassified")
-
-    data["ACMG_CRITERIA"] = acmg_lists
-    logger.info("ACMG criteria assigned successfully.")
     return data
