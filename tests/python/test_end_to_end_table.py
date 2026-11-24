@@ -67,7 +67,6 @@ def tables(tmp_path_factory):
     run(REPO / "src/python/parsing/vcf_parser_pysam.py", "--input", "in.vcf", "--output", "scratch.tsv",
         "--vep_columns", "cols.txt", "--add_info", "--add_vep", "--overwrite")
     common = ["--input", "scratch.tsv", "--hgnc-table", "hgnc.tsv",
-              "--disease-gene-list", REPO / "tests/fixtures/mini_disease_gene_list.csv",
               "--spliceai-symbol-map", RES / "spliceai_symbol_to_ensg.grch38.gencode45.tsv",
               "--enst-spip-map", RES / "enst_to_spip_nm.grch38.gencode45.tsv",
               "--dbnsfp-aligned-columns", RES / "dbnsfp_transcript_aligned_columns.txt",

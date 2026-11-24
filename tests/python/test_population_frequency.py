@@ -8,7 +8,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules.population import resolve_population_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT, GNOMAD_AN_JOINT
 from parsing.modules import scoring
 
-DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
 
 
 def test_resolution_per_row_and_raw_preservation():
@@ -40,12 +39,11 @@ def test_legacy_is_only_used_when_explicitly_requested():
         scoring.filter_freq(df, .001)
 
 
-def test_table_status_absent_zero_joint_fallback_and_uncovered_record(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_table_status_absent_zero_joint_fallback_and_uncovered_record():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None, '.', None],
                        GNOMAD_JOINT: [None, .2, .1, None, None],
                        GNOMAD_AN_JOINT: [None, 1000, 1000, None, 0], 'MAX_AF': [.5] * 5, 'QC_STATUS': ['PASS'] * 5})
-    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'available_frequency', ABSENT,
                                                     'missing_frequency']
     assert result.POPULATION_AF.iloc[1] == 0 and result.POPULATION_AF.iloc[2] == .1
@@ -65,14 +63,13 @@ def test_absent_requires_gnomad_annotation_and_no_record():
     assert resolve_population_af(df.assign(MAX_AF=None), 'MAX_AF')[2].iloc[0] == 'missing_frequency'
 
 
-def test_no_variant_score_tier_or_acmg_columns(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_no_variant_score_tier_or_acmg_columns():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['missense_variant'] * 2,
                        'REVEL_score': [.8] * 2, 'NEW_IMPACT': ['MODERATE'] * 2, 'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == ['missing_frequency', 'available_frequency']
     assert not {'PRIORITY_TIER', 'VARIANT_PRIORITY_SCORE', 'ACMG_CRITERIA', 'TIER_RATIONALE',
-                'SCORE_EXPLANATION', 'HPO_MATCH'} & set(result.columns)
+                'SCORE_EXPLANATION', 'HPO_MATCH', 'DISEASE_GENE_EVIDENCE', 'ACMG_SF_V3_2'} & set(result.columns)
 
 
 def test_filters_retain_unknown_without_zero_imputation():
@@ -94,13 +91,12 @@ def test_filters_retain_absent_and_dominant_ranks_it_candidate():
     assert ranks == ['Candidate', 'Excluded', 'Unknown frequency']
 
 
-def test_absent_from_gnomad_status_and_frequency(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_absent_from_gnomad_status_and_frequency():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None], GNOMAD_JOINT: [None, 0, None],
                        GNOMAD_AN_JOINT: [None, 1000, 0], 'Consequence': ['stop_gained'] * 3,
                        'pLI_gene_value': [1.] * 3, 'NEW_IMPACT': ['HIGH'] * 3,
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'missing_frequency']
     assert pd.isna(result.POPULATION_AF.iloc[0]) and result.POPULATION_AF.iloc[1] == 0
 
@@ -115,10 +111,9 @@ def test_all_unknown_filter_and_availability():
     assert audit['status'] == 'Available' and audit['coverage'].startswith('2/2')
 
 
-def test_explicit_column_used_for_the_table_frequency(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_explicit_column_used_for_the_table_frequency():
     df = pd.DataFrame({GNOMAD_GRPMAX: [0], 'chosen_frequency': [.1], 'QC_STATUS': ['PASS']})
-    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST, freq_col='chosen_frequency')
+    result = scoring.build_interpretation_inputs(df, freq_col='chosen_frequency')
     assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency' and result.POPULATION_AF.iloc[0] == .1
 
 
@@ -137,9 +132,8 @@ def test_site_an_takes_minimum_over_positions_and_missing_as_zero():
     assert site_allele_number(pd.DataFrame({'x': [1]})).isna().all()
 
 
-def test_absence_needs_enough_site_an(monkeypatch):
+def test_absence_needs_enough_site_an():
     from parsing.modules.population import ABSENT_LOW_AN, SITE_AN
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
     # absent at well-genotyped site, absent at poorly genotyped site, absent where gnomAD has no
     # callable genotype, and a present allele whose site AN is irrelevant
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, None, None, 0], GNOMAD_JOINT: [None, None, None, 0],
@@ -150,7 +144,7 @@ def test_absence_needs_enough_site_an(monkeypatch):
     af, _, status = resolve_population_af(df)
     assert status.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
     assert af.iloc[:3].isna().all()
-    result = scoring.build_interpretation_inputs(df.copy(), DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df.copy())
     assert result[SITE_AN].tolist() == [1550000, 74893, 0, 20]
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
 

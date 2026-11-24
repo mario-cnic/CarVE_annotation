@@ -196,3 +196,4 @@ VEP `--plugin NMD` (`NMD`: `NMD_escaping_variant` or empty) and the parser's `NM
 ## Removed columns
 
 - 2026-11-24 (SF-06): `PRIORITY_TIER`, `VARIANT_PRIORITY_SCORE`, `TIER_RATIONALE`, `SCORE_EXPLANATION`, `ACMG_CRITERIA`, `HPO_MATCH`. Module 3 computes them. Older tables still carry Module 2's copies; do not read them.
+- 2026-11-24 (SF-08): `ACMG_SF_V3_2`, `DISEASE_GENE_EVIDENCE`, `DISEASE_CURATION_SOURCE`, `DISEASE_PHENOTYPE_MATCH`, `DISEASE_EVIDENCE_SCORE`, `HIGH_RISK_DISEASE_GENE`, `INHERITANCE_MODEL`, `SAMPLE_GENOTYPES_SUMMARY`. Module 3 computes them.

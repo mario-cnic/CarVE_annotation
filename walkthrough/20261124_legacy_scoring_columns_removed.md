@@ -13,7 +13,16 @@ New tables lose eight columns; every other column keeps its values.
 
 Code: `src/python/parsing/modules/scoring.py` `build_priority_tier` is replaced by `build_interpretation_inputs`, which keeps the annotation the old function also wrote: gene curation (`apply_disease_phenotype_curation`), `POPULATION_AF*`, `SPLICE_MAX_UNIFIED` / `SPLICEAI_METHOD` / `SPLICEAI_STATUS`, and `QC_STATUS` when missing. `acmg.py` `build_acmg_criteria` and `PVS1_VETO_GENES` are removed (no other user). `src/tools/backfill_variant_prioritization.py` (wrote these columns into old tables through `shared/utils`) moved to `archive/deprecated_scripts/`.
 
-Kept, although DEC-0008 lists them as Module 3's: `ACMG_SF_V3_2`, `INHERITANCE_MODEL`, `DISEASE_*`, `HIGH_RISK_DISEASE_GENE`, `NEW_IMPACT`, `QC_STATUS`, `QC_DETAIL`. Not decided here.
+Kept, although DEC-0008 lists them as Module 3's: `NEW_IMPACT`, `QC_STATUS`, `QC_DETAIL` (DEC-0008 item 2). The curation and inheritance columns went in SF-08, below.
+
+## SF-08: gene curation and inheritance columns (2026-11-24)
+
+Removed from new tables: `ACMG_SF_V3_2`, `DISEASE_GENE_EVIDENCE`, `DISEASE_CURATION_SOURCE`, `DISEASE_PHENOTYPE_MATCH`, `DISEASE_EVIDENCE_SCORE`, `HIGH_RISK_DISEASE_GENE`, `INHERITANCE_MODEL`, `SAMPLE_GENOTYPES_SUMMARY`. In Module 2 tables the last two were always `Unclassified` and empty (no genotype columns in the table).
+
+- Code: `filter_variants.py` no longer calls `analyze_pedigree_inheritance` or the curation; `build_interpretation_inputs(data, freq_col)` keeps only frequency status, unified SpliceAI and QC. `disease_hpo.py` keeps only the `--genes_file` gene-priority filter (`get_dynamic_priority`, `prioritize_genes`, `filter_by_gene_priority`), which never used the curation; the curation loader, core panels, ACMG SF list and HPO panels are gone.
+- The disease-gene list is no longer an input of Module 2: `--disease-gene-list`, `params.disease_gene_list` (`Complete_gene_list_V4.csv`), its entry in the `tsv_to_table` cache key and in the run manifest resources are removed. Module 3 curates from its own `Complete_gene_list_V5` (`clinical_variant_prioritization/src/config.py:49-51`).
+- Checks: same local rebuild of the `sf01_nmd_fixture` VCF, against the SF-06 build: 1,015 rows, same order and column order, exactly these eight columns removed, nothing else differs. Module 3's `prepare_scored_frame` on the `0e5716f` build and on this one: every shared output column identical; the output lacks `SAMPLE_GENOTYPES_SUMMARY` (Module 3 writes it only from genotype columns; its frontend shows it only when non-empty, `frontend/src/components/FormattedCells.tsx:234`) and the Pangolin heart columns. Suite: 458 passed, none skipped (removed `test_disease_gene_curation.py`, `test_disease_core_panels.py` and the `mini_disease_gene_list.csv` fixture; `--disease-gene-list` is now a rejected option in `test_filter_variants_cli.py`). `nextflow config` has no `disease_gene_list`; `annotate_vcf.nf -preview` parses (stops at the launcher-only cache check).
+- Pending: cluster fixture `sf08_fixture`; pass = this table equals `sf06_sf07_fixture`'s minus the eight columns.
 
 ## Checks
 

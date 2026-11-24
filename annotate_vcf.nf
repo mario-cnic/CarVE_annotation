@@ -85,7 +85,7 @@ params.code_md5 = [
     vcf_to_tsv  : codeMd5([params.vcf_parser_script, "${file(params.vcf_parser_script).parent}/logger.py", params.vep_cols_file]),
     tsv_to_table: codeMd5([file(params.filter_variants_script).parent, params.spliceai_symbol_map, params.enst_spip_map,
                            params.dbnsfp_aligned_columns, params.gene_constraint_table, params.transcript_exon_table,
-                           params.disease_gene_list, params.hgnc_table]),
+                           params.hgnc_table]),
     tag         : codeMd5([params.gene_transcript_priority_script, stampPy, "${projectDir}/resources/gene_transcript_mapping.txt"]),
     genotypes   : codeMd5([params.extract_genotypes_script, stampPy]),
     wide        : codeMd5([params.genotypes_wide_script, stampPy]),

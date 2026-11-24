@@ -6,22 +6,15 @@ import pandas as pd
 from . import logger
 from .io_qc import build_qc_status
 from .splicing import _extract_spliceai_details
-from .disease_hpo import apply_disease_phenotype_curation
 from .population import annotate_population_af, resolve_population_af, rarity_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 
-def build_interpretation_inputs(
-    data: pd.DataFrame,
-    disease_gene_list: str,
-    freq_col: str = GNOMAD_GRPMAX,
-    disease_phenotype: str = "cardiomyopathies_all"
-) -> pd.DataFrame:
-    """Adds the annotation Module 3 scores from: gene curation, population-frequency status and the
-    unified SpliceAI score. Variant scores, tiers and ACMG tags are computed by Module 3, not here."""
+def build_interpretation_inputs(data: pd.DataFrame, freq_col: str = GNOMAD_GRPMAX) -> pd.DataFrame:
+    """Adds the annotation Module 3 scores from: population-frequency status and the unified SpliceAI
+    score. Variant scores, tiers, ACMG tags, gene curation and inheritance are computed by Module 3."""
     if "QC_STATUS" not in data.columns:
         data = build_qc_status(data)
 
-    data = apply_disease_phenotype_curation(data, disease_gene_list, disease_phenotype)
     annotate_population_af(data, freq_col)
 
     splice_max, splice_method = _extract_spliceai_details(data)
@@ -39,9 +32,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
     front_cols = [
         "SYMBOL", "Locus", "HGVSc", "HGVSp", "Consequence", "NEW_IMPACT", "IMPACT",
         "GENE_TIER", "CLINGEN_VALIDITY", "GAMMA_WEIGHT", "PATHOGENIC_MECHANISM", "PVS1_ELIGIBILITY",
-        "INHERITANCE_MODEL", "COMPOUND_HET_STATUS", "COMPOUND_HET_PAIR",
-        "DISEASE_GENE_EVIDENCE", "DISEASE_CURATION_SOURCE", "HIGH_RISK_DISEASE_GENE",
-        "ACMG_SF_V3_2", "CRITICAL_DOMAINS_HOTSPOTS"
+        "COMPOUND_HET_STATUS", "COMPOUND_HET_PAIR", "CRITICAL_DOMAINS_HOTSPOTS"
     ]
     
     evidence_cols = [

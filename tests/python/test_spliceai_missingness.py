@@ -7,7 +7,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules import splicing, scoring
 
-DISEASE_GENE_LIST = str(Path(__file__).resolve().parents[1] / 'fixtures/mini_disease_gene_list.csv')
 
 
 def test_two_sources_remain_separate_and_raw_columns_preserved():
@@ -62,23 +61,21 @@ def test_absent_sources_and_previously_imputed_uncovered_zero():
         assert result.SpliceAI_status.iloc[0] == 'not_covered'
 
 
-def test_missing_spliceai_does_not_erase_other_predictor_scores(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_missing_spliceai_does_not_erase_other_predictor_scores():
     df = pd.DataFrame({'spliceai_custom_MAX': [None, 0, None], 'spliceAI_MAX': [None] * 3,
                        'SPiP_prediction': [.8, .8, 0], 'Pangolin_max_score': [.3, .3, 0],
                        'QC_STATUS': ['PASS'] * 3})
-    result = scoring.build_interpretation_inputs(df, DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(df)
     assert result.SPiP_prediction.tolist() == [.8, .8, 0] and result.Pangolin_max_score.tolist() == [.3, .3, 0]
     assert result.SPLICE_MAX_UNIFIED.isna().tolist() == [True, False, True]
     assert result.SPLICEAI_STATUS.tolist() == ['not_covered', 'scored', 'not_covered']
     assert result.SPLICEAI_METHOD.iloc[0] == 'Not Covered'
 
 
-def test_explicit_error_preserved_without_poisoning_valid_fallback(monkeypatch):
-    monkeypatch.setattr(scoring, 'apply_disease_phenotype_curation', lambda data, gene_list, phenotype: data)
+def test_explicit_error_preserved_without_poisoning_valid_fallback():
     df = pd.DataFrame({'SpliceAI_status': ['error'] * 2, 'spliceAI_MAX': [None] * 2,
                        'spliceai_custom_MAX': [None, 0], 'QC_STATUS': ['PASS'] * 2})
-    result = scoring.build_interpretation_inputs(splicing.build_spliceMAX(df), DISEASE_GENE_LIST)
+    result = scoring.build_interpretation_inputs(splicing.build_spliceMAX(df))
     assert result.SpliceAI_status.tolist() == ['error', 'error']
     assert result.SPLICEAI_STATUS.tolist() == ['error', 'scored']
     assert pd.isna(result.SPLICE_MAX_UNIFIED.iloc[0]) and result.SPLICE_MAX_UNIFIED.iloc[1] == 0
