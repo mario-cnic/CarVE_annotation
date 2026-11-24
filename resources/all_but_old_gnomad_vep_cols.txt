@@ -436,8 +436,6 @@ SpliceVault_Predictions_Decoded
 SpliceVault_status
 Pangolin
 Pangolin_max_score
-Pangolin_heart_lv_score
-Pangolin_heart_aa_score
 Pangolin_status
 SpliceAI_status
 LaBranchoR_score

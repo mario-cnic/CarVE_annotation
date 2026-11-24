@@ -101,7 +101,7 @@
     {
       "id": "TH-01",
       "title": "Reconcile stale 'verify on cluster' items",
-      "state": "review",
+      "state": "done",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -127,7 +127,7 @@
     {
       "id": "TH-02",
       "title": "Triage bug rows pointing at shared/utils or retired code",
-      "state": "review",
+      "state": "done",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -153,7 +153,7 @@
     {
       "id": "RP-01",
       "title": "Pin tool environments: first slice",
-      "state": "proposed",
+      "state": "doing",
       "group": "RP",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -190,7 +190,7 @@
     {
       "id": "SF-01",
       "title": "NMD: frameshift PTC position and start-proximal rule",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -323,7 +323,7 @@
     {
       "id": "SF-04",
       "title": "SPiP positional field indexing (PRED-5)",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -349,7 +349,7 @@
     {
       "id": "PR-01",
       "title": "Decide the next predictor",
-      "state": "proposed",
+      "state": "todo",
       "group": "PR",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -381,7 +381,7 @@
     {
       "id": "TH-03",
       "title": "Move task tracking from TODO.md / BUG_TRACKER.md to the board",
-      "state": "proposed",
+      "state": "todo",
       "group": "TH",
       "deps": ["TH-01", "TH-02"],
       "at": "2026-11-06T13:55:35Z",
@@ -574,6 +574,31 @@
           "at": "2026-11-10T17:57:22Z",
           "by": "claude-code",
           "text": "A VEP plugin that fails to load now stops the run, instead of silently dropping its columns.\n- `--safe` on the VEP call: a plugin that cannot load fails VEP_ANNOTATE with VEP's own message.\n- After VEP, the CSQ header must contain the 15 fields we read (plugins + --custom ClinVar/gnomAD/ReMM/SpliceVarDB), listed once in `vep_required_fields` (nextflow.config). A missing one fails the task naming source:field.\nVerified 2026-11-10:\n- cluster sf05_safe_broken (AlphaMissense file missing): failed with \"Failed to instantiate plugin AlphaMissense ... not found\", no table.\n- cluster sf05_safe_ok (normal fixture): 37/37 tasks OK, VEP passed the check.\n- local: check fails naming am_pathogenicity and ReMM when removed from a real header.\nTo check: the field list in nextflow.config. Code not committed yet."
+        }
+      ]
+    },
+    {
+      "id": "SF-06",
+      "title": "Drop Module 2's legacy ACMG and priority columns (ACMG-1/2/3)",
+      "state": "todo",
+      "group": "SF",
+      "at": "2026-11-24T14:09:36Z",
+      "by": "claude-code",
+      "desc": "Why: Module 2 still writes ACMG_CRITERIA, PRIORITY_TIER, VARIANT_PRIORITY_SCORE (and their rationale columns) with old, clinically wrong logic: PP3_Strong from a single predictor, two disagreeing BA1/BS1 policies, an uncalibrated score. Module 3 recomputes and overwrites them, so in Module 2 they only mislead anyone reading the table directly (e.g. the LAB copy).\n\nTo do: (1) check every Module 3 entry point (pipeline, report, API/explorer) recomputes these columns before reading them, with file:line; stop and ask if one does not. (2) Remove the columns and their code from Module 2's table; keep NEW_IMPACT unless the check shows it belongs with them. (3) Decision record in carve-platform (cross-module contract). (4) Local tests plus one cluster fixture.\n\nDone when: the table no longer carries the columns, Module 3 is shown to work without them, ACMG-1/2/3 are closed, DEC written for your acceptance."
+    },
+    {
+      "id": "SF-07",
+      "title": "Drop the Pangolin 'heart' columns (PRED-1)",
+      "state": "doing",
+      "group": "SF",
+      "at": "2026-11-24T14:09:36Z",
+      "by": "claude-code",
+      "desc": "Why: Pangolin_heart_lv_score and Pangolin_heart_aa_score are copies of the overall Pangolin max: Pangolin runs without tissue models, and even its heart model would not separate left ventricle from atrium. The names promise tissue specificity that is not there. Pangolin_max_score stays.\n\nTo do: remove the two columns from the parser and column lists; check Module 3 only passes them through (seen at src/modules/splicing.py:263) and tell it; update the column dictionary; local tests plus one cluster fixture. Real cardiac splicing evidence stays with the AbSplice item in TODO.md.\n\nDone when: the columns are gone from new tables, Module 3 is informed, PRED-1 closed.",
+      "notes": [
+        {
+          "at": "2026-11-24T14:10:22Z",
+          "by": "claude-code",
+          "text": "Plan: remove the two columns from NEW_PANGOLIN_COLUMNS/parse_pangolin and column lists; update tests and column dictionary; check Module 3 readers; local tests; fixture command for you."
         }
       ]
     }

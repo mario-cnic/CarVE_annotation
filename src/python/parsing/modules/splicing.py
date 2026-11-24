@@ -38,8 +38,6 @@ NEW_SPIP_COLUMNS = {
 
 NEW_PANGOLIN_COLUMNS = {
     "max_score": "Pangolin_max_score",
-    "heart_lv": "Pangolin_heart_lv_score",
-    "heart_aa": "Pangolin_heart_aa_score",
     "status": "Pangolin_status"
 }
 
@@ -396,8 +394,6 @@ def parse_pangolin(data: pd.DataFrame, pangolin_col: str = "Pangolin"):
 
     res = pd.DataFrame({
         NEW_PANGOLIN_COLUMNS["max_score"]: maxs,
-        NEW_PANGOLIN_COLUMNS["heart_lv"]: maxs,
-        NEW_PANGOLIN_COLUMNS["heart_aa"]: maxs,
         NEW_PANGOLIN_COLUMNS["status"]: statuses,
     }, index=data.index)
     for c in res.columns:

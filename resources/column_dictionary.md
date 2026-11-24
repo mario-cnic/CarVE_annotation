@@ -25,8 +25,6 @@ The table below details all recent changes, column renames, and structural enhan
 | **Objective 3 (Intron Offset)** | `INTRON_OFFSET` (Unsigned) | `intron_offset_signed` | Integer | **Signed** distance to nearest exon boundary (negative `-12` = intron, positive `+5` = exon, `0` = canonical boundary). |
 | **Objective 3 (Intron Offset)** | *N/A (New)* | `splice_side` | String | Nearest splice site type: `donor` (5' SS), `acceptor` (3' SS), `exonic`. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_max_score` | Float | Maximum delta score across predicted splice site gain/loss positions within 4999 bp of the variant (`-d 4999`). |
-| **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_lv_score` | Float | Cardiac Left Ventricle specific splice score delta. |
-| **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_heart_aa_score` | Float | Cardiac Atrial Appendage specific splice score delta. |
 | **Objective 4 (Pangolin)** | *N/A (New)* | `Pangolin_status` | String | Status contract: `scored` (valid deep learning prediction), `not_covered`, `error`. |
 | **SpliceAI VEP lookup** | *N/A (New)* | `SpliceAI_status` | String | VEP-only maximum availability: `scored`, `not_covered`, or preserved explicit `error`. |
 | **Objective 6 (LaBranchoR)** | *N/A (New)* | `LaBranchoR_score` | Float | Probability of the LaBranchoR top branch point within 2 bp of the variant: a property of the site, alleles not scored (PRED-18). Informational. |
@@ -98,9 +96,8 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 
 ### E. Pangolin Deep Learning Splicing Predictor
 - `Pangolin_max_score`: Max delta score across predicted splice gain/loss positions (`-d 4999`).
-- `Pangolin_heart_lv_score`: Left Ventricle specific prediction.
-- `Pangolin_heart_aa_score`: Atrial Appendage specific prediction.
 - `Pangolin_status`: Status contract (`scored`, `not_covered`, `error`).
+- Removed 2026-11-24 (SF-07, PRED-1): `Pangolin_heart_lv_score`, `Pangolin_heart_aa_score`. They were copies of `Pangolin_max_score`, not tissue scores; tables built before this change still carry them.
 
 ### F. LaBranchoR branch-point lookup (positional)
 - `LaBranchoR_score`: probability of LaBranchoR's top branch point within 2 bp of the variant (site property; the variant's alleles are not scored). Informational: no effect on `NEW_IMPACT` or the score (PRED-18).

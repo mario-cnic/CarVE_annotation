@@ -313,8 +313,6 @@ def main(args: list[str] | None):
         "SpliceVault_SpliceAI_delta",
         "SpliceVault_status",
         "Pangolin_max_score",
-        "Pangolin_heart_lv_score",
-        "Pangolin_heart_aa_score",
         "Pangolin_status",
         "LaBranchoR_score",
         "LaBranchoR_acc_dist",
