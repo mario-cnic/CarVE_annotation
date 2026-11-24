@@ -151,10 +151,10 @@ def test_pangolin_missing_and_no_row_gene():
 
 # ------------------------------------------------------------------ SPiP
 def spip(nm, symbol, pred, allele="A"):
-    f = [""] * 30
-    f[0], f[2], f[3], f[4], f[11], f[12] = allele, "NTR", "00 %", f"{pred}", nm, symbol
-    f[20], f[21], f[24], f[25] = "No", "0", "0", "None"
-    return "|".join(f)
+    f = dict.fromkeys(sp.SPIP_FIELDS, "")
+    f.update(Alt=allele, Interpretation="NTR", InterConfident="00 %", SPiPscore=f"{pred}", transcript=nm, gene=symbol,
+             mutInPBarea="No", deltaESRscore="0", probaCryptMut="0", classProbaCryptMut="None")
+    return "|".join(f.values())
 
 
 def test_spip_row_takes_its_own_transcript_not_the_first_entry():

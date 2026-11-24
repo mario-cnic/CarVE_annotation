@@ -33,6 +33,14 @@ process SPIP_ANNOTATE {
     grep -v "^##SPiP output v2.1\$" ${raw_out} > ${raw_out}.clean
     mv ${raw_out}.clean ${raw_out}
 
+    found=\$(grep -m1 '^##INFO=<ID=SPiP,' ${raw_out} | sed "s/.*Format: '//; s/'.*//")
+    if [ "\${found}" != '${params.spip_info_format}' ]; then
+        echo "ERROR: SPiP INFO header fields differ from params.spip_info_format (the parser reads them in that order)" >&2
+        echo "  expected: ${params.spip_info_format}" >&2
+        echo "  found:    \${found}" >&2
+        exit 1
+    fi
+
     ${params.bgzip} -f ${raw_out}
     ${params.tabix} -f ${raw_out}.gz
     """

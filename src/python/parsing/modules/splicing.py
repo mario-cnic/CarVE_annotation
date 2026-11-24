@@ -67,23 +67,47 @@ NEW_MAXENTSCAN_COLUMNS = {
 MAXENTSCAN_DISRUPTION_THRESHOLD = 0.15  # >=15% relative decrease from ref to alt
 
 
-def _spip_fields(matched_fields):
-    """Unpack one SPiP entry into the NEW_SPIP_COLUMNS order (unchanged extraction logic)."""
-    interpretation = matched_fields[2] if len(matched_fields) > 2 else np.nan
-    ci = matched_fields[3] if len(matched_fields) > 3 else np.nan
+# Field order of the SPiP v2.1 INFO entry, as its VCF header declares it ("Format: 'Alt|varID|...'").
+# SPIP_ANNOTATE fails when the header differs (params.spip_info_format, kept equal by a test), and
+# parse_spip fails on an entry with another number of fields.
+SPIP_FIELDS = (
+    "Alt", "varID", "Interpretation", "InterConfident", "SPiPscore", "strand", "gNomen", "varType", "ntChange",
+    "ExonInfo", "exonSize", "transcript", "gene", "NearestSS", "DistSS", "RegType", "SPiCEproba", "SPiCEinter_2thr",
+    "deltaMES", "BP", "mutInPBarea", "deltaESRscore", "posCryptMut", "sstypeCryptMut", "probaCryptMut",
+    "classProbaCryptMut", "nearestSStoCrypt", "nearestPosSStoCrypt", "nearestDistSStoCrypt", "posCryptWT",
+    "probaCryptWT", "classProbaCryptWT", "posSSPhysio", "probaSSPhysio", "classProbaSSPhysio", "probaSSPhysioMut",
+    "classProbaSSPhysioMut",
+)
+SPIP_INDEX = {name: i for i, name in enumerate(SPIP_FIELDS)}
 
-    def _num(i):
+
+def _spip_entries(raw) -> list[list[str]]:
+    """Split a SPiP value into entries of SPIP_FIELDS; raises on an entry with another field count."""
+    entries = [e.split("|") for e in split_entries(raw)]
+    bad = next((f for f in entries if len(f) != len(SPIP_FIELDS)), None)
+    if bad is not None:
+        raise ValueError(f"SPiP entry has {len(bad)} fields, expected {len(SPIP_FIELDS)} (SPiP v2.1 header): "
+                         f"{'|'.join(bad)[:200]}")
+    return entries
+
+
+def _spip_fields(f):
+    """Unpack one SPiP entry into the NEW_SPIP_COLUMNS order."""
+    interpretation = f[SPIP_INDEX["Interpretation"]]
+    ci = f[SPIP_INDEX["InterConfident"]]
+
+    def _num(name):
         try:
-            return float(matched_fields[i]) if len(matched_fields) > i and matched_fields[i].strip() != "." else np.nan
+            return float(f[SPIP_INDEX[name]]) if f[SPIP_INDEX[name]].strip() != "." else np.nan
         except ValueError:
             return np.nan
 
-    prediction = _num(4)
+    prediction = _num("SPiPscore")
     score, confidence = prediction, ci
-    mut_in_pb = matched_fields[20] if len(matched_fields) > 20 else np.nan
-    delta_esr = _num(21)
-    proba_crypt = _num(24)
-    class_crypt = matched_fields[25] if len(matched_fields) > 25 else ""
+    mut_in_pb = f[SPIP_INDEX["mutInPBarea"]]
+    delta_esr = _num("deltaESRscore")
+    proba_crypt = _num("probaCryptMut")
+    class_crypt = f[SPIP_INDEX["classProbaCryptMut"]]
 
     mechanism = "none"
     if not pd.isna(proba_crypt) and proba_crypt >= 0.20 or class_crypt in ("Cryptic", "High Risk", "Medium Risk"):
@@ -142,22 +166,22 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
                        PREDICTOR_ERROR, np.nan, no_samegene)
             else:
                 if raw not in parsed_cache:
-                    parsed_cache[raw] = [e.split("|") for e in split_entries(raw)]
+                    parsed_cache[raw] = _spip_entries(raw)
                 alt = alt_from_locus(locus)
-                entries = [f for f in parsed_cache[raw] if len(f) > 12 and (alt is None or f[0].strip() == alt)]
+                entries = [f for f in parsed_cache[raw] if alt is None or f[SPIP_INDEX["Alt"]].strip() == alt]
                 preds = []
                 for f in entries:
                     try:
-                        preds.append(float(f[4]))
+                        preds.append(float(f[SPIP_INDEX["SPiPscore"]]))
                     except ValueError:
                         pass
                 any_max = max(preds) if preds else np.nan
                 # same gene, any transcript (labelled; never mixed into the transcript-matched columns)
                 sg = []
                 for f in entries:
-                    if identity.symbol_is_row_gene(f[12].strip(), symbol, gene):
+                    if identity.symbol_is_row_gene(f[SPIP_INDEX["gene"]].strip(), symbol, gene):
                         try:
-                            sg.append((float(f[4]), strip_version(f[11])))
+                            sg.append((float(f[SPIP_INDEX["SPiPscore"]]), strip_version(f[SPIP_INDEX["transcript"]])))
                         except ValueError:
                             pass
                 same = (max(sg)[0], max(sg)[1], len({t for _, t in sg})) if sg else no_samegene
@@ -165,11 +189,11 @@ def parse_spip(data: pd.DataFrame, spip_col: str = "SPiP", identity: GeneIdentit
                 if not acc_nms and not struct_nms:
                     res = (_SPIP_EMPTY, NOT_APPLICABLE_TRANSCRIPT, any_max, same)
                 else:
-                    hit = next((f for f in entries if strip_version(f[11]) in acc_nms), None)       # same accession
+                    hit = next((f for f in entries if strip_version(f[SPIP_INDEX["transcript"]]) in acc_nms), None)     # same accession
                     if hit:
                         res = (_spip_fields(hit), MATCHED, any_max, same)
                     else:
-                        hit = next((f for f in entries if strip_version(f[11]) in struct_nms), None)  # same exon structure
+                        hit = next((f for f in entries if strip_version(f[SPIP_INDEX["transcript"]]) in struct_nms), None)  # same exon structure
                         res = ((_spip_fields(hit), MATCHED_STRUCTURE, any_max, same) if hit
                                else (_SPIP_EMPTY, NO_ENTRY, any_max, same))
             row_cache[key] = res
