@@ -101,7 +101,7 @@
     {
       "id": "TH-01",
       "title": "Reconcile stale 'verify on cluster' items",
-      "state": "doing",
+      "state": "review",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -111,13 +111,23 @@
           "at": "2026-11-06T13:55:24Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-24T13:56:05Z",
+          "by": "claude-code",
+          "text": "Plan: per item, find the fixture/run that exercised the code (memory + walkthroughs + run manifests), cite it in TODO.md and close, or rewrite to the unverified part. No new runs."
+        },
+        {
+          "at": "2026-11-24T14:00:47Z",
+          "by": "claude-code",
+          "text": "The eight \"verify on the cluster\" items in TODO.md now say what is really open. No new runs: evidence is today's `sf01_nmd_fixture` (clean 0de805f) plus the F2005_union table.\n- Closed: manifest database releases + provenance files (all criteria met; DEC-0007 exists).\n- Cluster part verified, title rewritten to what is left: VEP field cleanup (dbNSFP pruning + Module 3 handoff), SpliceAI (VEP-only fallback never fired), AF contract and ClinVar (Module 3 alignment), ClinVar custom (Module 3 reads it, PLT-075), row order (also checked on all 23.7 M F2005 rows; PLT-023 left), gene constraint (DEC-0012 thresholds), NMD (canonical splice rows).\n- One real finding kept open: the trace `hostname` column is `-` on every task, so node attribution (MISC-17) still needs the work dirs.\n- Not done: the row-by-row diff against concat_fixture_1 the constraint walkthrough asked for (later commits change other columns too); said so in the item.\nCheck: `git diff TODO.md` in the commit."
         }
       ]
     },
     {
       "id": "TH-02",
       "title": "Triage bug rows pointing at shared/utils or retired code",
-      "state": "doing",
+      "state": "review",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -127,6 +137,16 @@
           "at": "2026-11-06T13:55:25Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-24T13:56:05Z",
+          "by": "claude-code",
+          "text": "Plan: re-read each row's code at its current location (src/python/parsing, shared/utils, Module 3) and give a verdict: closed, Module 3's, or open with corrected file:line."
+        },
+        {
+          "at": "2026-11-24T14:00:47Z",
+          "by": "claude-code",
+          "text": "Each of the seven rows now has a verdict with a file:line read today (BUG_TRACKER.md):\n- Closed: C7 (legacy script gone, genotype table carries GT/GQ/DP/AD), DOC-2 (shared/utils files no longer used by Module 2), ACMG-5 (dead path in Module 2; compound-het is Module 3's, re-check there).\n- Still open in Module 2, corrected locations: ACMG-1, ACMG-2, ACMG-3 (Module 2 still writes ACMG_CRITERIA / PRIORITY_TIER / VARIANT_PRIORITY_SCORE with the old logic; Module 3 recomputes and overwrites them), PRED-1 (Pangolin \"heart\" columns are copies of the overall max).\nYour decision: for ACMG-1/2/3, drop those legacy columns from Module 2's table instead of fixing them? For PRED-1, drop the two heart columns or compute real tissue scores? Both change columns Module 3 sees."
         }
       ]
     },
