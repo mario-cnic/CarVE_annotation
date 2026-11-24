@@ -580,16 +580,28 @@
     {
       "id": "SF-06",
       "title": "Drop Module 2's legacy ACMG and priority columns (ACMG-1/2/3)",
-      "state": "todo",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-24T14:09:36Z",
       "by": "claude-code",
-      "desc": "Why: Module 2 still writes ACMG_CRITERIA, PRIORITY_TIER, VARIANT_PRIORITY_SCORE (and their rationale columns) with old, clinically wrong logic: PP3_Strong from a single predictor, two disagreeing BA1/BS1 policies, an uncalibrated score. Module 3 recomputes and overwrites them, so in Module 2 they only mislead anyone reading the table directly (e.g. the LAB copy).\n\nTo do: (1) check every Module 3 entry point (pipeline, report, API/explorer) recomputes these columns before reading them, with file:line; stop and ask if one does not. (2) Remove the columns and their code from Module 2's table; keep NEW_IMPACT unless the check shows it belongs with them. (3) Decision record in carve-platform (cross-module contract). (4) Local tests plus one cluster fixture.\n\nDone when: the table no longer carries the columns, Module 3 is shown to work without them, ACMG-1/2/3 are closed, DEC written for your acceptance."
+      "desc": "Why: Module 2 still writes ACMG_CRITERIA, PRIORITY_TIER, VARIANT_PRIORITY_SCORE (and their rationale columns) with old, clinically wrong logic: PP3_Strong from a single predictor, two disagreeing BA1/BS1 policies, an uncalibrated score. Module 3 recomputes and overwrites them, so in Module 2 they only mislead anyone reading the table directly (e.g. the LAB copy).\n\nTo do: (1) check every Module 3 entry point (pipeline, report, API/explorer) recomputes these columns before reading them, with file:line; stop and ask if one does not. (2) Remove the columns and their code from Module 2's table; keep NEW_IMPACT unless the check shows it belongs with them. (3) Decision record in carve-platform (cross-module contract). (4) Local tests plus one cluster fixture.\n\nDone when: the table no longer carries the columns, Module 3 is shown to work without them, ACMG-1/2/3 are closed, DEC written for your acceptance.",
+      "notes": [
+        {
+          "at": "2026-11-24T14:17:22Z",
+          "by": "claude-code",
+          "text": "Plan: list the columns Module 2's acmg/scoring code writes; check every Module 3 reader recomputes them first; stop and ask if not; then remove, DEC, tests."
+        },
+        {
+          "at": "2026-11-24T14:33:45Z",
+          "by": "claude-code",
+          "text": "New tables no longer carry PRIORITY_TIER, VARIANT_PRIORITY_SCORE, TIER_RATIONALE, SCORE_EXPLANATION, ACMG_CRITERIA, HPO_MATCH. Module 3 computes them itself and gives the same result without them.\n- Checked: today's fixture rebuilt locally with old and new code: 1,015 rows, only those columns gone, no other value changes. Module 3's scoring on both builds: tiers, scores, C_PATHSCORE and ACMG tags identical on every row. Every Module 3 entry point recomputes before reading (file:line in the walkthrough).\n- Kept (they are annotation, not scoring): gene curation, POPULATION_AF*, unified SpliceAI, QC_STATUS, NEW_IMPACT.\n- No new decision record: this implements part of DEC-0008 (implementation note added there, still PROPOSED). DEC-0008 also lists ACMG_SF_V3_2, INHERITANCE_MODEL and the DISEASE_* columns; I left those in place. Your call whether they go too.\n- Tests: 462 pass; scoring-only tests removed, contract tests retargeted.\n- Pending, one run for SF-06 + SF-07: ./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf06_sf07_fixture\nCommit dec2820, not pushed. Walkthrough: walkthrough/20261124_legacy_scoring_columns_removed.md"
+        }
+      ]
     },
     {
       "id": "SF-07",
       "title": "Drop the Pangolin 'heart' columns (PRED-1)",
-      "state": "doing",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-24T14:09:36Z",
       "by": "claude-code",
@@ -599,6 +611,16 @@
           "at": "2026-11-24T14:10:22Z",
           "by": "claude-code",
           "text": "Plan: remove the two columns from NEW_PANGOLIN_COLUMNS/parse_pangolin and column lists; update tests and column dictionary; check Module 3 readers; local tests; fixture command for you."
+        },
+        {
+          "at": "2026-11-24T14:17:21Z",
+          "by": "claude-code",
+          "text": "Code done locally (378a5a4, edb6bc2; suite 467 passed). Module 3 tolerates the absence. Fixture deferred so one run covers SF-06 and SF-07."
+        },
+        {
+          "at": "2026-11-24T14:33:45Z",
+          "by": "claude-code",
+          "text": "New tables no longer carry Pangolin_heart_lv_score / Pangolin_heart_aa_score (copies of the max). Pangolin_max_score unchanged.\n- Checked: same local rebuild as SF-06; these two columns gone, nothing else changes; Module 3 runs without them (its own heart columns are its task M2-13).\n- Pending: the same fixture as SF-06 (./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf06_sf07_fixture).\nCommits 378a5a4, edb6bc2, not pushed."
         }
       ]
     }
