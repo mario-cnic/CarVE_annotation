@@ -24,5 +24,5 @@ Kept, although DEC-0008 lists them as Module 3's: `ACMG_SF_V3_2`, `INHERITANCE_M
 
 ## Pending
 
-- Cluster fixture (covers SF-06 and SF-07): new table has none of the eight columns and equals `sf01_nmd_fixture`'s table on every other column.
+- ~~Cluster fixture (covers SF-06 and SF-07)~~ **Passed 2026-11-24** (`sf06_sf07_fixture`, commit `7fb2e13`, clean tree, exit 0, 21/21 tasks; SpliceAI/Pangolin from the score cache, 78/78 hits, so 6 fewer tasks than `sf01_nmd_fixture`): 1,015 rows in the same order, exactly the eight columns removed, every other column identical to `sf01_nmd_fixture`'s table.
 - Tables built before this change (`F2005_union`, `F1830_union_avi`, their LAB copies) still carry the columns; Module 3 overwrites them on scoring, so nothing to redo.

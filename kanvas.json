@@ -580,7 +580,7 @@
     {
       "id": "SF-06",
       "title": "Drop Module 2's legacy ACMG and priority columns (ACMG-1/2/3)",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-24T14:09:36Z",
       "by": "claude-code",
@@ -601,7 +601,7 @@
     {
       "id": "SF-07",
       "title": "Drop the Pangolin 'heart' columns (PRED-1)",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-24T14:09:36Z",
       "by": "claude-code",
