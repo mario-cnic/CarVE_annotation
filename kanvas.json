@@ -642,6 +642,11 @@
           "at": "2026-11-24T15:15:37Z",
           "by": "claude-code",
           "text": "New tables no longer carry ACMG_SF_V3_2, the DISEASE_* columns, HIGH_RISK_DISEASE_GENE, INHERITANCE_MODEL or SAMPLE_GENOTYPES_SUMMARY. With SF-06 this completes item 1 of DEC-0008 in Module 2.\n- Consequence to note: Module 2 no longer reads the disease-gene list at all, so the pipeline parameter disease_gene_list (Complete_gene_list_V4) is gone. Module 3 curates from its own V5 list. The --genes_file priority filter is untouched (it never used the curation).\n- Checked locally: same 1,015 rows, only those 8 columns gone, nothing else changes. Module 3's scoring output identical to the one from the table before SF-06. In Module 2 the inheritance columns were always \"Unclassified\"/empty anyway.\n- Tests: 458 pass; curation tests removed with the code.\n- Pending fixture: ./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf08_fixture\nCommit 54881fe, not pushed."
+        },
+        {
+          "at": "2026-11-24T16:09:43Z",
+          "by": "claude-code",
+          "text": "Cluster fixture passed (sf08_fixture, 6d1efec clean, 21/21 tasks): same 1,015 rows, exactly the 8 columns gone, everything else identical to sf06_sf07_fixture; manifest no longer lists disease_gene_list."
         }
       ]
     }
