@@ -26,6 +26,8 @@ Exon table: `resources/transcript_exons.grch38.gencode45.tsv` (111,134 coding tr
 
 **Coordinates, against the plugin** (`src/tools/validate_nmd_rules.py`): reproducing the plugin's own rules (variant position, 52-nt window, first 101 coding bases) from the exon table on the F2005_union table (run of 2026-11-03, code 814ab97 + dirty patch) gives the plugin's flag on 1,675 of 1,677 stop_gained/frameshift rows. The 2 others are insertions at edge cases (one on a `cds_start_NF` transcript, one at an exon-intron boundary).
 
+**New stop position, against the sequence**: on the same table, every stop_gained SNV's codon from HGVSp equals the codon of its `CDS_position` (392/392). For frameshifts, each mutant transcript was built from GENCODE 45 `pc_transcripts.fa` (md5 `229d2da3…be1169`, matches GENCODE's MD5SUMS; downloaded to a scratch folder, not kept) with the HGVSc edit applied, translated, and its first stop compared with `p + n - 1`: 1,021 agree, 47 could not be built (transcript absent from the FASTA or edit not parsed), 54 differ. All 54 are on `cds_start_NF` transcripts that `parse_nmd` already leaves `not_evaluated` (`model_mismatch` 50, `incomplete_3prime` 4). No evaluated row disagrees; MANE Select rows 291/291 agree.
+
 **What moves** on the same table (all 3,327 truncating and canonical splice rows; the 1,650 splice rows stay `not_evaluated`):
 
 | Rows | old -> new | All transcripts | MANE Select |
@@ -48,9 +50,9 @@ Local tests: `bash tests/run_all_tests.sh` in `annotation_tests`, 462 passed, no
 Module 3 gives PVS1 (+8) only to `nmd_predicted` stop_gained/frameshift rows, and marks frameshifts as "judged at the variant position" (`frameshift_nmd_at_variant_position`). With a table built by this code:
 
 - frameshift rows with `NMD_PTC_BASIS == "ptc"` are judged at the new stop: the approximation flag is no longer needed for them;
-- some rows gain PVS1 (escape -> NMD, including start-proximal stops), some lose it (NMD -> escape or not evaluated). Whether start-proximal stops should keep full PVS1 is Module 3's call: `NMD_RULE == "start_proximal"` lets it decide.
+- some rows become eligible for PVS1 (escape -> NMD, including start-proximal stops; only in genes curated for loss of function), some lose it (NMD -> escape or not evaluated). Whether start-proximal stops should keep full PVS1 is Module 3's call: `NMD_RULE == "start_proximal"` lets it decide.
 
 ## Pending
 
-- Cluster fixture run with this code (command in the task note).
+- Cluster fixture run with this code (command in the task note). Pass: new columns present, no `not_annotated` in scope, and `parse_nmd` re-run locally on the cluster table gives the same NMD columns. panel8's truncating rows keep their status, so the fixture checks the wiring, not the rules.
 - Module 3: read `NMD_RULE`/`NMD_PTC_BASIS`; drop the variant-position approximation for tables that carry them.
