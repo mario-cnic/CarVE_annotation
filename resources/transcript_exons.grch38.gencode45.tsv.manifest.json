@@ -1,0 +1,18 @@
+{
+ "built": "2026-11-24T12:12:05+01:00",
+ "gtf": "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
+ "gtf_sha256": "56a166e4a43c934a1910c0d09dec786ac048862fc65130731d41f3c7f451ae68",
+ "gtf_transcripts": 252930,
+ "coding_transcripts": 111134,
+ "start_incomplete": 13301,
+ "end_incomplete": 20052,
+ "single_exon": 1658,
+ "out_sha256": "3be4bdde800b00b6626cc58d8f9eefdb2bdaaf00f1313ea02e9a3e3397dbec45",
+ "argv": [
+  "src/python/build_transcript_exon_table.py",
+  "--gtf",
+  "/home/mruizp/gencode_build/gencode.v45.annotation.gtf.gz",
+  "--out",
+  "resources/transcript_exons.grch38.gencode45.tsv"
+ ]
+}

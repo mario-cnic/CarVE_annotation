@@ -72,7 +72,8 @@ def test_random_records(tmp_path, seed):
               "--spliceai-symbol-map", RES / "spliceai_symbol_to_ensg.grch38.gencode45.tsv",
               "--enst-spip-map", RES / "enst_to_spip_nm.grch38.gencode45.tsv",
               "--dbnsfp-aligned-columns", RES / "dbnsfp_transcript_aligned_columns.txt",
-              "--gene-constraint-table", RES / "gnomad_v4.1.2_gene_constraint.grch38.tsv", "--skip_quality_filter"]
+              "--gene-constraint-table", RES / "gnomad_v4.1.2_gene_constraint.grch38.tsv",
+              "--transcript-exon-table", RES / "transcript_exons.grch38.gencode45.tsv", "--skip_quality_filter"]
     tables = {}
     for name, extra in (("whole", []), ("c1", ["--chunk-rows", "1"]), ("c7", ["--chunk-rows", "7"])):
         run(REPO / "src/python/parsing/filter_variants.py", *common, "--output", f"{name}.pq", *extra)

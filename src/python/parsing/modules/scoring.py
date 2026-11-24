@@ -383,7 +383,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
         "CLINVAR_SELECTED_CLNSIG", "CLINVAR_SOURCE", "CLINVAR_SELECTED_REVIEW", "ClinVar_Stars",
         "ClinVarVCF_CLNSIG", "CLINVAR_DISPLAY", "clinvar_clnsig", "CLNSIG",
         "gnomADv4_AF_grpmax_joint", "MAX_AF", "af", "gnomad_af", "AF",
-        "pLI_gene_value", "pLI", "NMD_STATUS", "NMD",
+        "pLI_gene_value", "pLI", "NMD_STATUS", "NMD_RULE", "NMD_PTC_BASIS", "NMD",
         "spliceai_custom_MAX", "spliceAI_MAX", "SPLICE_MAX_UNIFIED", "SPLICEAI_METHOD", "SPLICEAI_STATUS",
         "SPiP_prediction", "SPiP", "Pangolin_max_score", "Pangolin",
         "SpliceVault_status", "LaBranchoR_status",

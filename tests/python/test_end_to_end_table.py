@@ -71,7 +71,8 @@ def tables(tmp_path_factory):
               "--spliceai-symbol-map", RES / "spliceai_symbol_to_ensg.grch38.gencode45.tsv",
               "--enst-spip-map", RES / "enst_to_spip_nm.grch38.gencode45.tsv",
               "--dbnsfp-aligned-columns", RES / "dbnsfp_transcript_aligned_columns.txt",
-              "--gene-constraint-table", RES / "gnomad_v4.1.2_gene_constraint.grch38.tsv", "--skip_quality_filter"]
+              "--gene-constraint-table", RES / "gnomad_v4.1.2_gene_constraint.grch38.tsv",
+              "--transcript-exon-table", RES / "transcript_exons.grch38.gencode45.tsv", "--skip_quality_filter"]
     out = {}
     for name, extra in (("whole", []), ("chunk1", ["--chunk-rows", "1"]), ("chunk2", ["--chunk-rows", "2"])):
         run(REPO / "src/python/parsing/filter_variants.py", *common, "--output", f"{name}.pq", *extra)
@@ -102,3 +103,5 @@ def test_row_contracts(tables):
     no_csq = tables["final"][tables["final"]["Locus"] == "chr1:1000000-G-A"].iloc[0]
     assert pd.isna(no_csq["HGVSc"]) and pd.isna(no_csq["Feature"])
     assert tables["whole"]["NEW_IMPACT"].cat.categories.tolist() == ["HIGH", "MODERATE", "LOW", "MODIFIER"]
+    assert {"NMD_STATUS", "NMD_RULE", "NMD_PTC_BASIS"} <= set(tables["final"].columns)
+    assert (tables["final"]["NMD_STATUS"] != "not_annotated").all()                # exon table passed through

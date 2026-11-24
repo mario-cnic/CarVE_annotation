@@ -198,33 +198,160 @@ NMD_NOT_EVALUATED = "not_evaluated"
 NMD_NOT_ANNOTATED = "not_annotated"
 NMD_NOT_APPLICABLE = "not_applicable"
 
+# A premature stop whose first nucleotide lies in the last NMD_PENULTIMATE_WINDOW_NT nucleotides of the
+# penultimate exon escapes NMD (ClinGen PVS1 tree, Abou Tayoun 2018: "3'-most 50 nucleotides of the penultimate exon").
+NMD_PENULTIMATE_WINDOW_NT = 50
+# Stops within the first NMD_START_PROXIMAL_NT coding nucleotides are flagged start_proximal (possible
+# re-initiation downstream); reported only, NMD_STATUS stays nmd_predicted.
+NMD_START_PROXIMAL_NT = 100
+NMD_RULE_COLUMNS = ["NMD_RULE", "NMD_PTC_BASIS"]
 
-def parse_nmd(data: pd.DataFrame) -> pd.DataFrame:
-    """Derive NMD_STATUS per row from the VEP NMD plugin flag.
+_AA = r"[A-Z][a-z]{2}"
+_HGVSP_FS = re.compile(rf"^p\.\(?{_AA}(\d+){_AA}?fsTer(\d+|\?)")
+_HGVSP_NONSENSE = re.compile(rf"^p\.\(?{_AA}(\d+)Ter\)?$")
+_HGVSP_DELINS = re.compile(rf"^p\.\(?{_AA}(\d+)(?:_{_AA}\d+)?delins((?:{_AA})*?)Ter")
+_HGVSP_INS = re.compile(rf"^p\.\(?{_AA}(\d+)_{_AA}\d+ins((?:{_AA})*?)Ter")
+_HGVSC_RANGE = r"(\d+)(?:_(\d+))?"
+_HGVSC_EDIT = re.compile(rf"^c\.{_HGVSC_RANGE}(delins|del|dup|ins)([ACGTN]*)$")
+_HGVSC_SUB = re.compile(r"^c\.\d+[ACGTN]>[ACGTN]$")
+_FIRST_INT = re.compile(r"^\s*(\d+)")
 
-    The plugin only flags escape (last exon, last 50 bp of the penultimate exon, first 100
-    coding bases, intronless transcript) for stop_gained/frameshift/canonical splice rows,
-    judged at the variant position, and stays empty when it cannot place the variant in the
-    CDS. Empty therefore means NMD predicted only for stop_gained/frameshift rows with a
-    complete CDS position; canonical splice rows without a flag are not evaluated.
+
+def load_transcript_exons(path: str) -> dict:
+    """{ENST: (version, exon_cdna_ends tuple, cds_start_cdna, start_incomplete, end_incomplete)}
+    from build_transcript_exon_table.py."""
+    table = pd.read_csv(path, sep="\t", dtype=str, keep_default_na=False)
+    missing = [c for c in ["transcript_id", "transcript_version", "exon_cdna_ends", "cds_start_cdna",
+                           "start_incomplete", "end_incomplete"] if c not in table.columns]
+    if missing:
+        raise ValueError(f"Transcript exon table {path} lacks columns {missing}")
+    if table.transcript_id.duplicated().any():
+        raise ValueError(f"Transcript exon table {path} repeats {table.transcript_id[table.transcript_id.duplicated()].iloc[0]}")
+    return {
+        r.transcript_id: (r.transcript_version, tuple(int(x) for x in r.exon_cdna_ends.split(",")),
+                          int(r.cds_start_cdna), r.start_incomplete == "1", r.end_incomplete == "1")
+        for r in table.itertuples(index=False)
+    }
+
+
+def _first_int(value) -> int | None:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        return None
+    m = _FIRST_INT.match(str(value))
+    return int(m.group(1)) if m and "?" not in str(value).split("-")[0] else None
+
+
+def _hgvs_part(value) -> str:
+    text = "" if value is None or (isinstance(value, float) and np.isnan(value)) else str(value)
+    return text.split(":", 1)[1] if ":" in text else text
+
+
+def _stop_codon_aa(hgvsp: str) -> tuple[int | None, str]:
+    """(position of the new stop in the variant protein, kind); kind is 'stop', 'no_stop' or 'unknown'."""
+    m = _HGVSP_FS.match(hgvsp)
+    if m:
+        return (None, "no_stop") if m.group(2) == "?" else (int(m.group(1)) + int(m.group(2)) - 1, "stop")
+    m = _HGVSP_NONSENSE.match(hgvsp)
+    if m:
+        return int(m.group(1)), "stop"
+    m = _HGVSP_DELINS.match(hgvsp)
+    if m:
+        return int(m.group(1)) + len(m.group(2)) // 3, "stop"
+    m = _HGVSP_INS.match(hgvsp)
+    if m:
+        return int(m.group(1)) + 1 + len(m.group(2)) // 3, "stop"
+    return None, "unknown"
+
+
+def _length_change(hgvsc: str) -> int | None:
+    """Coding length change (alt - ref) of an exonic HGVSc edit; None for intronic/UTR or unparsed edits."""
+    if _HGVSC_SUB.match(hgvsc):
+        return 0
+    m = _HGVSC_EDIT.match(hgvsc)
+    if not m:
+        return None
+    start, end, edit, seq = int(m.group(1)), int(m.group(2) or m.group(1)), m.group(3), m.group(4)
+    span = end - start + 1
+    if edit in ("ins", "delins") and not seq:
+        return None
+    return {"del": -span, "dup": span, "ins": len(seq), "delins": len(seq) - span}[edit]
+
+
+def _nmd_rule(row, exons: dict) -> tuple[str, str, str]:
+    """(NMD_STATUS, NMD_RULE, NMD_PTC_BASIS) for one stop_gained/frameshift row."""
+    model = exons.get(str(row.Feature).split(".")[0])
+    if model is None:
+        return NMD_NOT_EVALUATED, "transcript_not_in_model", ""
+    version, ends, cds_start, start_incomplete, end_incomplete = model
+    hgvsc_id = str(row.HGVSc).split(":", 1)[0] if ":" in str(row.HGVSc) else ""
+    if not hgvsc_id:
+        return NMD_NOT_EVALUATED, "hgvs_missing", ""
+    if hgvsc_id.partition(".")[2] != version:
+        return NMD_NOT_EVALUATED, "transcript_version_mismatch", ""
+    if end_incomplete:
+        return NMD_NOT_EVALUATED, "incomplete_3prime", ""
+    cdna, cds = _first_int(row.cDNA_position), _first_int(row.CDS_position)
+    if cdna is None or cds is None:
+        return NMD_NOT_EVALUATED, "position_unknown", ""
+    if cdna - cds != cds_start - 1:
+        return NMD_NOT_EVALUATED, "model_mismatch", ""
+    penultimate_end = ends[-2] if len(ends) > 1 else None
+    stop_aa, kind = _stop_codon_aa(_hgvs_part(row.HGVSp))
+    if kind == "no_stop":
+        if penultimate_end is None or cdna > penultimate_end:
+            return NMD_ESCAPE, "last_exon" if penultimate_end else "intronless", "variant"
+        return NMD_NOT_EVALUATED, "no_stop_in_new_frame", ""
+    delta = _length_change(_hgvs_part(row.HGVSc))
+    if kind == "unknown" or delta is None:
+        return NMD_NOT_EVALUATED, "ptc_position_unknown", ""
+    # first nucleotide of the new stop codon, moved from variant-transcript to reference coordinates
+    ptc_cds = 3 * (stop_aa - 1) + 1 - delta
+    ptc_cdna = cds_start - 1 + ptc_cds
+    if penultimate_end is None:
+        return NMD_ESCAPE, "intronless", "ptc"
+    if ptc_cdna > penultimate_end:
+        return NMD_ESCAPE, "last_exon", "ptc"
+    if ptc_cdna > penultimate_end - NMD_PENULTIMATE_WINDOW_NT:
+        return NMD_ESCAPE, "penultimate_last_50nt", "ptc"
+    if ptc_cds <= NMD_START_PROXIMAL_NT and not start_incomplete:
+        return NMD_PREDICTED, "start_proximal", "ptc"
+    return NMD_PREDICTED, "none", "ptc"
+
+
+def parse_nmd(data: pd.DataFrame, exons: dict | None = None) -> pd.DataFrame:
+    """Derive NMD_STATUS, NMD_RULE and NMD_PTC_BASIS for stop_gained/frameshift/canonical splice rows.
+
+    The rules are judged at the premature stop codon: for a frameshift its position comes from HGVSp
+    (fsTer<n>) and the row transcript's exon structure (`exons`, load_transcript_exons). NMD_STATUS keeps
+    its values: escape_predicted (NMD_RULE last_exon, penultimate_last_50nt or intronless), nmd_predicted
+    (NMD_RULE none or start_proximal), not_evaluated (NMD_RULE gives the reason; canonical splice rows are
+    splice_outcome_unknown), not_annotated (no exon table), not_applicable. NMD_PTC_BASIS: ptc (judged at
+    the new stop) or variant (fsTer? in the last exon). The VEP NMD plugin column is left as it is.
     """
     conseq = data["Consequence"].fillna("").astype(str) if "Consequence" in data.columns else pd.Series("", index=data.index)
     truncating = conseq.str.contains(r"stop_gained|frameshift_variant")
     in_scope = truncating | conseq.str.contains(r"splice_donor_variant|splice_acceptor_variant")
     status = pd.Series(NMD_NOT_APPLICABLE, index=data.index, dtype=object)
-    if "NMD" not in data.columns:
+    rule = pd.Series("", index=data.index, dtype=object)
+    basis = pd.Series("", index=data.index, dtype=object)
+    if exons is None:
         status.loc[in_scope] = NMD_NOT_ANNOTATED
-        data["NMD_STATUS"] = status
-        logger.warning("NMD column absent: NMD_STATUS set to not_annotated for truncating/splice rows")
-        return data
-    escape = data["NMD"].fillna("").astype(str).str.contains("NMD_escaping_variant")
-    cds = data["CDS_position"].fillna("").astype(str).str.strip() if "CDS_position" in data.columns else pd.Series("", index=data.index)
-    cds_placed = ~cds.isin(["", "-", ".", "nan"]) & ~cds.str.contains("?", regex=False)
-    status.loc[in_scope] = NMD_NOT_EVALUATED
-    status.loc[truncating & cds_placed] = NMD_PREDICTED
-    status.loc[in_scope & escape] = NMD_ESCAPE
+        rule.loc[in_scope] = "no_transcript_model"
+        logger.warning("No transcript exon table: NMD_STATUS set to not_annotated for truncating/splice rows")
+    else:
+        status.loc[in_scope] = NMD_NOT_EVALUATED
+        rule.loc[in_scope] = "splice_outcome_unknown"
+        if truncating.any():
+            cols = ["Feature", "HGVSc", "HGVSp", "cDNA_position", "CDS_position"]
+            sub = data.loc[truncating].reindex(columns=cols)
+            res = [_nmd_rule(r, exons) for r in sub.itertuples(index=False)]
+            status.loc[truncating] = [r[0] for r in res]
+            rule.loc[truncating] = [r[1] for r in res]
+            basis.loc[truncating] = [r[2] for r in res]
     data["NMD_STATUS"] = status
-    logger.info(f"New column `NMD_STATUS` created with value counts: {dict(status.value_counts())}")
+    data["NMD_RULE"] = rule
+    data["NMD_PTC_BASIS"] = basis
+    logger.info(f"NMD_STATUS counts: {dict(status.value_counts())}; NMD_RULE counts: {dict(rule[in_scope].value_counts())}")
     return data
 
 

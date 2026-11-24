@@ -27,7 +27,7 @@ try:
     from .modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
+        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint, load_transcript_exons,
     )
     from .modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -69,7 +69,7 @@ except ImportError:
     from modules.predictors import (
         DBNSFP_COLUMNS, MISSENSE_COLUMNS, parse_missense,
         parse_dbnsfp_by_row_transcript, load_aligned_columns, parse_nmd, parse_remm,
-        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint,
+        parse_avi, parse_utrannotator, load_gene_constraint, annotate_gene_constraint, load_transcript_exons,
     )
     from modules.disease_hpo import (
         ACMG_SF_V3_2_CARDIAC_GENES, HPO_GENE_PANELS, load_cardiac_disease_gene_curation,
@@ -201,6 +201,13 @@ def argparsing() -> argparse.ArgumentParser:
         default=None,
         help="resources/gnomad_*_gene_constraint.grch38.tsv (gene-level pLI, LOEUF, missense Z by Ensembl gene ID); "
              "without it gene_constraint_status is not_annotated",
+    )
+    parser.add_argument(
+        "--transcript-exon-table",
+        type=str,
+        default=None,
+        help="resources/transcript_exons.*.tsv (per-transcript exon structure for the NMD rules); "
+             "without it NMD_STATUS is not_annotated",
     )
     parser.add_argument(
         "--skip_quality_filter",
@@ -452,7 +459,9 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
     data = parse_branchpointer(data)
     data = parse_spliceai2(data)
     data = parse_maxentscan(data)
-    data = parse_nmd(data)
+    if args.transcript_exon_table and "transcript_exons" not in state:
+        state["transcript_exons"] = load_transcript_exons(args.transcript_exon_table)
+    data = parse_nmd(data, state.get("transcript_exons"))
     data = parse_remm(data)
     data = parse_avi(data)
     data = parse_utrannotator(data)
