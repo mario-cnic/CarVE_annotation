@@ -101,7 +101,7 @@
     {
       "id": "TH-01",
       "title": "Reconcile stale 'verify on cluster' items",
-      "state": "proposed",
+      "state": "todo",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -117,7 +117,7 @@
     {
       "id": "TH-02",
       "title": "Triage bug rows pointing at shared/utils or retired code",
-      "state": "proposed",
+      "state": "todo",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -170,7 +170,7 @@
     {
       "id": "SF-01",
       "title": "NMD: frameshift PTC position and start-proximal rule",
-      "state": "proposed",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -180,6 +180,26 @@
           "at": "2026-11-06T13:55:22Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-24T11:06:20Z",
+          "by": "claude-code",
+          "text": "Plan: NMD_STATUS keeps its five values (Module 3 PVS1 compares them as text since 2026-11-19). New columns: NMD_RULE (last_exon / penultimate_last_50nt / intronless / start_proximal / none, or why not evaluated) and NMD_PTC_BASIS (new stop vs variant position). Rules recomputed from a GENCODE 45 exon table (committed resource + manifest, like enst_to_spip_nm); frameshift stop from HGVSp fsTer<n>. Start-proximal no longer counts as escape. Before trusting it: reproduce the VEP plugin exactly at the variant position on stop_gained rows. Report how many rows move each way (frameshift: nmd -> escape; start-proximal: escape -> nmd)."
+        },
+        {
+          "at": "2026-11-24T11:21:30Z",
+          "by": "claude-code",
+          "text": "NMD_STATUS is now judged at the new stop codon (frameshifts) and the \"first 100 coding bases\" rule no longer counts as escape. Same five values, so Module 3 keeps working. Two new columns: NMD_RULE (which rule fired, or why not evaluated) and NMD_PTC_BASIS. Commit b4ec531, not pushed. Walkthrough: walkthrough/20261124_nmd_at_premature_stop.md\n\nWhat moves on F2005_union (MANE Select rows in brackets):\n- escape -> NMD: 135 (20). All had the variant in the first 101 coding bases; 67 are start-proximal stops, now flagged NMD_RULE=start_proximal. Module 3 gives these PVS1.\n- NMD -> escape: 50 (9). The frameshift's new stop is in the last exon or the last 50 nt of the penultimate exon. Module 3 stops giving PVS1.\n- -> not_evaluated: 270 (16). Mostly transcripts with an incomplete 3' end or CDS start; on MANE rows only those with no computable stop (p.?, stop-lost, missing HGVSp).\n\nChecked: from the new exon table I reproduce the VEP plugin's flag on 1,675/1,677 truncating rows (coordinates are right); 462 local tests pass; fixture tables unchanged outside the NMD columns.\n\nTo check / decide:\n- Cluster fixture (pending): ./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf01_nmd_fixture  -> pass: the 4 frameshift rows give 3 escape_predicted/last_exon + 1 nmd_predicted/none, no NMD_STATUS not_annotated.\n- Start-proximal stops now get full PVS1 in Module 3. Is that what you want, or should Module 3 use NMD_RULE=start_proximal to downgrade?\n- Decision record in carve-platform (Module 3 contract changes meaning), or is the walkthrough handoff enough?"
+        },
+        {
+          "at": "2026-11-24T11:26:34Z",
+          "by": "claude-code",
+          "text": "Extra check (commit fdd...): translated each frameshift's mutant transcript (GENCODE 45 sequences): all evaluated rows agree with the stop position used (MANE 291/291); the only disagreements are on incomplete-CDS transcripts already left not_evaluated.\nCorrection to the summary: those rows become *eligible* for PVS1 in Module 3 (only curated loss-of-function genes), not automatically PVS1.\nCluster pass criterion, more robust than the row counts: new columns present, no not_annotated among truncating rows, and parse_nmd re-run on the cluster table gives the same NMD columns. panel8's truncating rows keep their status, so the fixture checks wiring, not the rules."
+        },
+        {
+          "at": "2026-11-24T11:26:38Z",
+          "by": "claude-code",
+          "text": "Correction: the commit in the previous note is 852d303."
         }
       ]
     },
@@ -268,7 +288,7 @@
     {
       "id": "SF-04",
       "title": "SPiP positional field indexing (PRED-5)",
-      "state": "proposed",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -278,6 +298,11 @@
           "at": "2026-11-06T13:55:23Z",
           "by": "claude-code",
           "text": "Self-contained description (Mario: board informative)"
+        },
+        {
+          "at": "2026-11-24T11:33:20Z",
+          "by": "claude-code",
+          "text": "SPiP is now read by field name, and the pipeline stops if SPiP's output format changes. Results unchanged. Commit 4b05b08, not pushed.\n\n- The old positions were correct: checked against the real SPiP v2.1 header (an_spliceai2_fixture). The risk was only a future format change.\n- SPIP_ANNOTATE now compares SPiP's INFO header with params.spip_info_format and fails with both lists printed. The parser fails on an entry that does not have the header's 37 fields (before, short entries were dropped silently).\n- Checked: re-parsing 865,126 SPiP rows of F2005_union gives identical SPiP columns; all 816,092 entries checked have 37 fields; a test runs the real SPIP_ANNOTATE block with a reordered header (fails) and the real one (passes); 467 local tests pass.\n\nTo check: on the next cluster run (the SF-01 fixture is enough), SPIP_ANNOTATE completes; no new run needed just for this."
         }
       ]
     },
