@@ -54,5 +54,6 @@ Module 3 gives PVS1 (+8) only to `nmd_predicted` stop_gained/frameshift rows, an
 
 ## Pending
 
-- Cluster fixture run with this code (command in the task note). Pass: new columns present, no `not_annotated` in scope, and `parse_nmd` re-run locally on the cluster table gives the same NMD columns. panel8's truncating rows keep their status, so the fixture checks the wiring, not the rules.
+- ~~Cluster fixture run with this code (command in the task note). Pass: new columns present, no `not_annotated` in scope, and `parse_nmd` re-run locally on the cluster table gives the same NMD columns. panel8's truncating rows keep their status, so the fixture checks the wiring, not the rules.~~
+  **Done 2026-11-24T12:45:39+01:00:** `sf01_nmd_fixture` (panel8_trio, code 0de805f, clean): 27/27 tasks succeeded, `SPIP_ANNOTATE` passed the header check; table of 1,015 rows has the three NMD columns, no `not_annotated` (3 `escape_predicted`/`last_exon`, 1 `nmd_predicted`/`none`, 1,011 `not_applicable`); `parse_nmd` re-run locally gives identical columns. Output `nf_work/annotation_out/sf01_nmd_fixture/`.
 - Module 3: read `NMD_RULE`/`NMD_PTC_BASIS`; drop the variant-position approximation for tables that carry them.

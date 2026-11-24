@@ -101,7 +101,7 @@
     {
       "id": "TH-01",
       "title": "Reconcile stale 'verify on cluster' items",
-      "state": "todo",
+      "state": "doing",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -117,7 +117,7 @@
     {
       "id": "TH-02",
       "title": "Triage bug rows pointing at shared/utils or retired code",
-      "state": "todo",
+      "state": "doing",
       "group": "TH",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -200,6 +200,21 @@
           "at": "2026-11-24T11:26:38Z",
           "by": "claude-code",
           "text": "Correction: the commit in the previous note is 852d303."
+        },
+        {
+          "at": "2026-11-24T11:35:48Z",
+          "by": "claude-code",
+          "text": "Mario 2026-11-24: start-proximal stops stay nmd_predicted (eligible for full PVS1 in Module 3); NMD_RULE=start_proximal keeps the flag for later."
+        },
+        {
+          "at": "2026-11-24T11:36:37Z",
+          "by": "claude-code",
+          "text": "DEC-0016 written in carve-platform/decisions (PROPOSED) + README row; not committed there (repo has other pending changes)."
+        },
+        {
+          "at": "2026-11-24T13:55:50Z",
+          "by": "claude-code",
+          "text": "Cluster fixture passed (sf01_nmd_fixture, 0de805f, 2026-11-24): 27/27 tasks OK; NMD_STATUS/NMD_RULE/NMD_PTC_BASIS present, no not_annotated; parse_nmd re-run locally on the cluster table gives identical columns. Ready for your review."
         }
       ]
     },
@@ -303,6 +318,11 @@
           "at": "2026-11-24T11:33:20Z",
           "by": "claude-code",
           "text": "SPiP is now read by field name, and the pipeline stops if SPiP's output format changes. Results unchanged. Commit 4b05b08, not pushed.\n\n- The old positions were correct: checked against the real SPiP v2.1 header (an_spliceai2_fixture). The risk was only a future format change.\n- SPIP_ANNOTATE now compares SPiP's INFO header with params.spip_info_format and fails with both lists printed. The parser fails on an entry that does not have the header's 37 fields (before, short entries were dropped silently).\n- Checked: re-parsing 865,126 SPiP rows of F2005_union gives identical SPiP columns; all 816,092 entries checked have 37 fields; a test runs the real SPIP_ANNOTATE block with a reordered header (fails) and the real one (passes); 467 local tests pass.\n\nTo check: on the next cluster run (the SF-01 fixture is enough), SPIP_ANNOTATE completes; no new run needed just for this."
+        },
+        {
+          "at": "2026-11-24T13:55:50Z",
+          "by": "claude-code",
+          "text": "Cluster fixture passed (sf01_nmd_fixture, 0de805f): SPIP_ANNOTATE accepted the real SPiP header and completed; SPiP columns filled on 236/1015 rows. Ready for your review."
         }
       ]
     },
