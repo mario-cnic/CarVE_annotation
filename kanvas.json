@@ -627,11 +627,23 @@
     {
       "id": "SF-08",
       "title": "Drop the remaining DEC-0008 interpretation columns",
-      "state": "proposed",
+      "state": "review",
       "group": "SF",
       "at": "2026-11-24T14:54:23Z",
       "by": "claude-code",
-      "desc": "Why: DEC-0008 assigns these to Module 3, which recomputes them: ACMG_SF_V3_2, INHERITANCE_MODEL, DISEASE_GENE_EVIDENCE, DISEASE_CURATION_SOURCE, DISEASE_PHENOTYPE_MATCH, DISEASE_EVIDENCE_SCORE, HIGH_RISK_DISEASE_GENE. Mario agreed in chat 2026-11-24 after SF-06.\n\nTo do: (1) check Module 3 recomputes each before reading it, as in SF-06; stop and ask if not. (2) Check what in Module 2 still needs the gene curation (gene-priority filters, the curation load fixed in MISC-19) and keep that working. (3) Remove the columns; local rebuild diff and Module 3 scoring identical with and without; tests. (4) Implementation note in DEC-0008; one cluster fixture.\n\nNot included: NEW_IMPACT, QC_STATUS, QC_DETAIL (DEC-0008 item 2, a separate question).\n\nDone when: new tables lack these columns, Module 3's output is unchanged, fixture passes."
+      "desc": "Why: DEC-0008 assigns these to Module 3, which recomputes them: ACMG_SF_V3_2, INHERITANCE_MODEL, DISEASE_GENE_EVIDENCE, DISEASE_CURATION_SOURCE, DISEASE_PHENOTYPE_MATCH, DISEASE_EVIDENCE_SCORE, HIGH_RISK_DISEASE_GENE. Mario agreed in chat 2026-11-24 after SF-06.\n\nTo do: (1) check Module 3 recomputes each before reading it, as in SF-06; stop and ask if not. (2) Check what in Module 2 still needs the gene curation (gene-priority filters, the curation load fixed in MISC-19) and keep that working. (3) Remove the columns; local rebuild diff and Module 3 scoring identical with and without; tests. (4) Implementation note in DEC-0008; one cluster fixture.\n\nNot included: NEW_IMPACT, QC_STATUS, QC_DETAIL (DEC-0008 item 2, a separate question).\n\nDone when: new tables lack these columns, Module 3's output is unchanged, fixture passes.",
+      "notes": [
+        {
+          "at": "2026-11-24T15:03:33Z",
+          "by": "claude-code",
+          "text": "Plan: list where each column is written and read in Module 2 and Module 3; keep what Module 2 needs; remove, diff, M3 scoring check, tests, DEC note, fixture command."
+        },
+        {
+          "at": "2026-11-24T15:15:37Z",
+          "by": "claude-code",
+          "text": "New tables no longer carry ACMG_SF_V3_2, the DISEASE_* columns, HIGH_RISK_DISEASE_GENE, INHERITANCE_MODEL or SAMPLE_GENOTYPES_SUMMARY. With SF-06 this completes item 1 of DEC-0008 in Module 2.\n- Consequence to note: Module 2 no longer reads the disease-gene list at all, so the pipeline parameter disease_gene_list (Complete_gene_list_V4) is gone. Module 3 curates from its own V5 list. The --genes_file priority filter is untouched (it never used the curation).\n- Checked locally: same 1,015 rows, only those 8 columns gone, nothing else changes. Module 3's scoring output identical to the one from the table before SF-06. In Module 2 the inheritance columns were always \"Unclassified\"/empty anyway.\n- Tests: 458 pass; curation tests removed with the code.\n- Pending fixture: ./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf08_fixture\nCommit 54881fe, not pushed."
+        }
+      ]
     }
   ]
 }
