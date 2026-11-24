@@ -4,6 +4,7 @@ One line per walkthrough, newest first (date = date in the file name). Add a lin
 
 | Date | File | Title |
 | --- | --- | --- |
+| 2026-11-23 | [20261123_module3_site_an_and_spliceai2.md](./20261123_module3_site_an_and_spliceai2.md) | Module 3 handoff: gnomAD site AN for PM2 (SF-02) and SpliceAI2 columns (PR-03) |
 | 2026-11-10 | [20261110_utrannotator_deterministic_fork.md](./20261110_utrannotator_deterministic_fork.md) | UTRAnnotator: deterministic copy reporting every uORF class (PRED-15) |
 | 2026-11-06 | [20261106_spliceai2_inclusion.md](./20261106_spliceai2_inclusion.md) | SpliceAI2: inclusion study for Module 2 |
 | 2026-11-05 | [20261105_review_session_fixes.md](./20261105_review_session_fixes.md) | Review session 2026-11-04/05: what was fixed, how it was checked, what is left |

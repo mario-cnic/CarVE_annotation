@@ -186,7 +186,7 @@
     {
       "id": "SF-02",
       "title": "PM2: gnomAD v4 coverage for absent sites",
-      "state": "doing",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-06T13:51:22Z",
       "by": "claude-code",
@@ -226,6 +226,11 @@
           "at": "2026-11-18T20:44:49Z",
           "by": "claude-code",
           "text": "2026-11-18: genomes BED matched the source TSV at 574/574 positions (one every 5M), all 25 contigs present. Ready for the cluster fixture run."
+        },
+        {
+          "at": "2026-11-23T11:46:28Z",
+          "by": "claude-code",
+          "text": "A variant absent from gnomAD now gets PM2 only where gnomAD genotyped enough alleles: exomes+genomes site AN ≥ 74,894 (for the 4e-5 PM2 threshold). Below that it is the new status `absent_low_an`: no PM2, no rarity bonus. New column `GNOMAD_SITE_AN`.\n- Checked on the cluster: fixture `an_spliceai2_fixture` (2026-11-23, commit 76478fd, clean): 9/9 synthetic variants match the expected AN and status; PM2 only on the 4 well-covered absences (AN 0, 34k chrY, 71k deletion and 73k SNV lose it). Local tests 457 passed.\n- Committed 0562b5c (not pushed). Module 3 note: walkthrough/20261123_module3_site_an_and_spliceai2.md, with a draft DEC.\n- To decide: file the DEC in carve-platform? Does Module 3 compute PM2 on its own (then it must apply the same rule)?"
         }
       ]
     },
@@ -412,7 +417,7 @@
     {
       "id": "PR-03",
       "title": "Add SpliceAI2 precomputed scores (informational)",
-      "state": "doing",
+      "state": "done",
       "group": "PR",
       "deps": ["PR-02"],
       "at": "2026-11-06T17:48:53Z",
@@ -448,13 +453,18 @@
           "at": "2026-11-18T18:36:12Z",
           "by": "claude-code",
           "text": "2026-11-18: download finished (2026-11-11 00:54): 47 files, 348 GB, sha256 OK against Hugging Face, all tabix-indexed (MANIFEST.txt in the folder).\nLookup step implemented (uncommitted): new broad-tier step SPLICEAI2_ANNOTATE (src/python/annotate_spliceai2.py), merged like LaBranchoR. Columns: SpliceAI2_score, SpliceAI2_DS_AG/AL/DG/DL, SpliceAI2_DP_*, SpliceAI2_strand, SpliceAI2_status (scored / not_covered). Exact allele match; with genes on both strands the higher-scoring row is kept. Informational: no effect on NEW_IMPACT, ACMG or score.\nChecked locally: 4 new tests + full suite (452 passed); stub run of the whole DAG OK; the real lookup on the UTR fixture scores 34/34 variants.\nPending: cluster fixture run (together with SF-02, once the gnomAD genomes BED is built), then the Module 3 note."
+        },
+        {
+          "at": "2026-11-23T11:46:29Z",
+          "by": "claude-code",
+          "text": "Tables now carry SpliceAI2 precomputed scores, informational only: `SpliceAI2_score`, `_DS_*`, `_DP_*`, `_strand`, `_status` (scored / not_covered; not covered is never 0). No change to SpliceAI, NEW_IMPACT, ACMG or score.\n- Checked on the cluster: fixture `an_spliceai2_fixture` (2026-11-23): 3 scored (0, 0, 0.02 on a two-strand site) and 6 not_covered, all as expected from the score files.\n- Committed 01e5881 (not pushed). Module 3 note: walkthrough/20261123_module3_site_an_and_spliceai2.md (display only; licence covers family reports and shared tables, PR-02).\n- Not done: comparison with SpliceAI/Pangolin/SPiP on real cohort variants (the thesis question); a separate task if you want it."
         }
       ]
     },
     {
       "id": "SF-05",
       "title": "VEP: stop the run when a plugin fails to load",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-10T11:28:13Z",
       "by": "claude-code",
