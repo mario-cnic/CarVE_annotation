@@ -627,7 +627,7 @@
     {
       "id": "SF-08",
       "title": "Drop the remaining DEC-0008 interpretation columns",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-24T14:54:23Z",
       "by": "claude-code",
@@ -647,6 +647,32 @@
           "at": "2026-11-24T16:09:43Z",
           "by": "claude-code",
           "text": "Cluster fixture passed (sf08_fixture, 6d1efec clean, 21/21 tasks): same 1,015 rows, exactly the 8 columns gone, everything else identical to sf06_sf07_fixture; manifest no longer lists disease_gene_list."
+        }
+      ]
+    },
+    {
+      "id": "SF-09",
+      "title": "Stop emitting NEW_IMPACT, QC_STATUS, QC_DETAIL (DEC-0008 item 2)",
+      "state": "review",
+      "group": "SF",
+      "at": "2026-11-25T15:52:38Z",
+      "by": "claude-code",
+      "desc": "Finishes DEC-0008: Module 2's table no longer carries `NEW_IMPACT`, `QC_STATUS` and `QC_DETAIL`, the last interpretation columns Module 3 should compute itself.\n\n**Waits on Module 3 — do not start before.** Today Module 3's app reads Module 2's copies, and fills them with `IMPACT` / `\"PASS\"` when they are missing (`clinical_variant_prioritization` `src/api/routers/variants.py:312-315`, `src/engine/parquet_converter.py:61-64`). Dropping them first would silently show every variant as QC PASS with plain VEP impact. Module 3 must first compute all three on ingest itself.\n\nDone means:\n- the three columns gone from the table (or kept as `M2_*` if you want them for Module 2's own use — your choice; recommendation: drop, nothing in Module 2 needs them after the table is written);\n- Module 3's scored output identical on the fixture table with and without them;\n- cluster fixture on panel8_trio passes (same table minus 3 columns).",
+      "notes": [
+        {
+          "at": "2026-11-26T09:08:28Z",
+          "by": "claude-code",
+          "text": "2026-11-26, Module 3 reply: its prerequisite is done. Module 3 now always computes QC_STATUS, QC_DETAIL and NEW_IMPACT itself; its output is identical with and without the three columns (checked on sf08_fixture and utr5_multieffect_run1). Plan: drop the columns and build_newImpact entirely, no M2_ copy. Module 3 now depends on these Module 2 columns, and losing one changes results without an error: QUAL, FILTER, QD, FS, MQ; IMPACT, spliceAI_MAX, SpliceAI_status, spliceai_custom_MAX, the SPiP prediction and interpretation, Pangolin_max_score, SpliceVault_status, am_pathogenicity/am_class, REVEL_score, the selected ClinVar columns, UTRAnnotator_status. Without UTRAnnotator_status it falls back to the old rule (any 5'UTR effect = HIGH). This work will record that list as a contract in column_dictionary.md and add a test that fails if one of them disappears."
+        },
+        {
+          "at": "2026-11-26T09:58:48Z",
+          "by": "claude-code",
+          "text": "Plan: remove NEW_IMPACT/QC_STATUS/QC_DETAIL and build_newImpact (plus build_qc_status if unused elsewhere) from the parser; record Module 3's dependency columns as a contract in column_dictionary.md with a test; local rebuild diff on sf08_fixture; cluster fixture command."
+        },
+        {
+          "at": "2026-11-26T10:17:41Z",
+          "by": "claude-code",
+          "text": "New tables no longer have `NEW_IMPACT`, `QC_STATUS` or `QC_DETAIL`. Module 3 computes all three itself. Everything else in the table is unchanged.\n\n- **Also removed:** the parser's `--classification dominant` option. The pipeline never used it, and it needed `NEW_IMPACT`.\n- **Columns Module 3 depends on are now protected.** The 18 columns it reads for impact and QC are listed in `resources/column_dictionary.md`. A test fails if one of them disappears from the table.\n- **Regression caught while writing that test:** removing the impact code also dropped the `CLINVAR_SELECTED_*` / `ClinVar_Stars` columns, which were a side effect of that code. They are now computed directly, and they stay.\n- **Local checks:**\n  - Rebuilt panel8 locally: same 1,015 rows as the SF-08 build, exactly these three columns removed, nothing else differs.\n  - Module 3 (`f5663ac`) scores both builds identically.\n  - Suite: 457 passed.\n- **To check:** the cluster fixture below. It passes if the table equals `sf08_fixture`'s minus the three columns.\n  `./run_annotate_vcf.sh -profile standard --annotation_cache_dir /mnt/scratch/mruizp/annotation_cache_test --input_vcf /data_lab_PGP/pipelines/annotation_pipeline_new/test_data/raw_vcfs/panel8_trio.vcf.gz --run_id sf09_fixture`\n\nCommit cb6d090, not pushed. The DEC-0008 note in carve-platform is written but not committed."
         }
       ]
     }
