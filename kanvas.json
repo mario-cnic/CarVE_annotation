@@ -653,7 +653,7 @@
     {
       "id": "SF-09",
       "title": "Stop emitting NEW_IMPACT, QC_STATUS, QC_DETAIL (DEC-0008 item 2)",
-      "state": "review",
+      "state": "done",
       "group": "SF",
       "at": "2026-11-25T15:52:38Z",
       "by": "claude-code",

@@ -32,7 +32,7 @@ Removed from new tables: `NEW_IMPACT`, `QC_STATUS`, `QC_DETAIL` (DEC-0008 item 2
 - `build_newImpact` also selected the ClinVar record as a side effect (`CLINVAR_SELECTED_CLNSIG`, `CLINVAR_SOURCE`, `CLINVAR_SELECTED_REVIEW`, `ClinVar_Stars`). `build_interpretation_inputs` now calls `annotate_clinvar` itself, so those columns stay. Found while writing the contract test: the first version of this change dropped them.
 - Contract: the columns Module 3 reads to compute impact and QC are listed in `scoring.py` (`MODULE3_QC_INPUTS`, `MODULE3_IMPACT_INPUTS`) and in `resources/column_dictionary.md`; `test_module3_input_columns_present` fails if one leaves the end-to-end table (SPiP names checked as constants: the fixture has no SPiP INFO). All 18 are in the `sf08_fixture` cluster table.
 - Checks: local rebuild of the same panel8 stage-1 TSV with this code against the SF-08 build: 1,015 rows, same row and column order, exactly the three columns removed, no other column differs. Module 3 at `f5663ac`, `prepare_scored_frame` on both builds: same 680 output columns, all identical. Suite: 457 passed (removed the `build_newImpact` tests in `test_utrannotator_status.py`, `test_branchpoint_predictors.py` and `test_clinvar_source_priority.py`, and the `classification_dominant` check; `--classification` is now a rejected option).
-- Cluster fixture: pending (`sf09_fixture`; pass = `sf08_fixture` table minus these three columns).
+- Cluster fixture **passed 2026-11-26**: `sf09_fixture` (commit `1015fa2`, clean tree, exit 0, 21/21 tasks); 1,015 rows in the same order, exactly the three columns removed, every other column identical to `sf08_fixture`'s table and to the local build; all 18 Module 3 input columns present.
 
 ## Checks
 
