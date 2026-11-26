@@ -6,7 +6,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules.clinvar import resolve_clinvar
-from parsing.modules.acmg import _extract_clinvar_status, build_newImpact
+from parsing.modules.acmg import _extract_clinvar_status
 from parsing.modules import scoring
 
 
@@ -59,14 +59,12 @@ def test_ambiguous_or_other_classification_not_promoted(classification,path,beni
     assert bool(p.iloc[0]) == path and bool(b.iloc[0]) == benign
 
 
-def test_impact_and_source_use_custom_source():
+def test_source_and_stars_use_custom_source():
     df = pd.DataFrame({'ClinVarVCF_CLNSIG': ['Pathogenic', 'Pathogenic'],
                        'ClinVarVCF_CLNREVSTAT': ['reviewed_by_expert_panel', None],
                        'clinvar_clnsig': ['Benign'] * 2, 'ClinVar_Stars': [4] * 2,
-                       'QC_STATUS': ['PASS'] * 2, 'Consequence': ['missense_variant'] * 2,
-                       'IMPACT': ['MODERATE'] * 2})
-    result = scoring.build_interpretation_inputs(build_newImpact(df))
-    assert result.NEW_IMPACT.tolist() == ['HIGH', 'HIGH']
+                       'Consequence': ['missense_variant'] * 2, 'IMPACT': ['MODERATE'] * 2})
+    result = scoring.build_interpretation_inputs(df)
     assert result.CLINVAR_SOURCE.eq('ClinVarVCF_CLNSIG').all()
     assert result.ClinVar_Stars.iloc[0] == 3  # reviewed_by_expert_panel
     assert pd.isna(result.ClinVar_Stars.iloc[1])

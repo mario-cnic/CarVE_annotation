@@ -56,7 +56,7 @@ LABRANCHOR_ISM_COLUMNS = ["LaBranchoR_ISM_d_best", "LaBranchoR_ISM_d_max", "LaBr
                           "LaBranchoR_ISM_n_3pss", "LaBranchoR_ISM_status"]
 
 # Informational only: normalized MaxEntScan decrease and disruption flag, derived from VEP's
-# MaxEntScan_ref/_alt/_diff; neither feeds NEW_IMPACT or PRIORITY_TIER.
+# MaxEntScan_ref/_alt/_diff; both informational.
 NEW_MAXENTSCAN_COLUMNS = {
     "pct_decrease": "MaxEntScan_pct_decrease",
     "disrupted": "MaxEntScan_disrupted",
@@ -414,7 +414,7 @@ def _ref_alt(row):
 
 
 def parse_branchpointer(data: pd.DataFrame):
-    """LaBranchoR columns, informational only (nothing here changes NEW_IMPACT or the score).
+    """LaBranchoR columns, informational only.
 
     Positional lookup (PRED-18): `LaBranchoR_score` / `LaBranchoR_acc_dist` as numbers and `LaBranchoR_status`
     (`scored` near a predicted branchpoint, else `not_covered`); the score belongs to the site.
@@ -452,8 +452,7 @@ def parse_branchpointer(data: pd.DataFrame):
 
 
 def parse_spliceai2(data: pd.DataFrame):
-    """SpliceAI2 columns as numbers plus `SpliceAI2_status`, informational only (nothing here changes
-    NEW_IMPACT or the score): `scored` when the precomputed data hold the exact allele, else `not_covered`
+    """SpliceAI2 columns as numbers plus `SpliceAI2_status`, informational only: `scored` when the precomputed data hold the exact allele, else `not_covered`
     (outside GENCODE v48 protein-coding genes, an indel not in the population-observed set, or a
     multiallelic record). A not_covered row has no score; it is never 0."""
     if "SpliceAI2_score" not in data.columns:
@@ -473,8 +472,7 @@ def parse_maxentscan(data: pd.DataFrame):
     flag, plus a scored/not_covered status contract (a non-positive reference score is a
     real, meaningful outcome -- not a predictor error).
 
-    Informational only: does not currently feed build_newImpact/build_priority_tier
-    (see NEW_MAXENTSCAN_COLUMNS comment above). MAXENTSCAN_DISRUPTION_THRESHOLD (0.15)
+    Informational only (see NEW_MAXENTSCAN_COLUMNS comment above). MAXENTSCAN_DISRUPTION_THRESHOLD (0.15)
     flags a weakened splice site only (ref > alt); a newly created/strengthened cryptic
     site (alt > ref) is not flagged by this metric.
     """

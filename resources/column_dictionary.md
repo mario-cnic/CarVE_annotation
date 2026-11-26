@@ -56,7 +56,6 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `intron_offset_signed`: **Signed** integer distance to nearest exon boundary (`-12` = 12bp intronic, `+5` = 5bp exonic).
 - `splice_side`: Nearest splice site type (`donor`, `acceptor`, `exonic`).
 - `IMPACT`: Original Ensembl VEP impact (`HIGH`, `MODERATE`, `LOW`, `MODIFIER`).
-- `NEW_IMPACT`: Refactored unified impact incorporating splicing predictors and functional scores.
 
 ### B. Population & Functional Scores
 - `gnomADv4_AF_grpmax_joint` / `gnomADv4_AF_joint`: custom gnomAD joint grpmax / global joint frequency (0–1).
@@ -100,7 +99,7 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - Removed 2026-11-24 (SF-07, PRED-1): `Pangolin_heart_lv_score`, `Pangolin_heart_aa_score`. They were copies of `Pangolin_max_score`, not tissue scores; tables built before this change still carry them.
 
 ### F. LaBranchoR branch-point lookup (positional)
-- `LaBranchoR_score`: probability of LaBranchoR's top branch point within 2 bp of the variant (site property; the variant's alleles are not scored). Informational: no effect on `NEW_IMPACT` or the score (PRED-18).
+- `LaBranchoR_score`: probability of LaBranchoR's top branch point within 2 bp of the variant (site property; the variant's alleles are not scored). Informational (PRED-18).
 - `LaBranchoR_acc_dist`: distance in bp from the variant to that branch point's 3' splice site.
 - `LaBranchoR_status`: `scored` or `not_covered`.
 - `LaBranchoR_ISM_d_best`, `_d_max`, `_dist`, `_n_3pss`, `_status`: allele-aware LaBranchoR effect for SNVs, from the authors' in silico mutagenesis of GENCODE v19 introns (model on REF and ALT); variant-level (worst 3'SS), not matched to the row's transcript. Informational.
@@ -113,12 +112,12 @@ The final cleaned variant tables (`.tsv`, `.xlsx`, `.pq` / `.parquet`) produced 
 - `MaxEntScan_pct_decrease`: `(ref - alt) / ref`, computed in-pipeline. Only defined when `MaxEntScan_ref > 0`; negative values mean the alt allele's score is *higher* than ref (splice site strengthened/cryptic site created, not flagged by `MaxEntScan_disrupted`).
 - `MaxEntScan_disrupted`: `YES` if `MaxEntScan_pct_decrease >= 0.15` (a ≥15% relative decrease from ref to alt), else `NO`.
 - `MaxEntScan_status`: Status contract (`scored`, or `not_covered` if ref/alt are unavailable *or* `MaxEntScan_ref <= 0` — a non-positive reference score is a normal outcome, not a predictor failure, so it is never tagged `error`).
-- **Not yet used in `NEW_IMPACT` or Module 3's scoring** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
+- **Not yet used in Module 3's impact or scoring** — informational only, by explicit decision (unlike Pangolin/SpliceAI/SPiP/SpliceVarDB, which do feed those). See [walkthrough/20260910_predictor_inventory_and_audit.md](../walkthrough/20260910_predictor_inventory_and_audit.md) (PRED-11) for rationale and status.
 
 ### G. Priority & Provenance Metadata
 - `5UTR_annotation`: one entry per affected uORF, `&`-separated; each entry is `consequence=<SO term>` followed by its key=value pairs in sorted order, `:`-separated (UTRAnnotatorPGP).
 - `5UTR_consequence`: every UTRAnnotator consequence term of the variant, `&`-separated, in a fixed order (uAUG gain, uAUG loss, uORF stop gain, uORF stop loss, uORF frameshift).
-- `UTRAnnotator_status`: `high_impact` (Whiffin et al. 2020 rule: uAUG gain forming an in-frame/out-of-frame oORF from a strong/moderate Kozak start; uORF stop loss with no other UTR stop, from a strong/moderate Kozak or translated uORF; uORF→oORF frameshift under the same condition), `other`, `unclassified` (deciding field missing), `no_uorf_effect` (5'UTR row evaluated, no uORF change), `not_evaluated`, `not_applicable` (not 5'UTR), `not_annotated` (plugin column absent). Only `high_impact` raises `NEW_IMPACT` (LOW/MODIFIER → MODERATE). Graded over every uORF class the variant has (`UTRAnnotatorPGP`, this repo's copy of the plugin; before 2026-11-10 one class per row chosen by hash order, `PRED-15`).
+- `UTRAnnotator_status`: `high_impact` (Whiffin et al. 2020 rule: uAUG gain forming an in-frame/out-of-frame oORF from a strong/moderate Kozak start; uORF stop loss with no other UTR stop, from a strong/moderate Kozak or translated uORF; uORF→oORF frameshift under the same condition), `other`, `unclassified` (deciding field missing), `no_uorf_effect` (5'UTR row evaluated, no uORF change), `not_evaluated`, `not_applicable` (not 5'UTR), `not_annotated` (plugin column absent). Module 3 raises its `NEW_IMPACT` only for `high_impact` (LOW/MODIFIER → MODERATE). Graded over every uORF class the variant has (`UTRAnnotatorPGP`, this repo's copy of the plugin; before 2026-11-10 one class per row chosen by hash order, `PRED-15`).
 - `gene_priority`: Priority category of target gene (`cardiac_primary`, `secondary`, etc.).
 - `SOURCE`: Pipeline stage / tool source.
 - `EVIDENCE`: Aggregated supporting evidence rationale.
@@ -197,3 +196,11 @@ VEP `--plugin NMD` (`NMD`: `NMD_escaping_variant` or empty) and the parser's `NM
 
 - 2026-11-24 (SF-06): `PRIORITY_TIER`, `VARIANT_PRIORITY_SCORE`, `TIER_RATIONALE`, `SCORE_EXPLANATION`, `ACMG_CRITERIA`, `HPO_MATCH`. Module 3 computes them. Older tables still carry Module 2's copies; do not read them.
 - 2026-11-24 (SF-08): `ACMG_SF_V3_2`, `DISEASE_GENE_EVIDENCE`, `DISEASE_CURATION_SOURCE`, `DISEASE_PHENOTYPE_MATCH`, `DISEASE_EVIDENCE_SCORE`, `HIGH_RISK_DISEASE_GENE`, `INHERITANCE_MODEL`, `SAMPLE_GENOTYPES_SUMMARY`. Module 3 computes them.
+- 2026-11-26 (SF-09): `NEW_IMPACT`, `QC_STATUS`, `QC_DETAIL` (DEC-0008 item 2). Module 3 computes them from the columns below.
+
+## Columns Module 3 reads for impact and QC
+
+Module 3 computes `QC_STATUS`/`QC_DETAIL` and `NEW_IMPACT` from these columns (DEC-0008). It does not fail when one is missing: its results change. Do not rename or drop them without telling Module 3. Listed in `src/python/parsing/modules/scoring.py` (`MODULE3_QC_INPUTS`, `MODULE3_IMPACT_INPUTS`); `tests/python/test_end_to_end_table.py::test_module3_input_columns_present` fails if one leaves the table.
+
+- QC: `QUAL`, `FILTER`, `QD`, `FS`, `MQ` (caller fields, passed through when the VCF has them).
+- Impact: `IMPACT`, `spliceAI_MAX`, `SpliceAI_status`, `spliceai_custom_MAX`, `SPiP_prediction`, `SPiP_interpretation`, `Pangolin_max_score`, `SpliceVault_status`, `am_pathogenicity`, `am_class`, `REVEL_score`, `CLINVAR_SELECTED_CLNSIG`, `UTRAnnotator_status`. Without `UTRAnnotator_status` Module 3 falls back to its old rule (any 5'UTR effect = HIGH).

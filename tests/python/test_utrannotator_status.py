@@ -1,4 +1,4 @@
-"""Synthetic checks for UTRAnnotator_status and its NEW_IMPACT effect (Whiffin et al. 2020 high-impact rule)."""
+"""Synthetic checks for UTRAnnotator_status (Whiffin et al. 2020 high-impact rule)."""
 import sys
 from pathlib import Path
 import numpy as np
@@ -6,7 +6,6 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'src/python'))
 from parsing.modules.predictors import parse_utrannotator
-from parsing.modules.acmg import build_newImpact
 
 GAIN = '5_prime_UTR_premature_start_codon_gain_variant'
 STOP_LOSS = '5_prime_UTR_uORF_stop_codon_loss_variant'
@@ -62,32 +61,6 @@ def test_rows_without_a_uorf_change():
 def test_missing_plugin_column_is_not_annotated():
     df = pd.DataFrame({'Consequence': ['5_prime_UTR_variant']})
     assert parse_utrannotator(df).UTRAnnotator_status.tolist() == ['not_annotated']
-
-
-def test_new_impact_moderate_only_for_high_impact_and_never_downgrades():
-    df = pd.DataFrame({
-        'IMPACT': ['MODIFIER', 'MODIFIER', 'LOW', 'MODIFIER'],
-        'Consequence': ['5_prime_UTR_variant'] * 4,
-        '5UTR_consequence': [GAIN, GAIN, STOP_LOSS, GAIN],
-        '5UTR_annotation': ['type=OutOfFrame_oORF:KozakStrength=Strong',
-                            'type=uORF:KozakStrength=Strong',
-                            'AltStop=False:KozakStrength=Moderate:Evidence=False',
-                            'type=OutOfFrame_oORF:KozakStrength=Strong'],
-        'Existing_uORFs': [1.0] * 4,
-        'Pangolin_max_score': [np.nan, np.nan, np.nan, 0.9],
-    })
-    result = build_newImpact(parse_utrannotator(df))
-    assert result.NEW_IMPACT.astype(str).tolist() == ['MODERATE', 'MODIFIER', 'MODERATE', 'HIGH']
-
-
-def test_new_impact_derives_status_when_column_absent():
-    df = pd.DataFrame({
-        'IMPACT': ['MODIFIER'], 'Consequence': ['5_prime_UTR_variant'],
-        '5UTR_consequence': [GAIN], '5UTR_annotation': ['type=inFrame_oORF:KozakStrength=Moderate'],
-    })
-    result = build_newImpact(df)
-    assert result.NEW_IMPACT.astype(str).tolist() == ['MODERATE']
-    assert 'UTRAnnotator_status' not in result.columns
 
 
 def test_linked_entries_are_graded_under_their_own_consequence():

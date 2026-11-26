@@ -63,8 +63,7 @@ def test_absent_sources_and_previously_imputed_uncovered_zero():
 
 def test_missing_spliceai_does_not_erase_other_predictor_scores():
     df = pd.DataFrame({'spliceai_custom_MAX': [None, 0, None], 'spliceAI_MAX': [None] * 3,
-                       'SPiP_prediction': [.8, .8, 0], 'Pangolin_max_score': [.3, .3, 0],
-                       'QC_STATUS': ['PASS'] * 3})
+                       'SPiP_prediction': [.8, .8, 0], 'Pangolin_max_score': [.3, .3, 0]})
     result = scoring.build_interpretation_inputs(df)
     assert result.SPiP_prediction.tolist() == [.8, .8, 0] and result.Pangolin_max_score.tolist() == [.3, .3, 0]
     assert result.SPLICE_MAX_UNIFIED.isna().tolist() == [True, False, True]
@@ -74,7 +73,7 @@ def test_missing_spliceai_does_not_erase_other_predictor_scores():
 
 def test_explicit_error_preserved_without_poisoning_valid_fallback():
     df = pd.DataFrame({'SpliceAI_status': ['error'] * 2, 'spliceAI_MAX': [None] * 2,
-                       'spliceai_custom_MAX': [None, 0], 'QC_STATUS': ['PASS'] * 2})
+                       'spliceai_custom_MAX': [None, 0]})
     result = scoring.build_interpretation_inputs(splicing.build_spliceMAX(df))
     assert result.SpliceAI_status.tolist() == ['error', 'error']
     assert result.SPLICEAI_STATUS.tolist() == ['error', 'scored']

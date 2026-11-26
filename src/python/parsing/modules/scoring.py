@@ -1,20 +1,29 @@
 """
-Interpretation inputs (gene curation, frequency status, unified SpliceAI), column ordering and frequency filters.
+Interpretation inputs (selected ClinVar record, frequency status, unified SpliceAI), column ordering and frequency filters.
 """
 import numpy as np
 import pandas as pd
 from . import logger
-from .io_qc import build_qc_status
+from .clinvar import annotate_clinvar
 from .splicing import _extract_spliceai_details
 from .population import annotate_population_af, resolve_population_af, rarity_af, ABSENT, GNOMAD_GRPMAX, GNOMAD_JOINT
 
 
-def build_interpretation_inputs(data: pd.DataFrame, freq_col: str = GNOMAD_GRPMAX) -> pd.DataFrame:
-    """Adds the annotation Module 3 scores from: population-frequency status and the unified SpliceAI
-    score. Variant scores, tiers, ACMG tags, gene curation and inheritance are computed by Module 3."""
-    if "QC_STATUS" not in data.columns:
-        data = build_qc_status(data)
+# Columns Module 3 reads to compute QC_STATUS, QC_DETAIL and NEW_IMPACT (DEC-0008). Module 3 does not fail when one is
+# missing: its results change. Keep the names.
+MODULE3_QC_INPUTS = ("QUAL", "FILTER", "QD", "FS", "MQ")
+MODULE3_IMPACT_INPUTS = (
+    "IMPACT", "spliceAI_MAX", "SpliceAI_status", "spliceai_custom_MAX", "SPiP_prediction", "SPiP_interpretation",
+    "Pangolin_max_score", "SpliceVault_status", "am_pathogenicity", "am_class", "REVEL_score",
+    "CLINVAR_SELECTED_CLNSIG", "UTRAnnotator_status",
+)
 
+
+def build_interpretation_inputs(data: pd.DataFrame, freq_col: str = GNOMAD_GRPMAX) -> pd.DataFrame:
+    """Adds the annotation Module 3 scores from: the selected ClinVar record, population-frequency status and the
+    unified SpliceAI score. Variant scores, tiers, impact, QC status, ACMG tags, gene curation and inheritance are
+    computed by Module 3."""
+    annotate_clinvar(data)
     annotate_population_af(data, freq_col)
 
     splice_max, splice_method = _extract_spliceai_details(data)
@@ -30,7 +39,7 @@ def build_interpretation_inputs(data: pd.DataFrame, freq_col: str = GNOMAD_GRPMA
 def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
     """Re-orders DataFrame columns so primary clinical triage tags are at the front."""
     front_cols = [
-        "SYMBOL", "Locus", "HGVSc", "HGVSp", "Consequence", "NEW_IMPACT", "IMPACT",
+        "SYMBOL", "Locus", "HGVSc", "HGVSp", "Consequence", "IMPACT",
         "GENE_TIER", "CLINGEN_VALIDITY", "GAMMA_WEIGHT", "PATHOGENIC_MECHANISM", "PVS1_ELIGIBILITY",
         "COMPOUND_HET_STATUS", "COMPOUND_HET_PAIR", "CRITICAL_DOMAINS_HOTSPOTS"
     ]
@@ -44,8 +53,7 @@ def order_clinical_columns(data: pd.DataFrame) -> pd.DataFrame:
         "SPiP_prediction", "SPiP", "Pangolin_max_score", "Pangolin",
         "SpliceVault_status", "LaBranchoR_status",
         "am_pathogenicity", "AlphaMissense", "REVEL_score", "REVEL",
-        "UTRAnnotator_status", "5UTR_consequence",
-        "QC_STATUS", "QC_DETAIL"
+        "UTRAnnotator_status", "5UTR_consequence"
     ]
 
     existing_cols = list(data.columns)
@@ -148,34 +156,3 @@ def filter_freq(
     logger.info(f"Frequency < {freq}: retained {len(new_df)} rows, including {absent} absent from gnomAD v4 and {int(unknown.sum())} with unknown AF")
     return new_df
 
-
-def classification_dominant(data: pd.DataFrame, freq_col: str, freq: float):
-    thresholds = {
-        ("prioritary", "HIGH"): 0.01,
-        ("prioritary", "MODERATE"): 1e-3,
-        ("prioritary", "MODIFIER"): 1e-3,
-        ("prioritary", "LOW"): 5e-4,
-        ("secondary", "HIGH"): 1e-4,
-        ("secondary", "MODERATE"): 1e-4,
-        ("secondary", "LOW"): 5e-4,
-        ("candidate", "HIGH"): 1e-4,
-        ("candidate", "MODERATE"): 1e-4,
-    }
-
-    data = data.copy()
-    annotate_population_af(data, freq_col)
-
-    def evaluate_variant(row):
-        prio = row["gene_priority"]
-        impact = row["NEW_IMPACT"]
-        freq_val = 0.0 if row["POPULATION_AF_STATUS"] == ABSENT else row["POPULATION_AF"]
-        if pd.isna(freq_val):
-            return "Unknown frequency"
-        limit = thresholds.get((prio, impact))
-        if limit and freq_val < limit:
-            return "Candidate"
-        return "Excluded"
-
-    data["Variant_rank"] = data.apply(evaluate_variant, axis=1)
-    logger.info("New column `Variant_rank` created based on gene priority, impact and frequency")
-    return data

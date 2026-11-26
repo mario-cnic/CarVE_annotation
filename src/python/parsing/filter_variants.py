@@ -13,7 +13,7 @@ try:
     from .modules.io_qc import (
         logger, LOGGING_MAP, GENOTYPE_QUAL_COLUMNS, GENE_PRIO_CHOICES, file_logging,
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
-        build_cDNA_MANE, build_locus, build_qc_status, filter_variant_quality,
+        build_cDNA_MANE, build_locus, filter_variant_quality,
         filter_genotype_quality, select_columns, select_samples, merge_sample_cols,
         remove_columns, check_coordinate_order, order_columns, save_data,
     )
@@ -34,7 +34,7 @@ try:
         prioritize_genes, validate_gene_categories, filter_by_gene_priority,
     )
     from .modules.acmg import (
-        _extract_clinvar_status, build_newImpact,
+        _extract_clinvar_status,
     )
     from .modules.pedigree import (
         read_pedigree_file, filter_phenotype, filter_by_dominant, mark_compound_het,
@@ -43,7 +43,7 @@ try:
     from .modules import population
     from .modules.scoring import (
         build_interpretation_inputs, order_clinical_columns, audit_annotation_availability,
-        filter_freq, classification_dominant,
+        filter_freq,
     )
     from .modules.chunked import (
         CoordinateOrder, PartWriter, locus_chunks, read_dtype_args, whole_file_dtypes,
@@ -53,7 +53,7 @@ except ImportError:
     from modules.io_qc import (
         logger, LOGGING_MAP, GENOTYPE_QUAL_COLUMNS, GENE_PRIO_CHOICES, file_logging,
         _safe_numeric_series, _safe_string_series, parse_genotype, fix_dup_columns,
-        build_cDNA_MANE, build_locus, build_qc_status, filter_variant_quality,
+        build_cDNA_MANE, build_locus, filter_variant_quality,
         filter_genotype_quality, select_columns, select_samples, merge_sample_cols,
         remove_columns, check_coordinate_order, order_columns, save_data,
     )
@@ -74,7 +74,7 @@ except ImportError:
         prioritize_genes, validate_gene_categories, filter_by_gene_priority,
     )
     from modules.acmg import (
-        _extract_clinvar_status, build_newImpact,
+        _extract_clinvar_status,
     )
     from modules.pedigree import (
         read_pedigree_file, filter_phenotype, filter_by_dominant, mark_compound_het,
@@ -83,7 +83,7 @@ except ImportError:
     from modules import population
     from modules.scoring import (
         build_interpretation_inputs, order_clinical_columns, audit_annotation_availability,
-        filter_freq, classification_dominant,
+        filter_freq,
     )
     from modules.chunked import (
         CoordinateOrder, PartWriter, locus_chunks, read_dtype_args, whole_file_dtypes,
@@ -140,12 +140,6 @@ def argparsing() -> argparse.ArgumentParser:
         type=str,
         help="column to filter variants",
         default="gnomADv4_AF_grpmax_joint",
-    )
-    parser.add_argument(
-        "--classification",
-        type=str,
-        help="Add classification to filter variants",
-        default="",
     )
     parser.add_argument(
         "--merge_samples",
@@ -224,7 +218,7 @@ def argparsing() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="TSV input to Parquet output: process about this many rows at a time (never splitting a "
-             "variant's rows) instead of loading the whole TSV; not with --genotype_file or --classification",
+             "variant's rows) instead of loading the whole TSV; not with --genotype_file",
     )
     parser.add_argument(
         "--pm2-absence-af",
@@ -263,12 +257,9 @@ def main(args: list[str] | None):
     first_cols = [
         "Locus",
         "SYMBOL",
-        "QC_STATUS",
-        "QC_DETAIL",
         "HGVSc",
         "HGVSp",
         "CDNA_NAME",
-        "NEW_IMPACT",
         "IMPACT",
         "intron_offset_signed",
         "splice_side",
@@ -454,15 +445,8 @@ def transform(data, args, state, pedigree, first_cols, coordinates=None):
         state["gene_constraint"] = load_gene_constraint(args.gene_constraint_table)
     data = annotate_gene_constraint(data, state.get("gene_constraint"))
 
-    data = build_qc_status(data)
-    data = build_newImpact(data)
     data = build_interpretation_inputs(data, freq_col=args.freq_col)
 
-    if args.classification == 'dominant':
-        data = classification_dominant(data=data, freq_col=args.freq_col, freq=args.freq)
-        first_cols += ["Variant_rank"]
-    elif args.classification:
-        logger.warning(f"Invalid classification {args.classification}, should be one of [dominant]")
     
     if args.merge_samples:
         data = merge_sample_cols(data, pattern="GT_")
@@ -506,9 +490,9 @@ def log_coordinate_order(coordinate_order):
 def run_chunked(args, read_kwargs, first_cols):
     """TSV -> Parquet in Locus-aligned chunks with the whole file's column dtypes; same rows, order and
     schema as loading the whole TSV. Steps that compare rows of different variants are refused."""
-    if args.genotype_file or args.classification:
-        raise ValueError("--chunk-rows cannot be combined with --genotype_file or --classification "
-                         "(compound-het marking and ranking compare rows of different variants)")
+    if args.genotype_file:
+        raise ValueError("--chunk-rows cannot be combined with --genotype_file "
+                         "(compound-het marking compares rows of different variants)")
     logger.info(f"First pass over {args.input}: column dtypes in chunks of {args.chunk_rows} rows")
     kinds = whole_file_dtypes(args.input, read_kwargs, args.chunk_rows)
     logger.info(f"Column dtypes of the whole file: {dict(Counter(kinds.values()))}")

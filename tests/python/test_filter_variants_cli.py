@@ -23,7 +23,8 @@ def test_freq_zero_filters(monkeypatch):
     assert run_transform(monkeypatch, []) == []
 
 
-@pytest.mark.parametrize("option", [["--genotype_filter"], ["--genotype_group", "x"], ["--disease-gene-list", "x.csv"]])
-def test_unused_genotype_options_removed(option):
+@pytest.mark.parametrize("option", [["--genotype_filter"], ["--genotype_group", "x"], ["--disease-gene-list", "x.csv"],
+                                    ["--classification", "dominant"]])
+def test_removed_options_rejected(option):
     with pytest.raises(SystemExit):
         fv.argparsing().parse_args(option)

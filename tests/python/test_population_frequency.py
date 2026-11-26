@@ -42,7 +42,7 @@ def test_legacy_is_only_used_when_explicitly_requested():
 def test_table_status_absent_zero_joint_fallback_and_uncovered_record():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None, '.', None],
                        GNOMAD_JOINT: [None, .2, .1, None, None],
-                       GNOMAD_AN_JOINT: [None, 1000, 1000, None, 0], 'MAX_AF': [.5] * 5, 'QC_STATUS': ['PASS'] * 5})
+                       GNOMAD_AN_JOINT: [None, 1000, 1000, None, 0], 'MAX_AF': [.5] * 5})
     result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'available_frequency', ABSENT,
                                                     'missing_frequency']
@@ -65,11 +65,12 @@ def test_absent_requires_gnomad_annotation_and_no_record():
 
 def test_no_variant_score_tier_or_acmg_columns():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0], 'Consequence': ['missense_variant'] * 2,
-                       'REVEL_score': [.8] * 2, 'NEW_IMPACT': ['MODERATE'] * 2, 'QC_STATUS': ['PASS'] * 2})
+                       'REVEL_score': [.8] * 2})
     result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == ['missing_frequency', 'available_frequency']
     assert not {'PRIORITY_TIER', 'VARIANT_PRIORITY_SCORE', 'ACMG_CRITERIA', 'TIER_RATIONALE',
-                'SCORE_EXPLANATION', 'HPO_MATCH', 'DISEASE_GENE_EVIDENCE', 'ACMG_SF_V3_2'} & set(result.columns)
+                'SCORE_EXPLANATION', 'HPO_MATCH', 'DISEASE_GENE_EVIDENCE', 'ACMG_SF_V3_2',
+                'NEW_IMPACT', 'QC_STATUS', 'QC_DETAIL'} & set(result.columns)
 
 
 def test_filters_retain_unknown_without_zero_imputation():
@@ -79,23 +80,19 @@ def test_filters_retain_unknown_without_zero_imputation():
     assert strict.POPULATION_AF.isna().sum() == 2
 
 
-def test_filters_retain_absent_and_dominant_ranks_it_candidate():
+def test_filters_retain_absent():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, None, None], GNOMAD_JOINT: [None, .1, None],
-                       GNOMAD_AN_JOINT: [None, 100, 0],
-                       'gene_priority': ['prioritary'] * 3, 'NEW_IMPACT': ['HIGH'] * 3})
+                       GNOMAD_AN_JOINT: [None, 100, 0]})
     strict = scoring.filter_freq(df, .001)
     assert strict.index.tolist() == [0, 2]
     assert strict.POPULATION_AF.isna().all()
     assert strict.POPULATION_AF_STATUS.tolist() == [ABSENT, 'missing_frequency']
-    ranks = scoring.classification_dominant(df, GNOMAD_GRPMAX, .001).Variant_rank.tolist()
-    assert ranks == ['Candidate', 'Excluded', 'Unknown frequency']
 
 
 def test_absent_from_gnomad_status_and_frequency():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, 0, None], GNOMAD_JOINT: [None, 0, None],
                        GNOMAD_AN_JOINT: [None, 1000, 0], 'Consequence': ['stop_gained'] * 3,
-                       'pLI_gene_value': [1.] * 3, 'NEW_IMPACT': ['HIGH'] * 3,
-                       'QC_STATUS': ['PASS'] * 3})
+                       'pLI_gene_value': [1.] * 3})
     result = scoring.build_interpretation_inputs(df)
     assert result.POPULATION_AF_STATUS.tolist() == [ABSENT, 'available_frequency', 'missing_frequency']
     assert pd.isna(result.POPULATION_AF.iloc[0]) and result.POPULATION_AF.iloc[1] == 0
@@ -112,7 +109,7 @@ def test_all_unknown_filter_and_availability():
 
 
 def test_explicit_column_used_for_the_table_frequency():
-    df = pd.DataFrame({GNOMAD_GRPMAX: [0], 'chosen_frequency': [.1], 'QC_STATUS': ['PASS']})
+    df = pd.DataFrame({GNOMAD_GRPMAX: [0], 'chosen_frequency': [.1]})
     result = scoring.build_interpretation_inputs(df, freq_col='chosen_frequency')
     assert result.POPULATION_AF_SOURCE.iloc[0] == 'chosen_frequency' and result.POPULATION_AF.iloc[0] == .1
 
@@ -139,8 +136,7 @@ def test_absence_needs_enough_site_an():
     df = pd.DataFrame({GNOMAD_GRPMAX: [None, None, None, 0], GNOMAD_JOINT: [None, None, None, 0],
                        GNOMAD_AN_JOINT: [None, None, None, 1000],
                        'gnomADv4AN_exomes': ['1400000', '', '', '10'], 'gnomADv4AN_genomes': ['150000', '74893', '', '10'],
-                       'Consequence': ['stop_gained'] * 4, 'pLI_gene_value': [1.] * 4,
-                       'NEW_IMPACT': ['HIGH'] * 4, 'QC_STATUS': ['PASS'] * 4})
+                       'Consequence': ['stop_gained'] * 4, 'pLI_gene_value': [1.] * 4})
     af, _, status = resolve_population_af(df)
     assert status.tolist() == [ABSENT, ABSENT_LOW_AN, ABSENT_LOW_AN, 'available_frequency']
     assert af.iloc[:3].isna().all()

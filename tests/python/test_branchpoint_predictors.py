@@ -8,7 +8,7 @@ import pandas as pd
 PIPELINE_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(PIPELINE_ROOT, "src", "python", "parsing"))
 
-from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS, build_newImpact  # noqa: E402
+from filter_variants import parse_branchpointer, NEW_BRANCHPOINT_COLUMNS  # noqa: E402
 
 
 def test_labranchor_positional_columns_only():
@@ -26,13 +26,6 @@ def test_parse_branchpointer_missing_columns():
     assert list(res.columns) == ["Locus"]
 
 
-def test_labranchor_score_alone_does_not_raise_new_impact():
-    # PRED-18: a positional LaBranchoR hit (site score >= 0.5) made NEW_IMPACT HIGH whatever the alleles.
-    df = pd.DataFrame({"IMPACT": ["MODIFIER", "LOW"], "LaBranchoR_score": [0.95, 0.80], "Locus": ["chr1:1-A-G", "chr1:2-C-T"]})
-    out = build_newImpact(parse_branchpointer(df))
-    assert out["NEW_IMPACT"].astype(str).tolist() == ["MODIFIER", "LOW"]
-
-
 def test_labranchor_ism_columns_and_status():
     from modules.splicing import LABRANCHOR_ISM_COLUMNS
     df = pd.DataFrame({"LaBranchoR_score": [np.nan] * 3, "LaBranchoR_acc_dist": [np.nan] * 3,
@@ -43,5 +36,3 @@ def test_labranchor_ism_columns_and_status():
     assert res["LaBranchoR_ISM_status"].tolist() == ["scored", "not_covered", "not_applicable"]
     assert res.loc[0, "LaBranchoR_ISM_d_best"] == -0.8 and res.loc[0, "LaBranchoR_ISM_dist"] == 30
     assert all(c in res.columns for c in LABRANCHOR_ISM_COLUMNS)
-    out = build_newImpact(res.assign(IMPACT="MODIFIER"))
-    assert (out["NEW_IMPACT"].astype(str) == "MODIFIER").all()           # informational only

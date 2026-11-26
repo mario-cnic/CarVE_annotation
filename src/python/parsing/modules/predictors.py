@@ -367,8 +367,7 @@ def parse_remm(data: pd.DataFrame) -> pd.DataFrame:
 
     ReMM is one score per genomic position, not per allele, so only SNVs are scored and every
     ALT at the same position gets the same value. Non-SNVs are not_applicable; an SNV with no
-    value in the track is not_covered (never 0). Informational only: no effect on NEW_IMPACT
-    or PRIORITY_TIER.
+    value in the track is not_covered (never 0). Informational only.
     """
     if "ReMM" not in data.columns or "VARIANT_CLASS" not in data.columns:
         data["ReMM_score"] = np.nan
@@ -406,7 +405,7 @@ def parse_avi(data: pd.DataFrame) -> pd.DataFrame:
 
     AlphaGenome AVI scores exist for SNVs only, one per allele. The plugin leaves both columns empty
     for a non-SNV (not_applicable) and for an SNV absent from the file (not_covered, never 0).
-    Informational only: no effect on NEW_IMPACT or PRIORITY_TIER.
+    Informational only.
     """
     if "AVI_PHRED" not in data.columns or "VARIANT_CLASS" not in data.columns:
         data["AVI_PHRED"] = np.nan
@@ -611,10 +610,3 @@ def annotate_gene_constraint(data: pd.DataFrame, table: pd.DataFrame | None) -> 
     data["gene_constraint_status"] = status
     logger.info(f"New column `gene_constraint_status` created with value counts: {dict(status.value_counts())}")
     return data
-
-
-def utr5_high_impact_mask(data: pd.DataFrame) -> pd.Series:
-    """Rows whose UTRAnnotator_status is high_impact; derives the status first when the column is absent."""
-    if "UTRAnnotator_status" not in data.columns:
-        data = parse_utrannotator(data.copy())
-    return data["UTRAnnotator_status"].eq(UTR5_HIGH_IMPACT)

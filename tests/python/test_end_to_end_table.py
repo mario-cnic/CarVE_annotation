@@ -12,6 +12,7 @@ import pytest
 
 pytest.importorskip("vcf_parser")
 REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO / "src/python/parsing"))
 RES = REPO / "resources"
 MYH7, TTN = "ENSG00000092054", "ENSG00000155657"
 COLS = ["Allele", "Consequence", "IMPACT", "SYMBOL", "Gene", "Feature_type", "Feature", "BIOTYPE", "HGVSc", "HGVSp",
@@ -50,10 +51,11 @@ def tables(tmp_path_factory):
     header = ["##fileformat=VCFv4.2"] + [f"##contig=<ID={c},length=250000000>" for c in ("chr1", "chr2", "chr14")]
     header += ['##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence annotations from Ensembl VEP. Format: '
                + "|".join(COLS) + '">', '##INFO=<ID=SpliceAI,Number=.,Type=String,Description="x">',
-               '##INFO=<ID=Pangolin,Number=.,Type=String,Description="x">', "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"]
+               '##INFO=<ID=Pangolin,Number=.,Type=String,Description="x">',
+               *[f'##INFO=<ID={k},Number=1,Type=Float,Description="x">' for k in ("QD", "FS", "MQ")], "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO"]
     lines = []
     for chrom, pos, ref, alt, entries, info in RECORDS:
-        fields = ([f"CSQ={','.join(entries)}"] if entries else []) + ([info] if info else [])
+        fields = ([f"CSQ={','.join(entries)}"] if entries else []) + ([info] if info else []) + ["QD=20.0;FS=0.5;MQ=60.0"]
         lines.append(f"{chrom}\t{pos}\t.\t{ref}\t{alt}\t60\tPASS\t{';'.join(fields) or '.'}")
     (tmp / "in.vcf").write_text("\n".join(header + lines) + "\n")
     (tmp / "cols.txt").write_text("\n".join(COLS) + "\n")
@@ -101,6 +103,18 @@ def test_row_contracts(tables):
     assert mane["TRANSCRIPT_PRIORITY_TIER"] in (1, 2)
     no_csq = tables["final"][tables["final"]["Locus"] == "chr1:1000000-G-A"].iloc[0]
     assert pd.isna(no_csq["HGVSc"]) and pd.isna(no_csq["Feature"])
-    assert tables["whole"]["NEW_IMPACT"].cat.categories.tolist() == ["HIGH", "MODERATE", "LOW", "MODIFIER"]
+    assert not {"NEW_IMPACT", "QC_STATUS", "QC_DETAIL"} & set(tables["final"].columns)    # computed by Module 3
     assert {"NMD_STATUS", "NMD_RULE", "NMD_PTC_BASIS"} <= set(tables["final"].columns)
     assert (tables["final"]["NMD_STATUS"] != "not_annotated").all()                # exon table passed through
+
+
+def test_module3_input_columns_present(tables):
+    # Module 3 computes QC_STATUS/QC_DETAIL and NEW_IMPACT from these; a missing one changes its results silently.
+    from modules.scoring import MODULE3_QC_INPUTS, MODULE3_IMPACT_INPUTS
+    from modules.splicing import NEW_SPIP_COLUMNS
+    spip = {NEW_SPIP_COLUMNS["prediction"], NEW_SPIP_COLUMNS["interpretation"]}   # this fixture has no SPiP INFO
+    assert spip == {"SPiP_prediction", "SPiP_interpretation"}
+    missing = [c for c in MODULE3_QC_INPUTS + MODULE3_IMPACT_INPUTS if c not in tables["final"].columns and c not in spip]
+    assert not missing
+    row = tables["final"].iloc[0]
+    assert (row["QD"], row["FS"], row["MQ"]) == (20.0, 0.5, 60.0)
